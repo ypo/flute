@@ -2,11 +2,11 @@
 #[repr(u8)]
 #[derive(Clone, Copy)]
 pub enum FECEncodingID {
-    FECNoCode = 0,
-    FECSmallLargeExpandable = 128,
-    FECReedSolomonGF28 = 129,
-    FECReedSolomonGF2M = 2,
-    FECLDPCStaircase = 3,
+    NoCode = 0,
+    SmallLargeExpandable = 128,
+    ReedSolomonGF28 = 129,
+    ReedSolomonGF2M = 2,
+    LDPCStaircase = 3,
 }
 
 pub struct Oti {

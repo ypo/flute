@@ -1,3 +1,5 @@
+use crate::tools::error::{FluteError, Result};
+
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq)]
 pub enum CENC {
@@ -17,7 +19,17 @@ pub enum EXT {
     Time = 2,
 }
 
-pub const toi_fdt: u128 = 0;
+pub const TOI_FDT: u128 = 0;
+
+#[derive(Clone, Debug)]
+pub struct LCTHeader {
+    pub len: usize,
+    pub cci: u128,
+    pub tsi: u64,
+    pub toi: u128,
+    pub cp: u8,
+    pub header_ext_offset: u32,
+}
 
 fn nb_bytes_128(cci: &u128) -> u32 {
     if (cci & 0xFFFF0000000000000000000000000000) != 0x0 {
@@ -154,11 +166,18 @@ fn nb_bytes_64(n: u64) -> u32 {
  *      field is similar to the Payload Type (PT) field in RTP headers as
  *      described in [RFC3550].
  */
-pub fn push_lct_header(data: &mut Vec<u8>, psi: u8, cci: &u128, tsi: u64, toi: &u128, codepoint: u8) {
+pub fn push_lct_header(
+    data: &mut Vec<u8>,
+    psi: u8,
+    cci: &u128,
+    tsi: u64,
+    toi: &u128,
+    codepoint: u8,
+) {
     let cci_size = nb_bytes_128(cci);
     let tsi_size = nb_bytes_64(tsi);
     let toi_size = nb_bytes_128(toi);
-
+    
     let h_tsi = (tsi_size & 2) >> 1; // Is TSI half-word ?
     let h_toi = (toi_size & 2) >> 1; // Is TOI half-word ?
 
@@ -174,23 +193,23 @@ pub fn push_lct_header(data: &mut Vec<u8>, psi: u8, cci: &u128, tsi: u64, toi: &
         _ => 3,
     };
     let hdr_len: u8 = (2 + o + s + h + c) as u8;
-    let v = 1;
+    let v = 2;
     let lct_header: u32 = (codepoint as u32)
         | ((hdr_len as u32) << 8)
         | (b as u32) << 16
         | (a as u32) << 17
-        | (h as u32) << 19
-        | (o as u32) << 20
-        | (s as u32) << 22
-        | (psi as u32) << 23
-        | (c as u32) << 25
-        | (v as u32) << 27;
-        
+        | (h as u32) << 20
+        | (o as u32) << 21
+        | (s as u32) << 23
+        | (psi as u32) << 24
+        | (c as u32) << 26
+        | (v as u32) << 28;
+
     data.extend(lct_header.to_be_bytes());
 
     // Insert CCI
     let cci_net = cci.to_be_bytes();
-    let cci_net_start: usize = cci_net.len() - ((c+1) << 2) as usize;
+    let cci_net_start: usize = cci_net.len() - ((c + 1) << 2) as usize;
     data.extend(&cci_net[cci_net_start..]);
 
     // Insert TSI
@@ -202,11 +221,98 @@ pub fn push_lct_header(data: &mut Vec<u8>, psi: u8, cci: &u128, tsi: u64, toi: &
     let toi_net = toi.to_be_bytes();
     let toi_net_start = toi_net.len() - ((o << 2) + (h << 1)) as usize;
     data.extend(&toi_net[toi_net_start..]);
-    
 }
 
 pub fn inc_hdr_len(data: &mut Vec<u8>, val: u8) {
     data[2] += val;
+}
+
+pub fn parse_lct_header(data: &Vec<u8>) -> Result<LCTHeader> {
+    /*
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |   V   | C |PSI|S| O |H|Res|A|B|   HDR_LEN     | Codepoint (CP)|
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  | Congestion Control Information (CCI, length = 32*(C+1) bits)  |
+     *  |                          ...                                  |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |  Transport Session Identifier (TSI, length = 32*S+16*H bits)  |
+     *  |                          ...                                  |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |   Transport Object Identifier (TOI, length = 32*O+16*H bits)  |
+     *  |                          ...                                  |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |                Header Extensions (if applicable)              |
+     *  |                          ...                                  |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     */
+
+    let len = data.get(2).map_or_else(
+        || Err(FluteError::new("Fail to read lct header size")),
+        |&v| Ok((v as usize) << 2),
+    )?;
+
+    if len > data.len() {
+        return Err(FluteError::new(format!(
+            "lct header size is {} whereas pkt size is {}",
+            len,
+            data.len()
+        )));
+    }
+
+    let cp = data[3];
+    let flags1 = data[0];
+    let flags2 = data[1];
+
+    let c = (flags1 >> 2) & 0x3;
+    let s = (flags2 >> 7) & 0x1;
+    let o = (flags2 >> 5) & 0x3;
+    let h = (flags2 >> 4) & 0x1;
+    let version = flags1 >> 4;
+    if version != 1 && version != 2 {
+        return Err(FluteError::new(format!(
+            "FLUTE version {} is not supported",
+            version
+        )));
+    }
+
+    let cci_len = ((c + 1) as u32) << 2;
+    let tsi_len = ((s as u32) << 2) + ((h as u32) << 1);
+    let toi_len = ((o as u32) << 2) + ((h as u32) << 1);
+
+    let cci_from: usize = 4;
+    let cci_to: usize = (4 + cci_len) as usize;
+    let tsi_to: usize = cci_to + tsi_len as usize;
+    let toi_to: usize = tsi_to + toi_len as usize;
+    let header_ext_offset = toi_to as u32 + toi_len;
+
+    if toi_to > data.len() || cci_len > 16 || tsi_len > 8 || toi_len > 16 {
+        return Err(FluteError::new(format!(
+            "toi ends to offset {} whereas pkt size is {}",
+            toi_to,
+            data.len()
+        )));
+    }
+
+    let mut cci: [u8; 16] = [0; 16]; // Store up to 128 bits
+    let mut tsi: [u8; 8] = [0; 8]; // Store up to 64 bits
+    let mut toi: [u8; 16] = [0; 16]; // Store up to 128 bits
+
+    let _ = &cci[(16 - cci_len) as usize..].copy_from_slice(&data[cci_from..cci_to]);
+    let _ = &tsi[(8 - tsi_len) as usize..].copy_from_slice(&data[cci_to..tsi_to]);
+    let _ = &toi[(16 - toi_len) as usize..].copy_from_slice(&data[tsi_to..toi_to]);
+
+    let cci = u128::from_be_bytes(cci);
+    let tsi = u64::from_be_bytes(tsi);
+    let toi = u128::from_be_bytes(toi);
+
+    Ok(LCTHeader {
+        len,
+        cci,
+        tsi,
+        toi,
+        cp,
+        header_ext_offset,
+    })
 }
 
 #[cfg(test)]
