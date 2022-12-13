@@ -20,3 +20,10 @@ impl FluteError {
         FluteError(std::io::Error::new(kind, msg))
     }
 }
+
+impl From<std::io::Error> for FluteError {
+    fn from(err: std::io::Error) -> Self {
+        log::error!("{:?}", err);
+        FluteError(err)
+    }
+}

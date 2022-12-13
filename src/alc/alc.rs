@@ -41,10 +41,8 @@ pub fn create_alc_pkt(
             }
             push_fec_payload_id_16x16(&mut data, pkt.snb as u16, pkt.esi as u16);
         }
-        oti::FECEncodingID::SmallLargeExpandable => todo!(),
         oti::FECEncodingID::ReedSolomonGF28 => todo!(),
         oti::FECEncodingID::ReedSolomonGF2M => todo!(),
-        oti::FECEncodingID::LDPCStaircase => todo!(),
     }
     push_payload(&mut data, pkt);
     data
@@ -176,18 +174,7 @@ mod tests {
     pub fn test_alc_create() {
         init();
 
-        let oti = oti::Oti {
-            fec: oti::FECEncodingID::NoCode,
-            fec_instance_id: 1,
-            maximum_source_block_length: 1,
-            encoding_symbol_length: 1433,
-            max_number_of_encoding_symbols: 10,
-            reed_solomon_m: 0,
-            g: 0,
-            valid: true,
-            inband_oti: true,
-        };
-
+        let oti: oti::Oti = Default::default();
         let cci: u128 = 0x804754755879;
         let tsi: u64 = 0x055789451234;
 

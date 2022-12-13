@@ -7,7 +7,6 @@ pub enum CENC {
     Zlib = 1,
     Deflate = 2,
     Gzip = 3,
-    Lzma = 4,
 }
 
 #[repr(u8)]
