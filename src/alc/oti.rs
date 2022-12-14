@@ -15,7 +15,7 @@ pub struct Oti {
     pub fec_instance_id: u16,
     pub maximum_source_block_length: u32,
     pub encoding_symbol_length: u16,
-    pub max_number_of_encoding_symbols: u32,
+    pub max_number_of_parity_symbols: u32,
     pub reed_solomon_m: u8,
     pub g: u8,
     pub inband_oti: bool,
@@ -28,7 +28,7 @@ impl Default for Oti {
             fec_instance_id: 0,
             maximum_source_block_length: 64,
             encoding_symbol_length: 1424,
-            max_number_of_encoding_symbols: 0,
+            max_number_of_parity_symbols: 2,
             reed_solomon_m: 8,
             g: 1,
             inband_oti: true,
@@ -43,10 +43,7 @@ impl Oti {
             fec_oti_fec_instance_id: Some(self.fec_instance_id as u64),
             fec_oti_maximum_source_block_length: Some(self.maximum_source_block_length as u64),
             fec_oti_encoding_symbol_length: Some(self.encoding_symbol_length as u64),
-            fec_oti_max_number_of_encoding_symbols: match self.max_number_of_encoding_symbols {
-                value if value > 0 => Some(value as u64),
-                _ => None,
-            },
+            fec_oti_max_number_of_encoding_symbols: Some(self.maximum_source_block_length as u64 + self.max_number_of_parity_symbols as u64),
             fec_oti_scheme_specific_info: self.scheme_specific_info(),
         }
     }

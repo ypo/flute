@@ -1,7 +1,7 @@
 use crate::tools::error::{FluteError, Result};
 
 #[repr(u8)]
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum CENC {
     Null = 0,
     Zlib = 1,

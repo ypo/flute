@@ -23,7 +23,8 @@ pub fn create_alc_pkt(
     lct::push_lct_header(&mut data, 0, &cci, tsi, &pkt.toi, oti.fec as u8);
 
     if pkt.toi == lct::TOI_FDT {
-        push_fdt(&mut data, 2, pkt.fdt_id)
+        assert!(pkt.fdt_id.is_some());
+        push_fdt(&mut data, 2, pkt.fdt_id.unwrap())
     }
 
     if pkt.cenc != lct::CENC::Null && pkt.inband_cenc {
@@ -37,7 +38,7 @@ pub fn create_alc_pkt(
     match oti.fec {
         oti::FECEncodingID::NoCode => {
             if pkt.toi == lct::TOI_FDT || oti.inband_oti {
-                push_no_code_oti(&mut data, oti, pkt.transfer_size);
+                push_no_code_oti(&mut data, oti, pkt.transfer_length);
             }
             push_fec_payload_id_16x16(&mut data, pkt.snb as u16, pkt.esi as u16);
         }
@@ -180,15 +181,13 @@ mod tests {
 
         let pkt = pkt::Pkt {
             payload: vec!['h' as u8, 'e' as u8, 'l' as u8, 'l' as u8, 'o' as u8],
-            transfer_size: 5,
-            block_length: 5,
             esi: 1,
             snb: 2,
             toi: 3,
-            fdt_id: 4,
+            fdt_id: None,
             cenc: lct::CENC::Null,
             inband_cenc: true,
-            is_source_symbol: true,
+            transfer_length: 5,
         };
 
         let alc_pkt = super::create_alc_pkt(&oti, &cci, tsi, &pkt, None);

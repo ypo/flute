@@ -83,7 +83,7 @@ impl Fdt {
     }
 
     pub fn add_object(&mut self, obj: Box<objectdesc::ObjectDesc>) {
-        let filedesc = FileDesc::new(obj, &self.oti, &self.toi);
+        let filedesc = FileDesc::new(obj, &self.oti, &self.toi, None);
         self.toi += 1;
         if self.toi == lct::TOI_FDT {
             self.toi = 1;

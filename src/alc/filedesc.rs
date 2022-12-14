@@ -10,10 +10,16 @@ pub struct FileDesc {
     pub object: Box<ObjectDesc>,
     pub oti: oti::Oti,
     pub toi: u128,
+    pub fdt_id: Option<u32>,
 }
 
 impl FileDesc {
-    pub fn new(object: Box<ObjectDesc>, default_oti: &oti::Oti, toi: &u128) -> Rc<FileDesc> {
+    pub fn new(
+        object: Box<ObjectDesc>,
+        default_oti: &oti::Oti,
+        toi: &u128,
+        fdt_id: Option<u32>,
+    ) -> Rc<FileDesc> {
         let oti = match &object.oti {
             Some(res) => res.clone(),
             None => default_oti.clone(),
@@ -22,6 +28,7 @@ impl FileDesc {
             object,
             oti,
             toi: toi.clone(),
+            fdt_id,
         })
     }
 

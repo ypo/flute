@@ -32,14 +32,16 @@ impl Sender {
         fdt.publish();
     }
 
-    pub fn run(&mut self) {
-        self.run_send_object();
+    pub fn run(&mut self) -> bool {
+        self.run_send_object()
     }
 
     pub fn run_send_object(&mut self) -> bool {
+        log::debug!("Send object");
         let mut ret = false;
         let session_index_orig = self.session_index;
         loop {
+            log::debug!("Get session {}", self.session_index);
             let session = self.sessions.get_mut(self.session_index).unwrap();
             let data = session.run();
 
@@ -49,6 +51,8 @@ impl Sender {
             }
 
             if data.is_some() {
+                let pkt = data.as_ref().unwrap();
+                log::info!("Send data {:?}", pkt);
                 ret = true;
                 break;
             }
@@ -76,17 +80,27 @@ mod tests {
     pub fn test_sender() {
         init();
 
-        let oti = Default::default();
+        let mut oti: oti::Oti = Default::default();
+        oti.fec = oti::FECEncodingID::ReedSolomonGF28;
         let mut sender = super::Sender::new(1, &oti);
+        let mut buffer: Vec<u8> = Vec::new();
+        buffer.extend(vec![0xAA; oti.encoding_symbol_length as usize / 2]);
+        buffer.extend(vec![0xBB; oti.encoding_symbol_length as usize / 2]);
+        buffer.extend(vec![0xCC; oti.encoding_symbol_length as usize / 2]);
         sender.add_object(
             objectdesc::ObjectDesc::create_from_buffer(
-                &"hello".as_bytes().to_vec(),
+                &buffer,
                 "text",
                 &url::Url::parse("file:///hello").unwrap(),
             )
             .unwrap(),
         );
         sender.publish();
-        sender.run();
+        loop {
+            let success = sender.run();
+            if success == false {
+                break;
+            }
+        }
     }
 }
