@@ -13,7 +13,9 @@ struct Sender {
 impl Sender {
     pub fn new(fdtid: u32, oti: &oti::Oti) -> Sender {
         let fdt = Rc::new(RefCell::new(Fdt::new(fdtid, oti)));
-        let sessions = (0..4).map(|_| SenderSession::new(fdt.clone(), 4)).collect();
+        let sessions = (0..4)
+            .map(|index| SenderSession::new(fdt.clone(), 4, index == 0))
+            .collect();
 
         Sender {
             fdt,
@@ -81,24 +83,31 @@ mod tests {
         init();
 
         let mut oti: oti::Oti = Default::default();
-        oti.fec = oti::FECEncodingID::ReedSolomonGF28;
+        // oti.fec = oti::FECEncodingID::ReedSolomonGF28;
         let mut sender = super::Sender::new(1, &oti);
         let mut buffer: Vec<u8> = Vec::new();
         buffer.extend(vec![0xAA; oti.encoding_symbol_length as usize / 2]);
-        buffer.extend(vec![0xBB; oti.encoding_symbol_length as usize / 2]);
-        buffer.extend(vec![0xCC; oti.encoding_symbol_length as usize / 2]);
+        // buffer.extend(vec![0xBB; oti.encoding_symbol_length as usize / 2]);
+        // buffer.extend(vec![0xCC; oti.encoding_symbol_length as usize / 2]);
         sender.add_object(
             objectdesc::ObjectDesc::create_from_buffer(
                 &buffer,
                 "text",
                 &url::Url::parse("file:///hello").unwrap(),
+                1,
+                None,
             )
             .unwrap(),
         );
         sender.publish();
+        let mut nb = 0;
         loop {
             let success = sender.run();
+            std::thread::sleep(std::time::Duration::from_secs(1));
             if success == false {
+                nb += 1;
+            }
+            if nb > 2 {
                 break;
             }
         }

@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::filedesc;
@@ -44,6 +45,7 @@ pub struct Fdt {
     files_transfer_queue: Vec<Rc<FileDesc>>,
     fdt_transfer_queue: Vec<Rc<FileDesc>>,
     files: std::collections::HashMap<u128, Rc<FileDesc>>,
+    current_fdt_transfer: Option<Rc<FileDesc>>,
 }
 
 impl Fdt {
@@ -55,6 +57,7 @@ impl Fdt {
             files_transfer_queue: Vec::new(),
             fdt_transfer_queue: Vec::new(),
             files: std::collections::HashMap::new(),
+            current_fdt_transfer: None,
         }
     }
 
@@ -95,17 +98,84 @@ impl Fdt {
         self.files_transfer_queue.push(filedesc);
     }
 
-    pub fn publish(&mut self) {}
-
-    pub fn get_next_fdt(&mut self) -> Option<Rc<FileDesc>> {
-        self.fdt_transfer_queue.pop()
+    pub fn publish(&mut self) -> Result<()> {
+        let content = self.to_xml()?;
+        let obj = objectdesc::ObjectDesc::create_from_buffer(
+            &content,
+            "text/xml",
+            &url::Url::parse("file:///").unwrap(),
+            1,
+            Some(std::time::Duration::new(1, 0)),
+        )?;
+        let filedesc = FileDesc::new(obj, &self.oti, &lct::TOI_FDT, Some(self.fdtid));
+        self.fdt_transfer_queue.push(filedesc);
+        self.fdtid = (self.fdtid + 1) & 0xFFFFF;
+        Ok(())
     }
 
-    pub fn get_next_file(&mut self) -> Option<Rc<FileDesc>> {
-        self.files_transfer_queue.pop()
+    pub fn get_next_fdt_transfer(&mut self) -> Option<Rc<FileDesc>> {
+        if self.current_fdt_transfer.is_some() {
+            if self
+                .current_fdt_transfer
+                .as_ref()
+                .unwrap()
+                .is_transferring()
+            {
+                return None;
+            }
+        }
+
+        if !self.fdt_transfer_queue.is_empty() {
+            self.current_fdt_transfer = self.fdt_transfer_queue.pop();
+        }
+
+        if self.current_fdt_transfer.is_none() {
+            return None;
+        }
+
+        let now = std::time::Instant::now();
+        match &self.current_fdt_transfer {
+            Some(value) if value.should_transfer_now(now) => {
+                value.transfer_started();
+                Some(value.clone())
+            }
+            _ => None,
+        }
     }
 
-    pub fn release_next_file(&mut self, desc: Rc<FileDesc>) {}
+    pub fn get_next_file_transfer(&mut self) -> Option<Rc<FileDesc>> {
+        let now = std::time::Instant::now();
+
+        let (index, _) = self
+            .files_transfer_queue
+            .iter()
+            .enumerate()
+            .find(|(_, item)| item.should_transfer_now(now))?;
+
+        let file = self.files_transfer_queue.swap_remove(index);
+        file.transfer_started();
+        Some(file.clone())
+    }
+
+    pub fn transfer_done(&mut self, file: Rc<FileDesc>) {
+        log::debug!("Tranfer done for toi {}", file.toi);
+        file.transfer_done();
+
+        if file.toi == lct::TOI_FDT {
+            if file.is_expired() {
+                self.current_fdt_transfer = None;
+            }
+        } else {
+            if file.is_expired() == false {
+                log::debug!("Transfer file again");
+                self.files_transfer_queue.push(file);
+            } else {
+                log::info!("Remove file {} from FDT", file.toi);
+                self.files.remove(&file.toi);
+                self.publish().ok();
+            }
+        }
+    }
 
     pub fn to_xml(&self) -> Result<Vec<u8>> {
         let mut buffer = Vec::new();
@@ -149,6 +219,8 @@ mod tests {
             &Vec::new(),
             "txt",
             &url::Url::parse("file:///").unwrap(),
+            2,
+            None,
         )
         .unwrap();
 

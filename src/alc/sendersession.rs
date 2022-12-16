@@ -11,15 +11,21 @@ pub struct SenderSession {
     file: Option<Rc<FileDesc>>,
     encoder: Option<BlockEncoder>,
     block_interlace_windows: usize,
+    transfer_fdt_only: bool,
 }
 
 impl SenderSession {
-    pub fn new(fdt: Rc<RefCell<Fdt>>, block_interlace_windows: usize) -> SenderSession {
+    pub fn new(
+        fdt: Rc<RefCell<Fdt>>,
+        block_interlace_windows: usize,
+        transfer_fdt_only: bool,
+    ) -> SenderSession {
         SenderSession {
             fdt,
             file: None,
             encoder: None,
             block_interlace_windows,
+            transfer_fdt_only,
         }
     }
 
@@ -35,7 +41,6 @@ impl SenderSession {
             }
 
             let encoder = self.encoder.as_mut().unwrap();
-            log::debug!("Read pkt");
             let pkt = encoder.read();
             if pkt.is_none() {
                 self.release_file();
@@ -49,7 +54,11 @@ impl SenderSession {
     fn get_next(&mut self) {
         let mut fdt = self.fdt.borrow_mut();
         self.encoder = None;
-        self.file = fdt.get_next_file();
+        if self.transfer_fdt_only {
+            self.file = fdt.get_next_fdt_transfer();
+        } else {
+            self.file = fdt.get_next_file_transfer();
+        }
         if self.file.is_none() {
             return;
         }
@@ -62,7 +71,7 @@ impl SenderSession {
     fn release_file(&mut self) {
         let mut fdt = self.fdt.borrow_mut();
         match &self.file {
-            Some(file) => fdt.release_next_file(file.clone()),
+            Some(file) => fdt.transfer_done(file.clone()),
             _ => {}
         };
         self.file = None;

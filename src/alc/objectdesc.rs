@@ -15,6 +15,8 @@ pub struct ObjectDesc {
     pub md5: Option<String>,
     pub attributes: Option<std::collections::HashMap<String, String>>,
     pub oti: Option<oti::Oti>,
+    pub max_transfer_count: u32,
+    pub carousel_delay_ns: Option<std::time::Duration>,
 }
 
 impl ObjectDesc {
@@ -22,6 +24,8 @@ impl ObjectDesc {
         path: &std::path::Path,
         content_location: Option<&url::Url>,
         content_type: &str,
+        max_transfer_count: u32,
+        carousel_delay_ns: Option<std::time::Duration>,
     ) -> Result<Box<ObjectDesc>> {
         let content = std::fs::read(path)?;
         let content_length = content.len();
@@ -53,6 +57,8 @@ impl ObjectDesc {
             md5: None,
             attributes: None,
             oti: None,
+            max_transfer_count,
+            carousel_delay_ns,
         }))
     }
 
@@ -60,6 +66,8 @@ impl ObjectDesc {
         content: &Vec<u8>,
         content_type: &str,
         content_location: &url::Url,
+        max_transfer_count: u32,
+        carousel_delay_ns: Option<std::time::Duration>,
     ) -> Result<Box<ObjectDesc>> {
         let content_length = content.len();
         let transfer_length = content_length;
@@ -76,6 +84,8 @@ impl ObjectDesc {
             md5: None,
             attributes: None,
             oti: None,
+            max_transfer_count,
+            carousel_delay_ns,
         }))
     }
 

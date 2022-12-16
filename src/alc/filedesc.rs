@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use quick_xml::se;
@@ -6,11 +7,18 @@ use serde::{Serialize, Serializer};
 use super::objectdesc::ObjectDesc;
 use super::oti;
 
+struct TransferInfo {
+    transferring: bool,
+    transfer_count: u32,
+    last_transfer: Option<std::time::Instant>,
+}
+
 pub struct FileDesc {
     pub object: Box<ObjectDesc>,
     pub oti: oti::Oti,
     pub toi: u128,
     pub fdt_id: Option<u32>,
+    transfer_info: RefCell<TransferInfo>,
 }
 
 impl FileDesc {
@@ -29,7 +37,59 @@ impl FileDesc {
             oti,
             toi: toi.clone(),
             fdt_id,
+            transfer_info: RefCell::new(TransferInfo {
+                transferring: false,
+                transfer_count: 0,
+                last_transfer: None,
+            }),
         })
+    }
+
+    pub fn transfer_started(&self) {
+        let mut info = self.transfer_info.borrow_mut();
+        info.transferring = true;
+
+        if info.transfer_count == self.object.max_transfer_count {
+            if self.object.carousel_delay_ns.is_some() {
+                info.transfer_count = 0;
+            }
+        }
+    }
+
+    pub fn transfer_done(&self) {
+        let mut info = self.transfer_info.borrow_mut();
+        assert!(info.transferring == true);
+        info.transferring = false;
+        info.transfer_count += 1;
+        info.last_transfer = Some(std::time::Instant::now());
+    }
+
+    pub fn is_expired(&self) -> bool {
+        let info = self.transfer_info.borrow();
+        if self.object.max_transfer_count > info.transfer_count {
+            return false;
+        }
+        self.object.carousel_delay_ns.is_none()
+    }
+
+    pub fn is_transferring(&self) -> bool {
+        let info = self.transfer_info.borrow();
+        info.transferring
+    }
+
+    pub fn should_transfer_now(&self, now: std::time::Instant) -> bool {
+        let info = self.transfer_info.borrow();
+        if self.object.max_transfer_count > info.transfer_count {
+            return true;
+        }
+
+        if self.object.carousel_delay_ns.is_none() || info.last_transfer.is_none() {
+            return true;
+        }
+
+        let delay = self.object.carousel_delay_ns.as_ref().unwrap();
+        let last_transfer = info.last_transfer.as_ref().unwrap();
+        now.duration_since(*last_transfer) > *delay
     }
 
     pub fn to_file_xml(&self) -> File {
