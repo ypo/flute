@@ -146,6 +146,7 @@ fn push_no_code_oti(data: &mut Vec<u8>, oti: &oti::Oti, transfer_length: u64) {
 }
 
 fn push_fec_payload_id_16x16(data: &mut Vec<u8>, snb: u16, esi: u16) {
+    log::info!("Write snb {} esi {}", snb, esi);
     /*
        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
        |     Source Block Number       |      Encoding Symbol ID       |
@@ -153,7 +154,6 @@ fn push_fec_payload_id_16x16(data: &mut Vec<u8>, snb: u16, esi: u16) {
     */
     let fec_payload_id = (snb as u32) << 16 | (esi as u32);
     data.extend(fec_payload_id.to_be_bytes());
-    lct::inc_hdr_len(data, 1);
 }
 
 fn push_payload(data: &mut Vec<u8>, pkt: &Pkt) {

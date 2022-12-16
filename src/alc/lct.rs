@@ -192,7 +192,7 @@ pub fn push_lct_header(
         _ => 3,
     };
     let hdr_len: u8 = (2 + o + s + h + c) as u8;
-    let v = 2;
+    let v = 1;
     let lct_header: u32 = (codepoint as u32)
         | ((hdr_len as u32) << 8)
         | (b as u32) << 16

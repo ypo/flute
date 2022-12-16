@@ -3,7 +3,7 @@ use std::net::{IpAddr, Ipv6Addr, ToSocketAddrs, UdpSocket};
 use crate::alc::pkt::PktWriter;
 use crate::tools::error::Result;
 
-struct UdpWriter<A>
+pub struct UdpWriter<A>
 where
     A: ToSocketAddrs,
 {

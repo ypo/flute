@@ -1,26 +1,31 @@
 use super::fdt::Fdt;
+use super::pkt::PktWriter;
 use super::sendersession::SenderSession;
 use super::{objectdesc, oti};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-struct Sender {
+pub struct Sender {
+    tsi: u64,
     fdt: Rc<RefCell<Fdt>>,
     sessions: Vec<SenderSession>,
     session_index: usize,
+    writer: Rc<dyn PktWriter>,
 }
 
 impl Sender {
-    pub fn new(fdtid: u32, oti: &oti::Oti) -> Sender {
+    pub fn new(tsi: u64, fdtid: u32, oti: &oti::Oti, writer: Rc<dyn PktWriter>) -> Sender {
         let fdt = Rc::new(RefCell::new(Fdt::new(fdtid, oti)));
         let sessions = (0..4)
-            .map(|index| SenderSession::new(fdt.clone(), 4, index == 0))
+            .map(|index| SenderSession::new(tsi, fdt.clone(), 4, index == 0))
             .collect();
 
         Sender {
+            tsi,
             fdt,
             sessions,
             session_index: 0,
+            writer,
         }
     }
 
@@ -39,11 +44,9 @@ impl Sender {
     }
 
     pub fn run_send_object(&mut self) -> bool {
-        log::debug!("Send object");
         let mut ret = false;
         let session_index_orig = self.session_index;
         loop {
-            log::debug!("Get session {}", self.session_index);
             let session = self.sessions.get_mut(self.session_index).unwrap();
             let data = session.run();
 
@@ -53,8 +56,11 @@ impl Sender {
             }
 
             if data.is_some() {
-                let pkt = data.as_ref().unwrap();
-                log::info!("Send data {:?}", pkt);
+                let alc_pkt = data.as_ref().unwrap();
+                match self.writer.write(alc_pkt) {
+                    Ok(_) => {}
+                    Err(e) => log::error!("Fail to write ALC pkt: {:?}", e),
+                }
                 ret = true;
                 break;
             }
@@ -70,6 +76,10 @@ impl Sender {
 #[cfg(test)]
 mod tests {
 
+    use std::rc::Rc;
+
+    use crate::alc::pkt::DummyWriter;
+
     use super::objectdesc;
     use super::oti;
 
@@ -82,9 +92,10 @@ mod tests {
     pub fn test_sender() {
         init();
 
-        let mut oti: oti::Oti = Default::default();
+        let writer = Rc::new(DummyWriter::new());
+        let oti: oti::Oti = Default::default();
         // oti.fec = oti::FECEncodingID::ReedSolomonGF28;
-        let mut sender = super::Sender::new(1, &oti);
+        let mut sender = super::Sender::new(1, 1, &oti, writer);
         let mut buffer: Vec<u8> = Vec::new();
         buffer.extend(vec![0xAA; oti.encoding_symbol_length as usize / 2]);
         // buffer.extend(vec![0xBB; oti.encoding_symbol_length as usize / 2]);

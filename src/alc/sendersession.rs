@@ -1,12 +1,14 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use super::alc;
 use super::blockencoder::BlockEncoder;
 use super::fdt::Fdt;
 use super::filedesc::FileDesc;
 use super::pkt;
 
 pub struct SenderSession {
+    tsi: u64,
     fdt: Rc<RefCell<Fdt>>,
     file: Option<Rc<FileDesc>>,
     encoder: Option<BlockEncoder>,
@@ -16,11 +18,13 @@ pub struct SenderSession {
 
 impl SenderSession {
     pub fn new(
+        tsi: u64,
         fdt: Rc<RefCell<Fdt>>,
         block_interlace_windows: usize,
         transfer_fdt_only: bool,
     ) -> SenderSession {
         SenderSession {
+            tsi,
             fdt,
             file: None,
             encoder: None,
@@ -29,7 +33,7 @@ impl SenderSession {
         }
     }
 
-    pub fn run(&mut self) -> Option<pkt::Pkt> {
+    pub fn run(&mut self) -> Option<Vec<u8>> {
         loop {
             if self.encoder.is_none() {
                 self.get_next();
@@ -40,14 +44,16 @@ impl SenderSession {
                 return None;
             }
 
+            assert!(self.file.is_some());
             let encoder = self.encoder.as_mut().unwrap();
+            let file = self.file.as_ref().unwrap();
             let pkt = encoder.read();
             if pkt.is_none() {
                 self.release_file();
                 continue;
             }
-
-            return Some(pkt.unwrap());
+            let pkt = pkt.as_ref().unwrap();
+            return Some(alc::create_alc_pkt(&file.oti, &0u128, self.tsi, pkt, None));
         }
     }
 
