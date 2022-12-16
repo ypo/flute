@@ -6,7 +6,7 @@ pub mod tools;
 
 #[cfg(test)]
 mod tests {
-    use std::rc::Rc;
+    use std::{rc::Rc, time::SystemTime};
 
     fn init() {
         std::env::set_var("RUST_LOG", "debug");
@@ -19,7 +19,7 @@ mod tests {
 
         let oti: super::alc::oti::Oti = Default::default();
         let writer = Rc::new(super::network::udpwriter::UdpWriter::new("224.0.0.1:3004").unwrap());
-        let mut sender = super::alc::sender::Sender::new(1, 1, &oti, writer);
+        let mut sender = super::alc::sender::Sender::new(16, 1, &oti, writer);
 
         let obj = super::alc::objectdesc::ObjectDesc::create_from_buffer(
             &vec![1, 2, 3],
@@ -31,7 +31,7 @@ mod tests {
         .unwrap();
 
         sender.add_object(obj);
-        sender.publish();
+        sender.publish(&SystemTime::now()).unwrap();
         loop {
             let ret = sender.run();
             if ret == false {

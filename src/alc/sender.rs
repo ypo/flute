@@ -4,6 +4,8 @@ use super::sendersession::SenderSession;
 use super::{objectdesc, oti};
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::time::SystemTime;
+use crate::tools::error::Result;
 
 pub struct Sender {
     tsi: u64,
@@ -34,9 +36,9 @@ impl Sender {
         fdt.add_object(obj);
     }
 
-    pub fn publish(&self) {
+    pub fn publish(&self, now: &SystemTime) -> Result<()> {
         let mut fdt = self.fdt.borrow_mut();
-        fdt.publish();
+        fdt.publish(now)
     }
 
     pub fn run(&mut self) -> bool {
@@ -77,6 +79,7 @@ impl Sender {
 mod tests {
 
     use std::rc::Rc;
+    use std::time::SystemTime;
 
     use crate::alc::pkt::DummyWriter;
 
@@ -110,7 +113,7 @@ mod tests {
             )
             .unwrap(),
         );
-        sender.publish();
+        sender.publish(&SystemTime::now());
         let mut nb = 0;
         loop {
             let success = sender.run();

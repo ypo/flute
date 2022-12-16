@@ -1,11 +1,13 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::time::SystemTime;
 
 use super::filedesc;
 use super::filedesc::FileDesc;
 use super::lct;
 use super::objectdesc;
 use super::oti;
+use crate::tools;
 use crate::tools::error::{FluteError, Result};
 use serde::Serialize;
 
@@ -15,8 +17,8 @@ struct FdtInstance {
     xmlns_xsi: String,
     #[serde(rename = "xmlns:schemaLocation")]
     xsi_schema_location: String,
-    #[serde(rename = "Expired")]
-    expired: String,
+    #[serde(rename = "Expires")]
+    expires: String,
     #[serde(rename = "Complete")]
     complete: Option<bool>,
     #[serde(rename = "Content-Type")]
@@ -35,6 +37,7 @@ struct FdtInstance {
     fec_oti_max_number_of_encoding_symbols: Option<u64>,
     #[serde(rename = "FEC-OTI-Scheme-Specific-Info")]
     fec_oti_scheme_specific_info: Option<String>, // Base64
+    #[serde(rename = "File")]
     file: Vec<filedesc::File>,
 }
 
@@ -61,12 +64,16 @@ impl Fdt {
         }
     }
 
-    fn get_fdt_instance(&self) -> FdtInstance {
+    fn get_fdt_instance(&self, now: &SystemTime) -> FdtInstance {
+        
+        let (seconds, rest) = tools::system_time_to_ntp(now).unwrap_or((0,0));
+        let seconds = seconds + 3600;
+
         let oti_attributes = self.oti.get_attributes();
         FdtInstance {
             xmlns_xsi: "http://www.w3.org/2001/XMLSchema-instance".into(),
             xsi_schema_location: "urn:ietf:params:xml:ns:fdt ietf-flute-fdt.xsd".into(),
-            expired: "1234".into(),
+            expires: seconds.to_string(),
             complete: None,
             content_type: None,
             content_encoding: None,
@@ -98,8 +105,8 @@ impl Fdt {
         self.files_transfer_queue.push(filedesc);
     }
 
-    pub fn publish(&mut self) -> Result<()> {
-        let content = self.to_xml()?;
+    pub fn publish(&mut self, now: &SystemTime) -> Result<()> {
+        let content = self.to_xml(now)?;
         let obj = objectdesc::ObjectDesc::create_from_buffer(
             &content,
             "text/xml",
@@ -172,12 +179,12 @@ impl Fdt {
             } else {
                 log::info!("Remove file {} from FDT", file.toi);
                 self.files.remove(&file.toi);
-                self.publish().ok();
+                self.publish(&SystemTime::now()).ok();
             }
         }
     }
 
-    pub fn to_xml(&self) -> Result<Vec<u8>> {
+    pub fn to_xml(&self, now: &SystemTime) -> Result<Vec<u8>> {
         let mut buffer = Vec::new();
         let mut writer = quick_xml::Writer::new_with_indent(&mut buffer, b' ', 2);
 
@@ -189,7 +196,7 @@ impl Fdt {
         };
 
         let mut ser = quick_xml::se::Serializer::with_root(writer, Some("FDT-Instance"));
-        match self.get_fdt_instance().serialize(&mut ser) {
+        match self.get_fdt_instance(&now).serialize(&mut ser) {
             Ok(_) => {}
             Err(e) => return Err(FluteError::new(e.to_string())),
         };
@@ -200,6 +207,8 @@ impl Fdt {
 
 #[cfg(test)]
 mod tests {
+
+    use std::time::SystemTime;
 
     use super::objectdesc;
     use super::oti;
@@ -226,7 +235,7 @@ mod tests {
 
         fdt.add_object(obj);
 
-        let buffer = fdt.to_xml().unwrap();
+        let buffer = fdt.to_xml(&SystemTime::now()).unwrap();
         let content = String::from_utf8(buffer.clone()).unwrap();
         log::info!("content={}", content);
     }

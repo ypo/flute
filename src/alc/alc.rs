@@ -1,5 +1,7 @@
+use std::time::SystemTime;
+
 use super::{lct, oti, pkt::Pkt};
-use crate::tools::error::{FluteError, Result};
+use crate::tools::{error::{FluteError, Result}, self};
 
 struct BlockID {
     snb: u32,
@@ -17,7 +19,7 @@ pub fn create_alc_pkt(
     cci: &u128,
     tsi: u64,
     pkt: &Pkt,
-    now: Option<u64>,
+    now: Option<&SystemTime>,
 ) -> Vec<u8> {
     let mut data = Vec::new();
     lct::push_lct_header(&mut data, 0, &cci, tsi, &pkt.toi, oti.fec as u8);
@@ -79,7 +81,7 @@ fn push_cenc(data: &mut Vec<u8>, cenc: u8) {
     lct::inc_hdr_len(data, 1);
 }
 
-fn push_sct(data: &mut Vec<u8>, time: u64) {
+fn push_sct(data: &mut Vec<u8>, time: &std::time::SystemTime) {
     /*
      0                   1                   2                   3
      0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -104,14 +106,13 @@ fn push_sct(data: &mut Vec<u8>, time: u64) {
     let header: u32 = (lct::EXT::Time as u32) << 24 | (3u32 << 16) | (1u32 << 15) | (1u32 << 14);
 
     // Convert UTC to NTP
-    let one_second_in_us = 1000000u64;
-    let seconds_utc = time / one_second_in_us;
-    let seconds_ntp = seconds_utc as u32 + 2208988800u32;
-    let rest_ntp = (((time - (seconds_utc * one_second_in_us)) * (1u64 << 32)) / 1000000u64) as u32;
-
+    let (seconds, rest) = match tools::system_time_to_ntp(time) {
+        Ok(res) => res,
+        Err(_) => return
+    };
     data.extend(header.to_be_bytes());
-    data.extend(seconds_ntp.to_be_bytes());
-    data.extend(rest_ntp.to_be_bytes());
+    data.extend(seconds.to_be_bytes());
+    data.extend(rest.to_be_bytes());
     lct::inc_hdr_len(data, 3);
 }
 
