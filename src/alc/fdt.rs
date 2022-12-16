@@ -65,15 +65,14 @@ impl Fdt {
     }
 
     fn get_fdt_instance(&self, now: &SystemTime) -> FdtInstance {
-        
-        let (seconds, rest) = tools::system_time_to_ntp(now).unwrap_or((0,0));
-        let seconds = seconds + 3600;
+        let (seconds_ntp, _) = tools::system_time_to_ntp(now).unwrap_or((0, 0));
+        let expires_ntp = seconds_ntp + 3600;
 
         let oti_attributes = self.oti.get_attributes();
         FdtInstance {
             xmlns_xsi: "http://www.w3.org/2001/XMLSchema-instance".into(),
             xsi_schema_location: "urn:ietf:params:xml:ns:fdt ietf-flute-fdt.xsd".into(),
-            expires: seconds.to_string(),
+            expires: expires_ntp.to_string(),
             complete: None,
             content_type: None,
             content_encoding: None,
