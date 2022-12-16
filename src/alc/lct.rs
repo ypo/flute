@@ -172,16 +172,20 @@ pub fn push_lct_header(
     tsi: u64,
     toi: &u128,
     codepoint: u8,
+    close_object: bool,
 ) {
     let cci_size = nb_bytes_128(cci);
     let tsi_size = nb_bytes_64(tsi);
     let toi_size = nb_bytes_128(toi);
-    
+
     let h_tsi = (tsi_size & 2) >> 1; // Is TSI half-word ?
     let h_toi = (toi_size & 2) >> 1; // Is TOI half-word ?
 
     let h = h_tsi | h_toi; // Half-word flag
-    let b: u8 = 0;
+    let b: u8 = match close_object {
+        true => 1,
+        false => 0,
+    };
     let a: u8 = 0;
     let o = (toi_size >> 2) & 0x3;
     let s = (tsi_size >> 2) & 1;
@@ -331,6 +335,6 @@ mod tests {
         let tsi: u64 = 0;
         let toi: u128 = 0;
         let codepoint: u8 = 0;
-        super::push_lct_header(&mut lct, psi, &cci, tsi, &toi, codepoint)
+        super::push_lct_header(&mut lct, psi, &cci, tsi, &toi, codepoint, false)
     }
 }

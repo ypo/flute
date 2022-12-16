@@ -11,6 +11,7 @@ pub struct Pkt {
     pub fdt_id: Option<u32>,
     pub cenc: lct::CENC,
     pub inband_cenc: bool,
+    pub close_object: bool,
 }
 
 /// Write ALC packet to a destination

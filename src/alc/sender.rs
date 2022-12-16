@@ -41,6 +41,11 @@ impl Sender {
         fdt.publish(now)
     }
 
+    pub fn set_complete(&self) {
+        let mut fdt = self.fdt.borrow_mut();
+        fdt.set_complete();
+    }
+
     pub fn run(&mut self) -> bool {
         self.run_send_object()
     }
@@ -113,7 +118,7 @@ mod tests {
             )
             .unwrap(),
         );
-        sender.publish(&SystemTime::now());
+        sender.publish(&SystemTime::now()).unwrap();
         let mut nb = 0;
         loop {
             let success = sender.run();

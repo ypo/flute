@@ -1,7 +1,10 @@
 use std::time::SystemTime;
 
 use super::{lct, oti, pkt::Pkt};
-use crate::tools::{error::{FluteError, Result}, self};
+use crate::tools::{
+    self,
+    error::{FluteError, Result},
+};
 
 struct BlockID {
     snb: u32,
@@ -22,7 +25,15 @@ pub fn create_alc_pkt(
     now: Option<&SystemTime>,
 ) -> Vec<u8> {
     let mut data = Vec::new();
-    lct::push_lct_header(&mut data, 0, &cci, tsi, &pkt.toi, oti.fec as u8);
+    lct::push_lct_header(
+        &mut data,
+        0,
+        &cci,
+        tsi,
+        &pkt.toi,
+        oti.fec as u8,
+        pkt.close_object,
+    );
 
     if pkt.toi == lct::TOI_FDT {
         assert!(pkt.fdt_id.is_some());
@@ -108,7 +119,7 @@ fn push_sct(data: &mut Vec<u8>, time: &std::time::SystemTime) {
     // Convert UTC to NTP
     let (seconds, rest) = match tools::system_time_to_ntp(time) {
         Ok(res) => res,
-        Err(_) => return
+        Err(_) => return,
     };
     data.extend(header.to_be_bytes());
     data.extend(seconds.to_be_bytes());
@@ -189,6 +200,7 @@ mod tests {
             cenc: lct::CENC::Null,
             inband_cenc: true,
             transfer_length: 5,
+            close_object: false,
         };
 
         let alc_pkt = super::create_alc_pkt(&oti, &cci, tsi, &pkt, None);

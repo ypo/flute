@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::SystemTime;
 
@@ -49,6 +48,7 @@ pub struct Fdt {
     fdt_transfer_queue: Vec<Rc<FileDesc>>,
     files: std::collections::HashMap<u128, Rc<FileDesc>>,
     current_fdt_transfer: Option<Rc<FileDesc>>,
+    complete: Option<bool>
 }
 
 impl Fdt {
@@ -61,6 +61,7 @@ impl Fdt {
             fdt_transfer_queue: Vec::new(),
             files: std::collections::HashMap::new(),
             current_fdt_transfer: None,
+            complete: None
         }
     }
 
@@ -73,7 +74,7 @@ impl Fdt {
             xmlns_xsi: "http://www.w3.org/2001/XMLSchema-instance".into(),
             xsi_schema_location: "urn:ietf:params:xml:ns:fdt ietf-flute-fdt.xsd".into(),
             expires: expires_ntp.to_string(),
-            complete: None,
+            complete: self.complete,
             content_type: None,
             content_encoding: None,
             fec_oti_fec_encoding_id: oti_attributes.fec_oti_fec_encoding_id,
@@ -183,7 +184,11 @@ impl Fdt {
         }
     }
 
-    pub fn to_xml(&self, now: &SystemTime) -> Result<Vec<u8>> {
+    pub fn set_complete(&mut self) {
+        self.complete = Some(true)
+    }
+
+    fn to_xml(&self, now: &SystemTime) -> Result<Vec<u8>> {
         let mut buffer = Vec::new();
         let mut writer = quick_xml::Writer::new_with_indent(&mut buffer, b' ', 2);
 

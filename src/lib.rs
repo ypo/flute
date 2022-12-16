@@ -31,6 +31,7 @@ mod tests {
         .unwrap();
 
         sender.add_object(obj);
+        sender.set_complete();
         sender.publish(&SystemTime::now()).unwrap();
         loop {
             let ret = sender.run();

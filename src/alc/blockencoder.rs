@@ -17,6 +17,7 @@ pub struct BlockEncoder {
     block_interlace_windows: usize,
     block_interlace_index: usize,
     read_end: bool,
+    source_size_transferred: usize,
 }
 
 use super::block::Block;
@@ -35,6 +36,7 @@ impl BlockEncoder {
             block_interlace_windows,
             block_interlace_index: 0,
             read_end: false,
+            source_size_transferred: 0,
         };
         block.block_partitioning();
         block
@@ -60,8 +62,13 @@ impl BlockEncoder {
                 continue;
             }
 
-            self.block_interlace_index += 1;
             let symbol = symbol.as_ref().unwrap();
+
+            self.block_interlace_index += 1;
+            if symbol.is_source_symbol {
+                self.source_size_transferred += symbol.symbols.len();
+            }
+
             return Some(pkt::Pkt {
                 payload: symbol.symbols.to_vec(),
                 transfer_length: self.file.object.transfer_length,
@@ -71,6 +78,8 @@ impl BlockEncoder {
                 fdt_id: self.file.fdt_id,
                 cenc: self.file.object.cenc,
                 inband_cenc: self.file.object.inband_cenc,
+                close_object: self.source_size_transferred
+                    >= self.file.object.transfer_length as usize,
             });
         }
     }
