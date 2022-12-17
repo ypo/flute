@@ -318,6 +318,32 @@ pub fn parse_lct_header(data: &Vec<u8>) -> Result<LCTHeader> {
     })
 }
 
+pub fn get_ext<'a>(data: &'a Vec<u8>, lct: &LCTHeader, ext: EXT) -> Result<Option<&'a [u8]>> {
+    let mut lct_ext_ext = &data[(lct.header_ext_offset as usize)..];
+    while lct_ext_ext.len() > 4 {
+        let het = lct_ext_ext[0];
+        let hel = match het {
+            het if het >= 128 => 4 as usize,
+            _ => (lct_ext_ext[1] << 2) as usize,
+        };
+
+        if hel == 0 || hel > lct_ext_ext.len() {
+            return Err(FluteError::new(format!(
+                "Fail, LCT EXT size is {}/{}",
+                hel,
+                lct_ext_ext.len()
+            )));
+        }
+
+        if het == ext as u8 {
+            return Ok(Some(&lct_ext_ext[..hel]));
+        }
+        lct_ext_ext = &lct_ext_ext[hel..];
+    }
+
+    Ok(None)
+}
+
 #[cfg(test)]
 mod tests {
 

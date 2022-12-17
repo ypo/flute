@@ -73,7 +73,7 @@ mod tests {
     #[test]
     pub fn test_encoder() {
         init();
-        let mut data = vec![1, 2, 3, 4, 5];
+        let data = vec![1, 2, 3, 4, 5];
         let encoder = super::Encoder::new(2, 3, 4).unwrap();
         let shards = encoder.encode(&data).unwrap();
         log::info!("{:?}", shards);

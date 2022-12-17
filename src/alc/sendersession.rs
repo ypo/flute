@@ -5,7 +5,6 @@ use super::alc;
 use super::blockencoder::BlockEncoder;
 use super::fdt::Fdt;
 use super::filedesc::FileDesc;
-use super::pkt;
 
 pub struct SenderSession {
     tsi: u64,

@@ -9,6 +9,19 @@ pub enum FECEncodingID {
     // LDPCStaircase = 3,
 }
 
+impl TryFrom<u8> for FECEncodingID {
+    type Error = ();
+
+    fn try_from(v: u8) -> Result<Self, Self::Error> {
+        match v {
+            x if x == FECEncodingID::NoCode as u8 => Ok(FECEncodingID::NoCode),
+            x if x == FECEncodingID::ReedSolomonGF28 as u8 => Ok(FECEncodingID::ReedSolomonGF28),
+            x if x == FECEncodingID::ReedSolomonGF2M as u8 => Ok(FECEncodingID::ReedSolomonGF2M),
+            _ => Err(()),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Oti {
     pub fec: FECEncodingID,
@@ -16,8 +29,7 @@ pub struct Oti {
     pub maximum_source_block_length: u32,
     pub encoding_symbol_length: u16,
     pub max_number_of_parity_symbols: u32,
-    pub reed_solomon_m: u8,
-    pub g: u8,
+    pub reed_solomon_m: Option<u8>,
     pub inband_oti: bool,
 }
 
@@ -29,8 +41,7 @@ impl Default for Oti {
             maximum_source_block_length: 64,
             encoding_symbol_length: 1424,
             max_number_of_parity_symbols: 2,
-            reed_solomon_m: 8,
-            g: 1,
+            reed_solomon_m: None,
             inband_oti: true,
         }
     }
@@ -43,16 +54,17 @@ impl Oti {
             fec_oti_fec_instance_id: Some(self.fec_instance_id as u64),
             fec_oti_maximum_source_block_length: Some(self.maximum_source_block_length as u64),
             fec_oti_encoding_symbol_length: Some(self.encoding_symbol_length as u64),
-            fec_oti_max_number_of_encoding_symbols: Some(self.maximum_source_block_length as u64 + self.max_number_of_parity_symbols as u64),
+            fec_oti_max_number_of_encoding_symbols: Some(
+                self.maximum_source_block_length as u64 + self.max_number_of_parity_symbols as u64,
+            ),
             fec_oti_scheme_specific_info: self.scheme_specific_info(),
         }
     }
 
     fn scheme_specific_info(&self) -> Option<String> {
         if self.fec == FECEncodingID::ReedSolomonGF2M {
-            return Some(base64::encode([self.reed_solomon_m, self.g]));
+            return Some(base64::encode([self.reed_solomon_m.unwrap_or_default()]));
         }
-
         None
     }
 }

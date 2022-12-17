@@ -2,13 +2,12 @@ use super::fdt::Fdt;
 use super::pkt::PktWriter;
 use super::sendersession::SenderSession;
 use super::{objectdesc, oti};
+use crate::tools::error::Result;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::SystemTime;
-use crate::tools::error::Result;
 
 pub struct Sender {
-    tsi: u64,
     fdt: Rc<RefCell<Fdt>>,
     sessions: Vec<SenderSession>,
     session_index: usize,
@@ -23,7 +22,6 @@ impl Sender {
             .collect();
 
         Sender {
-            tsi,
             fdt,
             sessions,
             session_index: 0,

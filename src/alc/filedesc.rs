@@ -1,8 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use quick_xml::se;
-use serde::{Serialize, Serializer};
+use serde::Serialize;
 
 use super::objectdesc::ObjectDesc;
 use super::oti;

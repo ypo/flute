@@ -1,4 +1,4 @@
-use std::net::{IpAddr, Ipv6Addr, ToSocketAddrs, UdpSocket};
+use std::net::{IpAddr, ToSocketAddrs, UdpSocket};
 
 use crate::alc::pkt::PktWriter;
 use crate::tools::error::Result;

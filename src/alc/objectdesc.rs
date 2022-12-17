@@ -1,6 +1,6 @@
 use super::lct;
 use super::oti;
-use crate::tools::error::{FluteError, Result};
+use crate::tools::error::Result;
 use std::ffi::OsStr;
 
 pub struct ObjectDesc {

@@ -3,7 +3,6 @@ use std::rc::Rc;
 use super::filedesc;
 use super::pkt;
 use crate::tools::error::Result;
-use std::ops::Div;
 
 pub struct BlockEncoder {
     file: Rc<filedesc::FileDesc>,
