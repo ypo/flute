@@ -3,22 +3,26 @@ use std::time::SystemTime;
 use super::{lct, oti, pkt::Pkt};
 use crate::tools::{self, error::FluteError, error::Result};
 
-pub struct AlcPkt {
+pub struct AlcPkt<'a> {
     pub lct: lct::LCTHeader,
     pub oti: Option<oti::Oti>,
     pub transfer_length: Option<u64>,
     pub cenc: Option<lct::CENC>,
-    pub alc_header: Vec<u8>,
-    pub payload: Vec<u8>,
-    pub snb: u32,
-    pub esi: u32,
     pub server_time: Option<SystemTime>,
+    pub data: &'a [u8],
+    pub data_alc_header_offset: usize,
+    pub data_payload_offset: usize,
 }
 
 pub struct PayloadID {
     pub snb: u32,
     pub esi: u32,
     pub source_block_length: Option<u32>,
+}
+
+pub struct ExtFDT {
+    pub version: u32,
+    pub fdt_instance_id: u32,
 }
 
 pub fn create_alc_pkt(
@@ -85,10 +89,7 @@ pub fn parse_alc_pkt(data: &Vec<u8>) -> Result<AlcPkt> {
         return Err(FluteError::new("Wrong size of ALC packet"));
     }
 
-    let alc_header = &data[lct_header.len..(alc_header_length + lct_header.len)];
-    let payload = &data[(alc_header_length + lct_header.len)..];
-
-    let fti = lct::get_ext(data, &lct_header, lct::EXT::Fti)?;
+    let fti = lct::get_ext(data.as_ref(), &lct_header, lct::EXT::Fti)?;
     let mut oti: Option<oti::Oti> = None;
     let mut transfer_length: Option<u64> = None;
     if fti.is_some() {
@@ -104,33 +105,67 @@ pub fn parse_alc_pkt(data: &Vec<u8>) -> Result<AlcPkt> {
         };
     }
 
+    let data_alc_header_offset = lct_header.len;
+    let data_payload_offset = alc_header_length + lct_header.len;
+
     Ok(AlcPkt {
         lct: lct_header,
         oti: oti,
         transfer_length: transfer_length,
         cenc: None,
-        snb: 0,
-        esi: 0,
         server_time: None,
-        payload: payload.to_vec(),
-        alc_header: alc_header.to_vec(),
+        data: data.as_ref(),
+        data_alc_header_offset,
+        data_payload_offset,
     })
 }
 
 pub fn parse_payload_id(pkt: &AlcPkt, m: Option<u8>) -> Result<PayloadID> {
     match pkt.lct.cp.try_into() {
-        Ok(oti::FECEncodingID::NoCode) => parse_fec_payload_id_16x16(&pkt.alc_header),
-        Ok(oti::FECEncodingID::ReedSolomonGF2M) => {
-            parse_fec_payload_id_m(&pkt.alc_header, m.unwrap_or_default())
-        }
-        Ok(oti::FECEncodingID::ReedSolomonGF28) => {
-            parse_fec_payload_id_block_systematic(&pkt.alc_header)
-        }
+        Ok(oti::FECEncodingID::NoCode) => parse_fec_payload_id_16x16(
+            &pkt.data[pkt.data_alc_header_offset..pkt.data_payload_offset],
+        ),
+        Ok(oti::FECEncodingID::ReedSolomonGF2M) => parse_fec_payload_id_m(
+            &pkt.data[pkt.data_alc_header_offset..pkt.data_payload_offset],
+            m.unwrap_or_default(),
+        ),
+        Ok(oti::FECEncodingID::ReedSolomonGF28) => parse_fec_payload_id_block_systematic(
+            &pkt.data[pkt.data_alc_header_offset..pkt.data_payload_offset],
+        ),
         Err(_) => Err(FluteError::new(format!(
             "Code point {} is not supported",
             pkt.lct.cp
         ))),
     }
+}
+
+pub fn find_ext_fdt(pkt: &AlcPkt) -> Result<Option<ExtFDT>> {
+    let fdt = match lct::get_ext(pkt.data, &pkt.lct, lct::EXT::Fdt)? {
+        Some(fdt) => fdt,
+        None => return Ok(None),
+    };
+
+    if fdt.len() != 4 {
+        return Err(FluteError::new("Wrong size of FDT Extension"));
+    }
+
+    /*
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |   HET = 192   |   V   |          FDT Instance ID              |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     */
+
+    let mut fdt_bytes: [u8; 4] = [0; 4];
+    fdt_bytes.copy_from_slice(&fdt);
+    let fdt_bytes = u32::from_be_bytes(fdt_bytes);
+
+    let version = (fdt_bytes >> 20) & 0xF;
+    let fdt_instance_id = fdt_bytes & 0xFFFF;
+
+    Ok(Some(ExtFDT {
+        version,
+        fdt_instance_id,
+    }))
 }
 
 fn push_fdt(data: &mut Vec<u8>, version: u8, fdt_id: u32) {
@@ -266,9 +301,9 @@ fn push_fec_payload_id_16x16(data: &mut Vec<u8>, snb: u16, esi: u16) {
     data.extend(fec_payload_id.to_be_bytes());
 }
 
-fn parse_fec_payload_id_16x16(data: &Vec<u8>) -> Result<PayloadID> {
+fn parse_fec_payload_id_16x16(data: &[u8]) -> Result<PayloadID> {
     assert!(data.len() == 4);
-    let arr: [u8; 4] = match data.as_slice().try_into() {
+    let arr: [u8; 4] = match data.try_into() {
         Ok(arr) => arr,
         Err(e) => return Err(FluteError::new(e.to_string())),
     };
@@ -289,9 +324,9 @@ fn parse_fec_payload_id_16x16(data: &Vec<u8>) -> Result<PayloadID> {
     })
 }
 
-fn parse_fec_payload_id_block_systematic(data: &Vec<u8>) -> Result<PayloadID> {
+fn parse_fec_payload_id_block_systematic(data: &[u8]) -> Result<PayloadID> {
     assert!(data.len() == 8);
-    let arr: [u8; 8] = match data.as_slice().try_into() {
+    let arr: [u8; 8] = match data.try_into() {
         Ok(arr) => arr,
         Err(e) => return Err(FluteError::new(e.to_string())),
     };
@@ -316,13 +351,13 @@ fn parse_fec_payload_id_block_systematic(data: &Vec<u8>) -> Result<PayloadID> {
     })
 }
 
-fn parse_fec_payload_id_m(data: &Vec<u8>, m: u8) -> Result<PayloadID> {
+fn parse_fec_payload_id_m(data: &[u8], m: u8) -> Result<PayloadID> {
     /*
     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
     |     Source Block Number (32-m                  | Enc. Symb. ID |
     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
      */
-    let arr: [u8; 4] = match data.as_slice().try_into() {
+    let arr: [u8; 4] = match data.try_into() {
         Ok(arr) => arr,
         Err(e) => return Err(FluteError::new(e.to_string())),
     };

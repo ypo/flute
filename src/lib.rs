@@ -3,6 +3,7 @@ mod fec;
 pub mod alc;
 pub mod network;
 pub mod tools;
+pub mod flute;
 
 #[cfg(test)]
 mod tests {

@@ -27,7 +27,10 @@ pub struct LCTHeader {
     pub tsi: u64,
     pub toi: u128,
     pub cp: u8,
+    pub close_object: bool,
+    pub close_session: bool,
     pub header_ext_offset: u32,
+    pub length: usize,
 }
 
 fn nb_bytes_128(cci: &u128) -> u32 {
@@ -266,10 +269,12 @@ pub fn parse_lct_header(data: &Vec<u8>) -> Result<LCTHeader> {
     let flags1 = data[0];
     let flags2 = data[1];
 
-    let c = (flags1 >> 2) & 0x3;
     let s = (flags2 >> 7) & 0x1;
     let o = (flags2 >> 5) & 0x3;
     let h = (flags2 >> 4) & 0x1;
+    let c = (flags1 >> 2) & 0x3;
+    let b = (flags2 << 1) & 0x1;
+    let a = flags2 & 0x1;
     let version = flags1 >> 4;
     if version != 1 && version != 2 {
         return Err(FluteError::new(format!(
@@ -286,7 +291,7 @@ pub fn parse_lct_header(data: &Vec<u8>) -> Result<LCTHeader> {
     let cci_to: usize = (4 + cci_len) as usize;
     let tsi_to: usize = cci_to + tsi_len as usize;
     let toi_to: usize = tsi_to + toi_len as usize;
-    let header_ext_offset = toi_to as u32 + toi_len;
+    let header_ext_offset = toi_to as u32;
 
     if toi_to > data.len() || cci_len > 16 || tsi_len > 8 || toi_len > 16 {
         return Err(FluteError::new(format!(
@@ -294,6 +299,10 @@ pub fn parse_lct_header(data: &Vec<u8>) -> Result<LCTHeader> {
             toi_to,
             data.len()
         )));
+    }
+
+    if header_ext_offset > len as u32 {
+        return Err(FluteError::new(format!("EXT offset outside LCT header",)));
     }
 
     let mut cci: [u8; 16] = [0; 16]; // Store up to 128 bits
@@ -314,12 +323,16 @@ pub fn parse_lct_header(data: &Vec<u8>) -> Result<LCTHeader> {
         tsi,
         toi,
         cp,
+        close_object: b != 0,
+        close_session: a != 0,
         header_ext_offset,
+        length: len,
     })
 }
 
-pub fn get_ext<'a>(data: &'a Vec<u8>, lct: &LCTHeader, ext: EXT) -> Result<Option<&'a [u8]>> {
-    let mut lct_ext_ext = &data[(lct.header_ext_offset as usize)..];
+pub fn get_ext<'a>(data: &'a [u8], lct: &LCTHeader, ext: EXT) -> Result<Option<&'a [u8]>> {
+    let mut lct_ext_ext = &data[(lct.header_ext_offset as usize)..lct.len];
+    log::info!("lct_ext_ext={}..{}", lct.header_ext_offset, lct.len);
     while lct_ext_ext.len() > 4 {
         let het = lct_ext_ext[0];
         let hel = match het {
@@ -329,9 +342,11 @@ pub fn get_ext<'a>(data: &'a Vec<u8>, lct: &LCTHeader, ext: EXT) -> Result<Optio
 
         if hel == 0 || hel > lct_ext_ext.len() {
             return Err(FluteError::new(format!(
-                "Fail, LCT EXT size is {}/{}",
+                "Fail, LCT EXT size is {}/{} het={} offset={}",
                 hel,
-                lct_ext_ext.len()
+                lct_ext_ext.len(),
+                het,
+                lct.header_ext_offset
             )));
         }
 
