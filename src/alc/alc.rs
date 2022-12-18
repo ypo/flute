@@ -1,5 +1,7 @@
 use std::time::SystemTime;
 
+use quick_xml::se;
+
 use super::{lct, oti, pkt::Pkt};
 use crate::tools::{self, error::FluteError, error::Result};
 
@@ -14,6 +16,17 @@ pub struct AlcPkt<'a> {
     pub data_payload_offset: usize,
 }
 
+pub struct AlcPktCache {
+    pub lct: lct::LCTHeader,
+    pub oti: Option<oti::Oti>,
+    pub transfer_length: Option<u64>,
+    pub cenc: Option<lct::CENC>,
+    pub server_time: Option<SystemTime>,
+    pub data_alc_header_offset: usize,
+    pub data_payload_offset: usize,
+    pub data: Vec<u8>,
+}
+
 pub struct PayloadID {
     pub snb: u32,
     pub esi: u32,
@@ -23,6 +36,21 @@ pub struct PayloadID {
 pub struct ExtFDT {
     pub version: u32,
     pub fdt_instance_id: u32,
+}
+
+impl<'a> AlcPkt<'a> {
+    pub fn to_cache(&self) -> AlcPktCache {
+        AlcPktCache {
+            lct: self.lct.clone(),
+            oti: self.oti.clone(),
+            transfer_length: self.transfer_length,
+            cenc: self.cenc.clone(),
+            server_time: self.server_time.clone(),
+            data_alc_header_offset: self.data_alc_header_offset,
+            data_payload_offset: self.data_payload_offset,
+            data: self.data.to_vec(),
+        }
+    }
 }
 
 pub fn create_alc_pkt(
@@ -120,14 +148,14 @@ pub fn parse_alc_pkt(data: &Vec<u8>) -> Result<AlcPkt> {
     })
 }
 
-pub fn parse_payload_id(pkt: &AlcPkt, m: Option<u8>) -> Result<PayloadID> {
+pub fn parse_payload_id(pkt: &AlcPkt, oti: &oti::Oti) -> Result<PayloadID> {
     match pkt.lct.cp.try_into() {
         Ok(oti::FECEncodingID::NoCode) => parse_fec_payload_id_16x16(
             &pkt.data[pkt.data_alc_header_offset..pkt.data_payload_offset],
         ),
         Ok(oti::FECEncodingID::ReedSolomonGF2M) => parse_fec_payload_id_m(
             &pkt.data[pkt.data_alc_header_offset..pkt.data_payload_offset],
-            m.unwrap_or_default(),
+            oti.reed_solomon_m.unwrap_or_default(),
         ),
         Ok(oti::FECEncodingID::ReedSolomonGF28) => parse_fec_payload_id_block_systematic(
             &pkt.data[pkt.data_alc_header_offset..pkt.data_payload_offset],

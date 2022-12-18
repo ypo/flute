@@ -5,6 +5,7 @@ mod sendersession;
 mod blockencoder;
 mod block;
 mod objectreceiver;
+mod blockdecoder;
 
 pub mod alc;
 pub mod objectdesc;
