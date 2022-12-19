@@ -1,20 +1,24 @@
 use super::alc;
 use super::lct;
 use super::objectreceiver::ObjectReceiver;
+use super::objectwriter::ObjectWriter;
 use crate::tools::error::FluteError;
 use crate::tools::error::Result;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 pub struct Receiver {
     tsi: u64,
     objects: HashMap<u128, Box<ObjectReceiver>>,
+    writer: Rc<dyn ObjectWriter>,
 }
 
 impl Receiver {
-    pub fn new(tsi: u64) -> Receiver {
+    pub fn new(tsi: u64, writer: Rc<dyn ObjectWriter>) -> Receiver {
         Receiver {
             tsi,
             objects: HashMap::new(),
+            writer,
         }
     }
 
@@ -64,7 +68,8 @@ impl Receiver {
     }
 
     fn create_obj(&mut self, toi: &u128) {
-        let obj = Box::new(ObjectReceiver::new());
+        let session = self.writer.create_session(&self.tsi, toi);
+        let obj = Box::new(ObjectReceiver::new(toi, session));
         self.objects.insert(toi.clone(), obj);
     }
 }

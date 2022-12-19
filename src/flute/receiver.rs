@@ -1,17 +1,21 @@
 use crate::alc;
+use crate::alc::objectwriter::ObjectWriter;
 use crate::tools::error::Result;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 pub struct Receiver {
     alc_receiver: HashMap<u64, Box<alc::receiver::Receiver>>,
     tsi: Option<Vec<u64>>,
+    writer: Rc<dyn ObjectWriter>,
 }
 
 impl Receiver {
-    pub fn new(tsi: Option<&Vec<u64>>) -> Receiver {
+    pub fn new(tsi: Option<&Vec<u64>>, writer: Rc<dyn ObjectWriter>) -> Receiver {
         Receiver {
             alc_receiver: HashMap::new(),
             tsi: tsi.map(|f| f.clone()),
+            writer,
         }
     }
 
@@ -35,7 +39,7 @@ impl Receiver {
     fn get_receiver(&mut self, tsi: u64) -> &mut alc::receiver::Receiver {
         self.alc_receiver
             .entry(tsi)
-            .or_insert_with(|| Box::new(alc::receiver::Receiver::new(tsi)))
+            .or_insert_with(|| Box::new(alc::receiver::Receiver::new(tsi, self.writer.clone())))
             .as_mut()
     }
 }
@@ -45,6 +49,7 @@ mod tests {
 
     use std::{cell::RefCell, rc::Rc, time::SystemTime};
 
+    use crate::alc::objectwriter::ObjectWriterBuffer;
     use crate::alc::{objectdesc, oti, pkt::PktWriter, sender};
     use crate::tools::error::Result;
 
@@ -69,7 +74,7 @@ mod tests {
         let oti: oti::Oti = Default::default();
         let sender = Box::new(sender::Sender::new(1, 1, &oti, writer));
         let mut buffer: Vec<u8> = Vec::new();
-        buffer.extend(vec![0xAA; oti.encoding_symbol_length as usize / 2]);
+        buffer.extend(vec![0xAA; oti.encoding_symbol_length as usize * 60 * 2]);
         sender.add_object(
             objectdesc::ObjectDesc::create_from_buffer(
                 &buffer,
@@ -87,8 +92,10 @@ mod tests {
     #[test]
     pub fn test_receiver() {
         init();
+
+        let writer = ObjectWriterBuffer::new();
         let receiver = Rc::new(ReceiverWrapper {
-            receiver: RefCell::new(super::Receiver::new(None)),
+            receiver: RefCell::new(super::Receiver::new(None, writer)),
         });
 
         let mut sender = create_sender(receiver);

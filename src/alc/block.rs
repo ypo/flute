@@ -1,6 +1,7 @@
 use super::oti::Oti;
 use crate::fec;
 use crate::tools::error::{FluteError, Result};
+use crate::fec::FecCodec;
 
 pub struct Block {
     snb: u32,
@@ -33,7 +34,7 @@ impl Block {
             super::oti::FECEncodingID::ReedSolomonGF28 => {
                 assert!(nb_source_symbols <= oti.maximum_source_block_length as usize);
                 assert!(nb_source_symbols <= block_length as usize);
-                let encoder = fec::rs::Encoder::new(
+                let encoder = fec::rscodec::RSCodec::new(
                     nb_source_symbols,
                     oti.max_number_of_parity_symbols as usize,
                     oti.encoding_symbol_length as usize,
