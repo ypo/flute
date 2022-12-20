@@ -1,43 +1,86 @@
+use super::{
+    alc, fdtinstance::FdtInstance, lct, objectreceiver::ObjectReceiver,
+    objectwriter::ObjectWriterSession,
+};
+use crate::tools::error::Result;
 use std::{cell::RefCell, rc::Rc};
 
-use super::{lct, objectreceiver::ObjectReceiver, objectwriter::ObjectWriterSession};
+#[derive(Clone, Copy, PartialEq)]
+pub enum State {
+    Receiving,
+    Complete,
+    Error,
+}
 
 pub struct FdtReceiver {
     fdt_id: u32,
     obj: Box<ObjectReceiver>,
-    receiver_session: Rc<FdtReceiverSession>,
+    writer: Rc<FdtWriter>,
 }
 
-struct FdtReceiverSession {
-    data: RefCell<Vec<u8>>,
+struct FdtWriter {
+    inner: RefCell<FdtWriterInner>,
+}
+
+struct FdtWriterInner {
+    data: Vec<u8>,
+    fdt: Option<FdtInstance>,
+    state: State,
 }
 
 impl FdtReceiver {
     pub fn new(fdt_id: u32) -> FdtReceiver {
-        let receiver_session = Rc::new(FdtReceiverSession {
-            data: RefCell::new(Vec::new()),
+        let writer = Rc::new(FdtWriter {
+            inner: RefCell::new(FdtWriterInner {
+                data: Vec::new(),
+                fdt: None,
+                state: State::Receiving,
+            }),
         });
 
         FdtReceiver {
             fdt_id,
-            obj: Box::new(ObjectReceiver::new(&lct::TOI_FDT, receiver_session.clone())),
-            receiver_session,
+            obj: Box::new(ObjectReceiver::new(&lct::TOI_FDT, writer.clone())),
+            writer,
         }
     }
 
-    pub fn push(&mut self) {}
+    pub fn push(&mut self, pkt: &alc::AlcPkt) -> Result<bool> {
+        match self.obj.push(pkt) {
+            Ok(res) => Ok(res),
+            Err(e) => {
+                self.writer.inner.borrow_mut().state = State::Error;
+                Err(e)
+            }
+        }
+    }
+
+    pub fn state(&self) -> State {
+        self.writer.inner.borrow().state
+    }
 }
 
-impl ObjectWriterSession for FdtReceiverSession {
-    fn open(&self, transfer_length: usize) {
-        todo!()
+impl ObjectWriterSession for FdtWriter {
+    fn open(&self) {}
+
+    fn write(&self, data: &[u8]) {
+        let mut inner = self.inner.borrow_mut();
+        inner.data.extend(data)
     }
 
-    fn write(&self, data: &Vec<u8>) {
-        todo!()
+    fn complete(&self) {
+        let mut inner = self.inner.borrow_mut();
+        match FdtInstance::parse(&inner.data) {
+            Ok(inst) => {
+                inner.fdt = Some(inst);
+                inner.state = State::Complete
+            }
+            Err(_) => inner.state = State::Error,
+        };
     }
 
-    fn close(&self) {
-        todo!()
+    fn error(&self) {
+        let mut inner = self.inner.borrow_mut();
+        inner.state = State::Error;
     }
 }

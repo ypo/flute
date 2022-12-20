@@ -5,16 +5,24 @@ pub trait ObjectWriter {
 }
 
 pub trait ObjectWriterSession {
-    fn open(&self, transfer_length: usize);
-    fn write(&self, data: &Vec<u8>);
-    fn close(&self);
+    fn open(&self);
+    fn write(&self, data: &[u8]);
+    fn complete(&self);
+    fn error(&self);
 }
 
 pub struct ObjectWriterBuffer {
     pub sessions: RefCell<Vec<Rc<ObjectWriterSessionBuffer>>>,
 }
+
 pub struct ObjectWriterSessionBuffer {
-    pub data: RefCell<Vec<u8>>,
+    inner: RefCell<ObjectWriterSessionBufferInner>,
+}
+
+struct ObjectWriterSessionBufferInner {
+    pub complete: bool,
+    pub error: bool,
+    pub data: Vec<u8>,
 }
 
 impl ObjectWriterBuffer {
@@ -28,7 +36,11 @@ impl ObjectWriterBuffer {
 impl ObjectWriter for ObjectWriterBuffer {
     fn create_session(&self, _tsi: &u64, _toi: &u128) -> Rc<dyn ObjectWriterSession> {
         let obj = Rc::new(ObjectWriterSessionBuffer {
-            data: RefCell::new(Vec::new()),
+            inner: RefCell::new(ObjectWriterSessionBufferInner {
+                complete: false,
+                error: false,
+                data: Vec::new(),
+            }),
         });
         let mut sessions = self.sessions.borrow_mut();
         sessions.push(obj.clone());
@@ -37,16 +49,22 @@ impl ObjectWriter for ObjectWriterBuffer {
 }
 
 impl ObjectWriterSession for ObjectWriterSessionBuffer {
-    fn open(&self, transfer_length: usize) {
-        let mut self_data = self.data.borrow_mut();
-        assert!(self_data.is_empty());
-        self_data.reserve(transfer_length)
+    fn open(&self) {
     }
 
-    fn write(&self, data: &Vec<u8>) {
-        let mut self_data = self.data.borrow_mut();
-        self_data.extend(data)
+    fn write(&self, data: &[u8]) {
+        let mut inner = self.inner.borrow_mut();
+        inner.data.extend(data);
     }
 
-    fn close(&self) {}
+    fn complete(&self) {
+        let mut inner = self.inner.borrow_mut();
+        inner.complete = true;
+    }
+
+    fn error(&self) {
+        let mut inner = self.inner.borrow_mut();
+        inner.error = true;
+    }
 }
+

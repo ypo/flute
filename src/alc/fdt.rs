@@ -1,44 +1,15 @@
 use std::rc::Rc;
 use std::time::SystemTime;
 
-use super::filedesc;
+use serde::Serialize;
+
+use super::fdtinstance::FdtInstance;
 use super::filedesc::FileDesc;
 use super::lct;
 use super::objectdesc;
 use super::oti;
 use crate::tools;
 use crate::tools::error::{FluteError, Result};
-use serde::Serialize;
-
-#[derive(Debug, PartialEq, Serialize, Clone)]
-struct FdtInstance {
-    #[serde(rename = "xmlns:xsi")]
-    xmlns_xsi: String,
-    #[serde(rename = "xmlns:schemaLocation")]
-    xsi_schema_location: String,
-    #[serde(rename = "Expires")]
-    expires: String,
-    #[serde(rename = "Complete")]
-    complete: Option<bool>,
-    #[serde(rename = "Content-Type")]
-    content_type: Option<String>,
-    #[serde(rename = "Content-Encoding")]
-    content_encoding: Option<String>,
-    #[serde(rename = "FEC-OTI-FEC-Encoding-ID")]
-    fec_oti_fec_encoding_id: Option<u8>,
-    #[serde(rename = "FEC-OTI-FEC-Instance-ID")]
-    fec_oti_fec_instance_id: Option<u64>,
-    #[serde(rename = "FEC-OTI-Maximum-Source-Block-Length")]
-    fec_oti_maximum_source_block_length: Option<u64>,
-    #[serde(rename = "FEC-OTI-Encoding-Symbol-Length")]
-    fec_oti_encoding_symbol_length: Option<u64>,
-    #[serde(rename = "FEC-OTI-Max-Number-of-Encoding-Symbols")]
-    fec_oti_max_number_of_encoding_symbols: Option<u64>,
-    #[serde(rename = "FEC-OTI-Scheme-Specific-Info")]
-    fec_oti_scheme_specific_info: Option<String>, // Base64
-    #[serde(rename = "File")]
-    file: Vec<filedesc::File>,
-}
 
 pub struct Fdt {
     fdtid: u32,

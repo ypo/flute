@@ -2,6 +2,7 @@ use std::rc::Rc;
 
 use super::alc;
 use super::blockdecoder::BlockDecoder;
+use super::blockwriter::BlockWriter;
 use super::objectwriter::ObjectWriterSession;
 use super::oti;
 use crate::alc::lct;
@@ -13,8 +14,6 @@ enum State {
     Completed,
     Error,
 }
-
-
 
 pub struct ObjectReceiver {
     state: State,
@@ -28,7 +27,8 @@ pub struct ObjectReceiver {
     a_small: u64,
     nb_a_large: u64,
     waiting_for_fdt: bool,
-    writer_session: Rc<dyn ObjectWriterSession>
+    writer_session: Rc<dyn ObjectWriterSession>,
+    block_writer: Option<BlockWriter>,
 }
 
 impl ObjectReceiver {
@@ -46,7 +46,8 @@ impl ObjectReceiver {
             a_small: 0,
             nb_a_large: 0,
             waiting_for_fdt: toi.clone() != lct::TOI_FDT,
-            writer_session
+            writer_session,
+            block_writer: None,
         }
     }
 
@@ -103,15 +104,32 @@ impl ObjectReceiver {
         block.push(pkt, &payload_id);
         if block.completed {
             log::info!("block {} is completed", payload_id.snb);
-            // TODO Write blocks to file
+            self.write_blocks(payload_id.snb);
         }
 
         Ok(true)
     }
 
-    fn write_blocks(&self, snb_start: u32) {
+    fn write_blocks(&mut self, snb_start: u32) {
         if self.waiting_for_fdt {
             return;
+        }
+
+        let mut snb = snb_start as usize;
+        let writer = self.block_writer.as_mut().unwrap();
+        while snb < self.blocks.len() {
+            let block = &self.blocks[snb as usize];
+            let success = writer.write(snb as u32, block, self.writer_session.as_ref());
+            if !success {
+                break;
+            }
+            snb += 1;
+
+            if writer.completed() {
+                log::info!("Object completed");
+                self.state = State::Completed;
+                break;
+            }
         }
     }
 
@@ -131,6 +149,7 @@ impl ObjectReceiver {
         }
 
         self.transfer_length = pkt.transfer_length;
+        self.block_writer = Some(BlockWriter::new(self.transfer_length.unwrap() as usize));
         self.block_partitioning();
     }
 

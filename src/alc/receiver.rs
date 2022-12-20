@@ -1,15 +1,18 @@
 use super::alc;
+use super::fdtreceiver;
+use super::fdtreceiver::FdtReceiver;
 use super::lct;
 use super::objectreceiver::ObjectReceiver;
 use super::objectwriter::ObjectWriter;
 use crate::tools::error::FluteError;
 use crate::tools::error::Result;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 
 pub struct Receiver {
     tsi: u64,
     objects: HashMap<u128, Box<ObjectReceiver>>,
+    fdt_receivers: BTreeMap<u32, Box<FdtReceiver>>,
     writer: Rc<dyn ObjectWriter>,
 }
 
@@ -18,6 +21,7 @@ impl Receiver {
         Receiver {
             tsi,
             objects: HashMap::new(),
+            fdt_receivers: BTreeMap::new(),
             writer,
         }
     }
@@ -44,6 +48,21 @@ impl Receiver {
             }
 
             return Err(FluteError::new("FDT pkt received without FDT Extension"));
+        }
+        let fdt_ext = fdt_ext.unwrap();
+
+        let fdt_receiver = self
+            .fdt_receivers
+            .entry(fdt_ext.fdt_instance_id)
+            .or_insert(Box::new(FdtReceiver::new(fdt_ext.fdt_instance_id)));
+
+        if fdt_receiver.state() != fdtreceiver::State::Receiving {
+            return Ok(true);
+        }
+
+        fdt_receiver.push(alc_pkt).ok();
+        if fdt_receiver.state() == fdtreceiver::State::Complete {
+            log::info!("FDT Received !");
         }
 
         Ok(true)

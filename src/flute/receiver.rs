@@ -74,7 +74,7 @@ mod tests {
         let oti: oti::Oti = Default::default();
         let sender = Box::new(sender::Sender::new(1, 1, &oti, writer));
         let mut buffer: Vec<u8> = Vec::new();
-        buffer.extend(vec![0xAA; oti.encoding_symbol_length as usize * 60 * 2]);
+        buffer.extend(vec![0xAA; oti.encoding_symbol_length as usize /* * 60 * 2*/]);
         sender.add_object(
             objectdesc::ObjectDesc::create_from_buffer(
                 &buffer,

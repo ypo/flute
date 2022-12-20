@@ -7,6 +7,8 @@ mod block;
 mod objectreceiver;
 mod blockdecoder;
 mod fdtreceiver;
+mod fdtinstance;
+mod blockwriter;
 
 pub mod alc;
 pub mod objectdesc;

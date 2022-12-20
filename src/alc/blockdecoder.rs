@@ -55,6 +55,10 @@ impl BlockDecoder {
         Ok(())
     }
 
+    pub fn source_encoding_symbols(&self) -> &[Option<Vec<u8>>] {
+        &self.shards[..self.source_block_length]
+    }
+
     pub fn deallocate(&mut self) {
         self.shards.clear()
     }

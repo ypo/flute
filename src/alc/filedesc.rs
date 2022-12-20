@@ -4,7 +4,7 @@ use std::rc::Rc;
 use serde::Serialize;
 
 use super::objectdesc::ObjectDesc;
-use super::oti;
+use super::{oti, fdtinstance};
 
 struct TransferInfo {
     transferring: bool,
@@ -91,10 +91,10 @@ impl FileDesc {
         now.duration_since(*last_transfer) > *delay
     }
 
-    pub fn to_file_xml(&self) -> File {
+    pub fn to_file_xml(&self) -> fdtinstance::File {
         let oti_attributes = self.object.oti.as_ref().map(|oti| oti.get_attributes());
 
-        File {
+        fdtinstance::File {
             content_location: self.object.content_location.to_string(),
             toi: self.toi.to_string(),
             content_length: match self.object.content_length {
@@ -129,32 +129,4 @@ impl FileDesc {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Clone)]
-pub struct File {
-    #[serde(rename = "Content-Location")]
-    content_location: String,
-    #[serde(rename = "TOI")]
-    toi: String,
-    #[serde(rename = "Content-Length")]
-    content_length: Option<u64>,
-    #[serde(rename = "Transfer-Length")]
-    transfer_length: Option<u64>,
-    #[serde(rename = "Content-Type")]
-    content_type: Option<String>,
-    #[serde(rename = "Content-Encoding")]
-    content_encoding: Option<String>,
-    #[serde(rename = "Content-MD5")]
-    content_md5: Option<String>,
-    #[serde(rename = "FEC-OTI-FEC-Encoding-ID")]
-    pub fec_oti_fec_encoding_id: Option<u8>,
-    #[serde(rename = "FEC-OTI-FEC-Instance-ID")]
-    pub fec_oti_fec_instance_id: Option<u64>,
-    #[serde(rename = "FEC-OTI-Maximum-Source-Block-Length")]
-    pub fec_oti_maximum_source_block_length: Option<u64>,
-    #[serde(rename = "FEC-OTI-Encoding-Symbol-Length")]
-    pub fec_oti_encoding_symbol_length: Option<u64>,
-    #[serde(rename = "FEC-OTI-Max-Number-of-Encoding-Symbols")]
-    pub fec_oti_max_number_of_encoding_symbols: Option<u64>,
-    #[serde(rename = "FEC-OTI-Scheme-Specific-Info")]
-    pub fec_oti_scheme_specific_info: Option<String>, // Base64
-}
+
