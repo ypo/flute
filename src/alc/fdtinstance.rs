@@ -2,6 +2,8 @@ use crate::tools::error::{FluteError, Result};
 use quick_xml::de::from_reader;
 use serde::{Deserialize, Serialize};
 
+use super::oti;
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct FdtInstance {
     #[serde(rename = "xmlns:xsi")]
@@ -67,5 +69,71 @@ impl FdtInstance {
         let instance: Result<FdtInstance> =
             from_reader(buffer).map_err(|err| FluteError::new(err.to_string()));
         instance
+    }
+
+    pub fn get_file(&self, toi: &u128) -> Option<&File> {
+        let toi = toi.to_string();
+        self.file.iter().find(|file| {
+            file.toi == toi
+        })
+    }
+
+    pub fn get_oti_for_file(&self, file: &File) -> Option<oti::Oti> {
+        let oti = file.get_oti();
+        if oti.is_some() {
+            return oti;
+        }
+
+        self.get_oti()
+    }
+
+    pub fn get_oti(&self) -> Option<oti::Oti> {
+        if self.fec_oti_fec_encoding_id.is_none()
+            || self.fec_oti_fec_instance_id.is_none()
+            || self.fec_oti_maximum_source_block_length.is_none()
+            || self.fec_oti_encoding_symbol_length.is_none()
+            || self.fec_oti_max_number_of_encoding_symbols.is_none()
+        {
+            return None;
+        }
+        let fec_encoding_id: oti::FECEncodingID =
+            self.fec_oti_fec_encoding_id.unwrap().try_into().ok()?;
+        Some(oti::Oti {
+            fec_encoding_id: fec_encoding_id,
+            fec_instance_id: self.fec_oti_fec_instance_id.unwrap() as u16,
+            maximum_source_block_length: self.fec_oti_maximum_source_block_length.unwrap() as u32,
+            encoding_symbol_length: self.fec_oti_encoding_symbol_length.unwrap() as u16,
+            max_number_of_parity_symbols: (self.fec_oti_max_number_of_encoding_symbols.unwrap()
+                - self.fec_oti_maximum_source_block_length.unwrap())
+                as u32,
+            reed_solomon_m: None, // TODO read fec_oti_scheme_specific_info to decode scheme info
+            inband_oti: false,
+        })
+    }
+}
+
+impl File {
+    pub fn get_oti(&self) -> Option<oti::Oti> {
+        if self.fec_oti_fec_encoding_id.is_none()
+            || self.fec_oti_fec_instance_id.is_none()
+            || self.fec_oti_maximum_source_block_length.is_none()
+            || self.fec_oti_encoding_symbol_length.is_none()
+            || self.fec_oti_max_number_of_encoding_symbols.is_none()
+        {
+            return None;
+        }
+        let fec_encoding_id: oti::FECEncodingID =
+            self.fec_oti_fec_encoding_id.unwrap().try_into().ok()?;
+        Some(oti::Oti {
+            fec_encoding_id: fec_encoding_id,
+            fec_instance_id: self.fec_oti_fec_instance_id.unwrap() as u16,
+            maximum_source_block_length: self.fec_oti_maximum_source_block_length.unwrap() as u32,
+            encoding_symbol_length: self.fec_oti_encoding_symbol_length.unwrap() as u16,
+            max_number_of_parity_symbols: (self.fec_oti_max_number_of_encoding_symbols.unwrap()
+                - self.fec_oti_maximum_source_block_length.unwrap())
+                as u32,
+            reed_solomon_m: None, // TODO read fec_oti_scheme_specific_info to decode scheme info
+            inband_oti: false,
+        })
     }
 }

@@ -1,7 +1,7 @@
 use super::oti::Oti;
 use crate::fec;
-use crate::tools::error::{FluteError, Result};
 use crate::fec::FecCodec;
+use crate::tools::error::{FluteError, Result};
 
 pub struct Block {
     snb: u32,
@@ -26,7 +26,7 @@ impl Block {
     ) -> Result<Box<Block>> {
         let nb_source_symbols: usize =
             num_integer::div_ceil(buffer.len(), oti.encoding_symbol_length as usize);
-        let shards: Vec<Vec<u8>> = match oti.fec {
+        let shards: Vec<Vec<u8>> = match oti.fec_encoding_id {
             super::oti::FECEncodingID::NoCode => buffer
                 .chunks(oti.encoding_symbol_length as usize)
                 .map(|chunk| chunk.to_vec())

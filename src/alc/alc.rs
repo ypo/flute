@@ -67,7 +67,7 @@ pub fn create_alc_pkt(
         &cci,
         tsi,
         &pkt.toi,
-        oti.fec as u8,
+        oti.fec_encoding_id as u8,
         pkt.close_object,
     );
 
@@ -84,7 +84,7 @@ pub fn create_alc_pkt(
         push_sct(&mut data, now.unwrap());
     }
 
-    match oti.fec {
+    match oti.fec_encoding_id {
         oti::FECEncodingID::NoCode => {
             if pkt.toi == lct::TOI_FDT || oti.inband_oti {
                 push_no_code_oti(&mut data, oti, pkt.transfer_length);
@@ -306,7 +306,7 @@ fn parse_no_code_oti(fti: &[u8]) -> Result<(oti::Oti, u64)> {
     let maximum_source_block_length = u32::from_be_bytes(maximum_source_block_length);
 
     let oti = oti::Oti {
-        fec: oti::FECEncodingID::NoCode,
+        fec_encoding_id: oti::FECEncodingID::NoCode,
         fec_instance_id: 0,
         maximum_source_block_length,
         encoding_symbol_length,

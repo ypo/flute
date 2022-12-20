@@ -13,9 +13,10 @@ pub enum State {
 }
 
 pub struct FdtReceiver {
-    fdt_id: u32,
+    pub fdt_id: u32,
     obj: Box<ObjectReceiver>,
     writer: Rc<FdtWriter>,
+    fdt_instance: Option<FdtInstance>,
 }
 
 struct FdtWriter {
@@ -42,6 +43,7 @@ impl FdtReceiver {
             fdt_id,
             obj: Box::new(ObjectReceiver::new(&lct::TOI_FDT, writer.clone())),
             writer,
+            fdt_instance: None,
         }
     }
 
@@ -57,6 +59,15 @@ impl FdtReceiver {
 
     pub fn state(&self) -> State {
         self.writer.inner.borrow().state
+    }
+
+    pub fn fdt_instance(&mut self) -> Option<&FdtInstance> {
+        if self.fdt_instance.is_none() {
+            let inner = self.writer.inner.borrow();
+            let instance = inner.fdt.as_ref();
+            self.fdt_instance = instance.map(|f| f.clone())
+        }
+        self.fdt_instance.as_ref()
     }
 }
 

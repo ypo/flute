@@ -3,6 +3,7 @@ use std::rc::Rc;
 use super::alc;
 use super::blockdecoder::BlockDecoder;
 use super::blockwriter::BlockWriter;
+use super::fdtinstance::FdtInstance;
 use super::objectwriter::ObjectWriterSession;
 use super::oti;
 use crate::alc::lct;
@@ -29,6 +30,8 @@ pub struct ObjectReceiver {
     waiting_for_fdt: bool,
     writer_session: Rc<dyn ObjectWriterSession>,
     block_writer: Option<BlockWriter>,
+    fdt_instance_id: Option<u32>,
+    toi: u128,
 }
 
 impl ObjectReceiver {
@@ -48,6 +51,8 @@ impl ObjectReceiver {
             waiting_for_fdt: toi.clone() != lct::TOI_FDT,
             writer_session,
             block_writer: None,
+            fdt_instance_id: None,
+            toi: toi.clone(),
         }
     }
 
@@ -110,6 +115,33 @@ impl ObjectReceiver {
         Ok(true)
     }
 
+    pub fn attach_fdt(&mut self, fdt_instance_id: u32, fdt: &FdtInstance) -> bool {
+        assert!(self.toi != lct::TOI_FDT);
+        if self.fdt_instance_id.is_some() {
+            return false;
+        }
+
+        let file = match fdt.get_file(&self.toi) {
+            Some(file) => file,
+            None => return false,
+        };
+
+        if self.oti.is_none() {
+            self.oti = fdt.get_oti_for_file(file);
+            self.transfer_length = file.transfer_length.clone();
+
+            if self.oti.is_some() && self.transfer_length.is_some() {
+                self.setup_block_writer();
+            }
+        }
+
+        log::info!("FDT attached to object TOI={}", self.toi);
+        self.fdt_instance_id = Some(fdt_instance_id);
+        self.waiting_for_fdt = false;
+        self.write_blocks(0);
+        true
+    }
+
     fn write_blocks(&mut self, snb_start: u32) {
         if self.waiting_for_fdt {
             return;
@@ -119,6 +151,10 @@ impl ObjectReceiver {
         let writer = self.block_writer.as_mut().unwrap();
         while snb < self.blocks.len() {
             let block = &self.blocks[snb as usize];
+            if !block.completed {
+                break;
+            }
+
             let success = writer.write(snb as u32, block, self.writer_session.as_ref());
             if !success {
                 break;
@@ -127,10 +163,15 @@ impl ObjectReceiver {
 
             if writer.completed() {
                 log::info!("Object completed");
-                self.state = State::Completed;
+                self.complete();
                 break;
             }
         }
+    }
+
+    fn complete(&mut self) {
+        self.state = State::Completed;
+        self.writer_session.complete();
     }
 
     fn set_oti_from_pkt(&mut self, pkt: &alc::AlcPkt) {
@@ -139,18 +180,21 @@ impl ObjectReceiver {
         }
 
         self.oti = pkt.oti.clone();
-        if self.oti.is_none() {
-            log::warn!("Object received before OTI");
-            return;
-        }
+        self.transfer_length = pkt.transfer_length;
         if pkt.transfer_length.is_none() {
             log::warn!("Bug? Pkt contains OTI without transfer length");
             return;
         }
+        self.setup_block_writer();
+    }
 
-        self.transfer_length = pkt.transfer_length;
+    fn setup_block_writer(&mut self) {
+        assert!(self.oti.is_some());
+        assert!(self.transfer_length.is_some());
+        assert!(self.block_writer.is_none());
         self.block_writer = Some(BlockWriter::new(self.transfer_length.unwrap() as usize));
         self.block_partitioning();
+        self.writer_session.open();
     }
 
     fn cache(&mut self, pkt: &alc::AlcPkt) {
@@ -180,7 +224,7 @@ impl ObjectReceiver {
         self.a_small = num_integer::div_floor(t, n);
         self.nb_a_large = t - (self.a_small * n);
 
-        self.blocks_variable_size = oti.fec == oti::FECEncodingID::ReedSolomonGF28;
+        self.blocks_variable_size = oti.fec_encoding_id == oti::FECEncodingID::ReedSolomonGF28;
         log::info!(
             "Preallocate {} blocks of {} or {} symbols",
             n,

@@ -36,7 +36,7 @@ impl BlockDecoder {
         self.shards.resize_with(nb_shards as usize, || None);
         self.source_block_length = source_block_length as usize;
 
-        match oti.fec {
+        match oti.fec_encoding_id {
             oti::FECEncodingID::NoCode => {}
             oti::FECEncodingID::ReedSolomonGF28 => {
                 let codec = rscodec::RSCodec::new(

@@ -24,7 +24,7 @@ impl TryFrom<u8> for FECEncodingID {
 
 #[derive(Clone, Debug)]
 pub struct Oti {
-    pub fec: FECEncodingID,
+    pub fec_encoding_id: FECEncodingID,
     pub fec_instance_id: u16,
     pub maximum_source_block_length: u32,
     pub encoding_symbol_length: u16,
@@ -36,7 +36,7 @@ pub struct Oti {
 impl Default for Oti {
     fn default() -> Self {
         Oti {
-            fec: FECEncodingID::NoCode,
+            fec_encoding_id: FECEncodingID::NoCode,
             fec_instance_id: 0,
             maximum_source_block_length: 64,
             encoding_symbol_length: 1424,
@@ -50,7 +50,7 @@ impl Default for Oti {
 impl Oti {
     pub fn get_attributes(&self) -> OtiAttributes {
         OtiAttributes {
-            fec_oti_fec_encoding_id: Some(self.fec as u8),
+            fec_oti_fec_encoding_id: Some(self.fec_encoding_id as u8),
             fec_oti_fec_instance_id: Some(self.fec_instance_id as u64),
             fec_oti_maximum_source_block_length: Some(self.maximum_source_block_length as u64),
             fec_oti_encoding_symbol_length: Some(self.encoding_symbol_length as u64),
@@ -62,7 +62,7 @@ impl Oti {
     }
 
     fn scheme_specific_info(&self) -> Option<String> {
-        if self.fec == FECEncodingID::ReedSolomonGF2M {
+        if self.fec_encoding_id == FECEncodingID::ReedSolomonGF2M {
             return Some(base64::encode([self.reed_solomon_m.unwrap_or_default()]));
         }
         None
