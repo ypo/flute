@@ -5,7 +5,7 @@ pub trait ObjectWriter {
 }
 
 pub trait ObjectWriterSession {
-    fn open(&self);
+    fn open(&self, content_location: Option<&str>);
     fn write(&self, data: &[u8]);
     fn complete(&self);
     fn error(&self);
@@ -49,7 +49,8 @@ impl ObjectWriter for ObjectWriterBuffer {
 }
 
 impl ObjectWriterSession for ObjectWriterSessionBuffer {
-    fn open(&self) {
+    fn open(&self, content_location: Option<&str>) {
+        log::info!("Open {:?}", content_location);
     }
 
     fn write(&self, data: &[u8]) {
@@ -67,4 +68,3 @@ impl ObjectWriterSession for ObjectWriterSessionBuffer {
         inner.error = true;
     }
 }
-

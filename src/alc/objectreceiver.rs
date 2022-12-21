@@ -16,6 +16,13 @@ enum State {
     Error,
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum ObjectWriterSessionState {
+    Closed,
+    Opened,
+    Error,
+}
+
 pub struct ObjectReceiver {
     state: State,
     oti: Option<oti::Oti>,
@@ -29,9 +36,11 @@ pub struct ObjectReceiver {
     nb_a_large: u64,
     waiting_for_fdt: bool,
     writer_session: Rc<dyn ObjectWriterSession>,
+    writer_session_state: ObjectWriterSessionState,
     block_writer: Option<BlockWriter>,
     fdt_instance_id: Option<u32>,
     toi: u128,
+    content_location: Option<String>,
 }
 
 impl ObjectReceiver {
@@ -50,9 +59,11 @@ impl ObjectReceiver {
             nb_a_large: 0,
             waiting_for_fdt: toi.clone() != lct::TOI_FDT,
             writer_session,
+            writer_session_state: ObjectWriterSessionState::Closed,
             block_writer: None,
             fdt_instance_id: None,
             toi: toi.clone(),
+            content_location: None,
         }
     }
 
@@ -138,12 +149,35 @@ impl ObjectReceiver {
         log::info!("FDT attached to object TOI={}", self.toi);
         self.fdt_instance_id = Some(fdt_instance_id);
         self.waiting_for_fdt = false;
-        self.write_blocks(0);
+        self.content_location = Some(file.content_location.clone());
+        self.open_object_writer();
+
+        if self.oti.is_some() {
+            self.write_blocks(0);
+        }
         true
+    }
+
+    fn open_object_writer(&mut self) {
+        if self.writer_session_state != ObjectWriterSessionState::Closed {
+            return;
+        }
+
+        if self.oti.is_none() || self.waiting_for_fdt {
+            return;
+        }
+
+        self.writer_session
+            .open(self.content_location.as_ref().map(|f| f.as_str()));
+        self.writer_session_state = ObjectWriterSessionState::Opened;
     }
 
     fn write_blocks(&mut self, snb_start: u32) {
         if self.waiting_for_fdt {
+            return;
+        }
+
+        if self.writer_session_state != ObjectWriterSessionState::Opened {
             return;
         }
 
@@ -179,6 +213,10 @@ impl ObjectReceiver {
             return;
         }
 
+        if pkt.oti.is_none() {
+            return;
+        }
+
         self.oti = pkt.oti.clone();
         self.transfer_length = pkt.transfer_length;
         if pkt.transfer_length.is_none() {
@@ -186,6 +224,7 @@ impl ObjectReceiver {
             return;
         }
         self.setup_block_writer();
+        self.open_object_writer();
     }
 
     fn setup_block_writer(&mut self) {
@@ -194,7 +233,6 @@ impl ObjectReceiver {
         assert!(self.block_writer.is_none());
         self.block_writer = Some(BlockWriter::new(self.transfer_length.unwrap() as usize));
         self.block_partitioning();
-        self.writer_session.open();
     }
 
     fn cache(&mut self, pkt: &alc::AlcPkt) {
@@ -232,5 +270,14 @@ impl ObjectReceiver {
             self.a_small
         );
         self.blocks.resize_with(n as usize, || BlockDecoder::new());
+    }
+}
+
+impl Drop for ObjectReceiver {
+    fn drop(&mut self) {
+        if self.writer_session_state == ObjectWriterSessionState::Opened {
+            self.writer_session.error();
+            self.writer_session_state = ObjectWriterSessionState::Error;
+        }
     }
 }

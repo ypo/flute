@@ -72,7 +72,7 @@ impl FdtReceiver {
 }
 
 impl ObjectWriterSession for FdtWriter {
-    fn open(&self) {}
+    fn open(&self, content_location: Option<&str>) {}
 
     fn write(&self, data: &[u8]) {
         let mut inner = self.inner.borrow_mut();
