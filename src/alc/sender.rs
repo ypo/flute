@@ -1,5 +1,4 @@
 use super::fdt::Fdt;
-use super::pkt::PktWriter;
 use super::sendersession::SenderSession;
 use super::{objectdesc, oti};
 use crate::tools::error::Result;
@@ -11,11 +10,10 @@ pub struct Sender {
     fdt: Rc<RefCell<Fdt>>,
     sessions: Vec<SenderSession>,
     session_index: usize,
-    writer: Rc<dyn PktWriter>,
 }
 
 impl Sender {
-    pub fn new(tsi: u64, fdtid: u32, oti: &oti::Oti, writer: Rc<dyn PktWriter>) -> Sender {
+    pub fn new(tsi: u64, fdtid: u32, oti: &oti::Oti) -> Sender {
         let fdt = Rc::new(RefCell::new(Fdt::new(fdtid, oti)));
         let sessions = (0..4)
             .map(|index| SenderSession::new(tsi, fdt.clone(), 4, index == 0))
@@ -25,7 +23,6 @@ impl Sender {
             fdt,
             sessions,
             session_index: 0,
-            writer,
         }
     }
 
@@ -44,12 +41,11 @@ impl Sender {
         fdt.set_complete();
     }
 
-    pub fn run(&mut self) -> bool {
+    pub fn run(&mut self) -> Option<Vec<u8>> {
         self.run_send_object()
     }
 
-    pub fn run_send_object(&mut self) -> bool {
-        let mut ret = false;
+    fn run_send_object(&mut self) -> Option<Vec<u8>> {
         let session_index_orig = self.session_index;
         loop {
             let session = self.sessions.get_mut(self.session_index).unwrap();
@@ -61,51 +57,34 @@ impl Sender {
             }
 
             if data.is_some() {
-                let alc_pkt = data.as_ref().unwrap();
-                match self.writer.write(alc_pkt) {
-                    Ok(_) => {}
-                    Err(e) => log::error!("Fail to write ALC pkt: {:?}", e),
-                }
-                ret = true;
-                break;
+                return data;
             }
 
             if self.session_index == session_index_orig {
                 break;
             }
         }
-        ret
+        None
     }
 }
 
 #[cfg(test)]
 mod tests {
 
-    use std::rc::Rc;
-    use std::time::SystemTime;
-
-    use crate::alc::pkt::DummyWriter;
-
     use super::objectdesc;
     use super::oti;
-
-    fn init() {
-        std::env::set_var("RUST_LOG", "debug");
-        env_logger::builder().is_test(true).init()
-    }
+    use std::time::SystemTime;
 
     #[test]
     pub fn test_sender() {
-        init();
+        crate::tests::init();
 
-        let writer = Rc::new(DummyWriter::new());
         let oti: oti::Oti = Default::default();
         // oti.fec = oti::FECEncodingID::ReedSolomonGF28;
-        let mut sender = super::Sender::new(1, 1, &oti, writer);
+        let mut sender = super::Sender::new(1, 1, &oti);
         let mut buffer: Vec<u8> = Vec::new();
-        buffer.extend(vec![0xAA; oti.encoding_symbol_length as usize / 2]);
-        // buffer.extend(vec![0xBB; oti.encoding_symbol_length as usize / 2]);
-        // buffer.extend(vec![0xCC; oti.encoding_symbol_length as usize / 2]);
+        let nb_pkt = oti.encoding_symbol_length as usize * 3;
+        buffer.extend(vec![0xAA; nb_pkt]);
         sender.add_object(
             objectdesc::ObjectDesc::create_from_buffer(
                 &buffer,
@@ -117,14 +96,9 @@ mod tests {
             .unwrap(),
         );
         sender.publish(&SystemTime::now()).unwrap();
-        let mut nb = 0;
         loop {
-            let success = sender.run();
-            std::thread::sleep(std::time::Duration::from_secs(1));
-            if success == false {
-                nb += 1;
-            }
-            if nb > 2 {
+            let data = sender.run();
+            if data.is_none() {
                 break;
             }
         }

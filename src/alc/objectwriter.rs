@@ -20,9 +20,10 @@ pub struct ObjectWriterSessionBuffer {
 }
 
 struct ObjectWriterSessionBufferInner {
-    pub complete: bool,
-    pub error: bool,
-    pub data: Vec<u8>,
+    complete: bool,
+    error: bool,
+    data: Vec<u8>,
+    content_location: Option<String>
 }
 
 impl ObjectWriterBuffer {
@@ -40,6 +41,7 @@ impl ObjectWriter for ObjectWriterBuffer {
                 complete: false,
                 error: false,
                 data: Vec::new(),
+                content_location: None
             }),
         });
         let mut sessions = self.sessions.borrow_mut();
@@ -48,9 +50,22 @@ impl ObjectWriter for ObjectWriterBuffer {
     }
 }
 
+impl ObjectWriterSessionBuffer {
+    pub fn data(&self) -> Vec<u8> {
+        let inner = self.inner.borrow();
+        inner.data.clone()
+    }
+
+    pub fn content_location(&self) -> Option<String> {
+        let inner = self.inner.borrow();
+        inner.content_location.clone()
+    }
+}
+
 impl ObjectWriterSession for ObjectWriterSessionBuffer {
     fn open(&self, content_location: Option<&str>) {
-        log::info!("Open {:?}", content_location);
+        let mut inner = self.inner.borrow_mut();
+        inner.content_location = content_location.map(|s| s.to_string());
     }
 
     fn write(&self, data: &[u8]) {

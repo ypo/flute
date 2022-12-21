@@ -1,10 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use serde::Serialize;
-
 use super::objectdesc::ObjectDesc;
-use super::{oti, fdtinstance};
+use super::{fdtinstance, oti};
 
 struct TransferInfo {
     transferring: bool,
@@ -128,5 +126,3 @@ impl FileDesc {
         }
     }
 }
-
-

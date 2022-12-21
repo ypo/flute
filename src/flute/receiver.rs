@@ -47,43 +47,17 @@ impl Receiver {
 #[cfg(test)]
 mod tests {
 
-    use std::{cell::RefCell, rc::Rc, time::SystemTime};
-
     use crate::alc::objectwriter::ObjectWriterBuffer;
-    use crate::alc::{objectdesc, oti, pkt::PktWriter, sender};
-    use crate::tools::error::Result;
+    use crate::alc::{objectdesc, oti, sender};
+    use std::time::SystemTime;
 
-    struct ReceiverWrapper {
-        receiver: RefCell<super::Receiver>,
-    }
-
-    impl PktWriter for ReceiverWrapper {
-        fn write(&self, data: &Vec<u8>) -> Result<usize> {
-            let mut rcv = self.receiver.borrow_mut();
-            rcv.push(data)?;
-            Ok(data.len())
-        }
-    }
-
-    fn init() {
-        std::env::set_var("RUST_LOG", "debug");
-        env_logger::builder().is_test(true).init()
-    }
-
-    fn create_sender(writer: Rc<dyn PktWriter>) -> Box<sender::Sender> {
+    fn create_sender(buffer: &Vec<u8>, content_location: &url::Url) -> Box<sender::Sender> {
         let oti: oti::Oti = Default::default();
-        let sender = Box::new(sender::Sender::new(1, 1, &oti, writer));
-        let mut buffer: Vec<u8> = Vec::new();
-        buffer.extend(vec![0xAA; oti.encoding_symbol_length as usize /* * 60 * 2*/]);
+        let sender = Box::new(sender::Sender::new(1, 1, &oti));
+
         sender.add_object(
-            objectdesc::ObjectDesc::create_from_buffer(
-                &buffer,
-                "text",
-                &url::Url::parse("file:///hello").unwrap(),
-                1,
-                None,
-            )
-            .unwrap(),
+            objectdesc::ObjectDesc::create_from_buffer(buffer, "text", content_location, 1, None)
+                .unwrap(),
         );
         sender.publish(&SystemTime::now()).unwrap();
         sender
@@ -91,19 +65,33 @@ mod tests {
 
     #[test]
     pub fn test_receiver() {
-        init();
+        crate::tests::init();
 
-        let writer = ObjectWriterBuffer::new();
-        let receiver = Rc::new(ReceiverWrapper {
-            receiver: RefCell::new(super::Receiver::new(None, writer)),
-        });
+        let input_content_location = url::Url::parse("file:///hello").unwrap();
+        let mut input_file_buffer: Vec<u8> = Vec::new();
+        input_file_buffer.extend(vec![0xAA; 2048]);
 
-        let mut sender = create_sender(receiver);
+        let output = ObjectWriterBuffer::new();
+        let mut receiver = super::Receiver::new(None, output.clone());
+        let mut sender = create_sender(&input_file_buffer, &input_content_location);
+
         loop {
-            let ret = sender.run();
-            if ret == false {
+            let data = sender.run();
+            if data.is_none() {
                 break;
             }
+            receiver.push(data.as_ref().unwrap()).unwrap();
         }
+
+        let output_session = output.sessions.borrow();
+        assert!(output_session.len() == 1);
+
+        let output_object = &output_session[0];
+        let output_file_buffer = output_object.data();
+        let output_content_location =
+            url::Url::parse(output_object.content_location().as_ref().unwrap().as_str()).unwrap();
+
+        assert!(output_file_buffer.eq(&input_file_buffer));
+        assert!(output_content_location == output_content_location);
     }
 }

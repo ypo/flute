@@ -1,7 +1,5 @@
-use std::net::{IpAddr, ToSocketAddrs, UdpSocket};
-
-use crate::alc::pkt::PktWriter;
 use crate::tools::error::Result;
+use std::net::{IpAddr, ToSocketAddrs, UdpSocket};
 
 pub struct UdpWriter<A>
 where
@@ -32,6 +30,11 @@ where
     pub fn multicast_loop_v6(&self) -> Result<bool> {
         let success = self.sock.multicast_loop_v6()?;
         Ok(success)
+    }
+
+    pub fn write(&self, pkt: &Vec<u8>) -> Result<usize> {
+        let ret = self.sock.send(pkt)?;
+        Ok(ret)
     }
 
     fn join_multicast(&self) -> Result<()> {
@@ -83,28 +86,11 @@ where
     }
 }
 
-impl<A> PktWriter for UdpWriter<A>
-where
-    A: ToSocketAddrs,
-{
-    fn write(&self, pkt: &Vec<u8>) -> Result<usize> {
-        let ret = self.sock.send(pkt)?;
-        Ok(ret)
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::alc::pkt::PktWriter;
-
-    fn init() {
-        std::env::set_var("RUST_LOG", "debug");
-        env_logger::builder().is_test(true).init()
-    }
-
     #[test]
     pub fn test_udp_writer() {
-        init();
+        crate::tests::init();
         let writer = super::UdpWriter::new("224.0.0.1:3400").unwrap();
         writer.multicast_loop_v4().unwrap();
         writer.write(&vec![0, 1, 2]).unwrap();

@@ -77,15 +77,9 @@ impl FecCodec for RSCodec {
 #[cfg(test)]
 mod tests {
     use crate::fec::FecCodec;
-
-    fn init() {
-        std::env::set_var("RUST_LOG", "debug");
-        env_logger::builder().is_test(true).init()
-    }
-
     #[test]
     pub fn test_encoder() {
-        init();
+        crate::tests::init();
         let data = vec![1, 2, 3, 4, 5];
         let encoder = super::RSCodec::new(2, 3, 4).unwrap();
         let shards = encoder.encode(&data).unwrap();

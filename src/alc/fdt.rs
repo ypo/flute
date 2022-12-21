@@ -188,14 +188,9 @@ mod tests {
     use super::objectdesc;
     use super::oti;
 
-    fn init() {
-        std::env::set_var("RUST_LOG", "debug");
-        env_logger::builder().is_test(true).init()
-    }
-
     #[test]
     pub fn test_fdt() {
-        init();
+        crate::tests::init();
 
         let oti: oti::Oti = Default::default();
         let mut fdt = super::Fdt::new(1, &oti);

@@ -1,6 +1,4 @@
-use std::rc::Rc;
-
-use super::{block::Block, blockdecoder::BlockDecoder, objectwriter::ObjectWriterSession};
+use super::{blockdecoder::BlockDecoder, objectwriter::ObjectWriterSession};
 
 pub struct BlockWriter {
     snb: u32,
@@ -17,7 +15,12 @@ impl BlockWriter {
         }
     }
 
-    pub fn write(&mut self, snb: u32, block: &BlockDecoder, writer: &dyn ObjectWriterSession) -> bool {
+    pub fn write(
+        &mut self,
+        snb: u32,
+        block: &BlockDecoder,
+        writer: &dyn ObjectWriterSession,
+    ) -> bool {
         if self.snb != snb {
             return false;
         }
@@ -27,7 +30,7 @@ impl BlockWriter {
             let symbols = encoding_symbol.as_ref().unwrap();
             let symbols = match self.bytes_left > symbols.len() {
                 true => symbols.as_ref(),
-                false =>  &symbols[..self.bytes_left]
+                false => &symbols[..self.bytes_left],
             };
             writer.write(symbols);
             assert!(symbols.len() <= self.bytes_left);
@@ -39,5 +42,4 @@ impl BlockWriter {
     pub fn completed(&self) -> bool {
         self.bytes_left == 0
     }
-
 }

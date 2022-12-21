@@ -1,9 +1,6 @@
-use std::time::SystemTime;
-
-use quick_xml::se;
-
 use super::{lct, oti, pkt::Pkt};
 use crate::tools::{self, error::FluteError, error::Result};
+use std::time::SystemTime;
 
 pub struct AlcPkt<'a> {
     pub lct: lct::LCTHeader,
@@ -412,14 +409,9 @@ mod tests {
     use crate::alc::oti;
     use crate::alc::pkt;
 
-    fn init() {
-        std::env::set_var("RUST_LOG", "debug");
-        env_logger::builder().is_test(true).init()
-    }
-
     #[test]
     pub fn test_alc_create() {
-        init();
+        crate::tests::init();
 
         let oti: oti::Oti = Default::default();
         let cci: u128 = 0x804754755879;

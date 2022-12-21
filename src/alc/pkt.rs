@@ -1,5 +1,4 @@
 use super::lct;
-use crate::tools::error::Result;
 
 #[derive(Debug)]
 pub struct Pkt {
@@ -12,23 +11,4 @@ pub struct Pkt {
     pub cenc: lct::CENC,
     pub inband_cenc: bool,
     pub close_object: bool,
-}
-
-/// Write ALC packet to a destination
-pub trait PktWriter {
-    fn write(&self, data: &Vec<u8>) -> Result<usize>;
-}
-
-pub struct DummyWriter {}
-
-impl DummyWriter {
-    pub fn new() -> DummyWriter {
-        DummyWriter {}
-    }
-}
-
-impl PktWriter for DummyWriter {
-    fn write(&self, data: &Vec<u8>) -> Result<usize> {
-        Ok(data.len())
-    }
 }

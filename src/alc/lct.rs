@@ -361,14 +361,9 @@ pub fn get_ext<'a>(data: &'a [u8], lct: &LCTHeader, ext: EXT) -> Result<Option<&
 #[cfg(test)]
 mod tests {
 
-    fn init() {
-        std::env::set_var("RUST_LOG", "debug");
-        env_logger::builder().is_test(true).init()
-    }
-
     #[test]
     pub fn test_lct() {
-        init();
+        crate::tests::init();
         let mut lct = Vec::new();
         let psi: u8 = 0;
         let cci: u128 = 0x1;
