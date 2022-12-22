@@ -1,6 +1,6 @@
-use super::alc;
 use super::objectwriter::ObjectWriter;
-use super::receiver::Receiver;
+use super::receiver::{Config, Receiver};
+use super::{alc, receiver};
 use crate::tools::error::Result;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -9,6 +9,7 @@ pub struct MultiReceiver {
     alc_receiver: HashMap<u64, Box<Receiver>>,
     tsi: Option<Vec<u64>>,
     writer: Rc<dyn ObjectWriter>,
+    config: Option<Config>,
 }
 
 impl MultiReceiver {
@@ -21,6 +22,8 @@ impl MultiReceiver {
     ///
     /// * `writer` - Responsible to write object to its final destination.
     ///
+    /// * `config` - Configuration of the FLUTE `Receiver`. if `None`, default `Config` will be used
+    ///
     /// # Example
     /// ```
     /// // Receive objects from Transport Session 1
@@ -32,13 +35,18 @@ impl MultiReceiver {
     ///
     ///
     /// let writer = ObjectWriterBuffer::new();
-    /// let receiver = MultiReceiver::new(Some(&vec![1]), writer.clone());
+    /// let receiver = MultiReceiver::new(Some(&vec![1]), writer.clone(), None);
     /// ```
-    pub fn new(tsi: Option<&Vec<u64>>, writer: Rc<dyn ObjectWriter>) -> MultiReceiver {
+    pub fn new(
+        tsi: Option<&Vec<u64>>,
+        writer: Rc<dyn ObjectWriter>,
+        config: Option<receiver::Config>,
+    ) -> MultiReceiver {
         MultiReceiver {
             alc_receiver: HashMap::new(),
             tsi: tsi.map(|f| f.clone()),
             writer,
+            config,
         }
     }
 
@@ -69,7 +77,9 @@ impl MultiReceiver {
     fn get_receiver(&mut self, tsi: u64) -> &mut Receiver {
         self.alc_receiver
             .entry(tsi)
-            .or_insert_with(|| Box::new(Receiver::new(tsi, self.writer.clone())))
+            .or_insert_with(|| {
+                Box::new(Receiver::new(tsi, self.writer.clone(), self.config.clone()))
+            })
             .as_mut()
     }
 }
@@ -149,7 +159,7 @@ mod tests {
     fn test_receiver_with_oti(oti: &oti::Oti, with_loss: bool) {
         let (input_file_buffer, input_content_location) = create_file_buffer();
         let output = ObjectWriterBuffer::new();
-        let mut receiver = super::MultiReceiver::new(None, output.clone());
+        let mut receiver = super::MultiReceiver::new(None, output.clone(), None);
         let mut sender = create_sender(&input_file_buffer, &input_content_location, &oti);
 
         if with_loss {

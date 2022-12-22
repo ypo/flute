@@ -1,6 +1,3 @@
-use std::rc::Rc;
-use std::time::Instant;
-
 use super::alc::{self, AlcPkt};
 use super::blockdecoder::BlockDecoder;
 use super::blockwriter::BlockWriter;
@@ -9,9 +6,12 @@ use super::objectwriter::ObjectWriterSession;
 use super::oti;
 use crate::alc::lct;
 use crate::tools::error::{FluteError, Result};
+use std::rc::Rc;
+use std::time::Duration;
+use std::time::Instant;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-enum State {
+pub enum State {
     Receiving,
     Completed,
     Error,
@@ -25,7 +25,8 @@ enum ObjectWriterSessionState {
 }
 
 pub struct ObjectReceiver {
-    state: State,
+    pub state: State,
+    pub toi: u128,
     oti: Option<oti::Oti>,
     cache: Vec<Box<alc::AlcPktCache>>,
     cache_size: usize,
@@ -40,7 +41,6 @@ pub struct ObjectReceiver {
     writer_session_state: ObjectWriterSessionState,
     block_writer: Option<BlockWriter>,
     fdt_instance_id: Option<u32>,
-    toi: u128,
     content_location: Option<String>,
     last_activity: Instant,
 }
@@ -68,6 +68,10 @@ impl ObjectReceiver {
             content_location: None,
             last_activity: Instant::now(),
         }
+    }
+
+    pub fn last_activity_duration_since(&self, earlier: Instant) -> Duration {
+        self.last_activity.duration_since(earlier)
     }
 
     pub fn push(&mut self, pkt: &alc::AlcPkt) -> Result<()> {

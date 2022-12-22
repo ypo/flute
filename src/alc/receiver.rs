@@ -2,27 +2,55 @@ use super::alc;
 use super::fdtreceiver;
 use super::fdtreceiver::FdtReceiver;
 use super::lct;
+use super::objectreceiver;
 use super::objectreceiver::ObjectReceiver;
 use super::objectwriter::ObjectWriter;
 use crate::tools::error::FluteError;
 use crate::tools::error::Result;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::rc::Rc;
+
+///
+/// Configuration of the FLUTE Receiver
+///
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Config {
+    /// Keep a reference of a maximum of `gc_max_objects_completed` objects that are completed.
+    /// Packets
+    pub gc_max_objects_completed: usize,
+    /// Keep
+    pub gc_max_objects_error: usize,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            gc_max_objects_completed: 25,
+            gc_max_objects_error: 0,
+        }
+    }
+}
 
 pub struct Receiver {
     tsi: u64,
     objects: HashMap<u128, Box<ObjectReceiver>>,
+    objects_completed: BTreeSet<u128>,
+    objects_error: BTreeSet<u128>,
     fdt_receivers: BTreeMap<u32, Box<FdtReceiver>>,
     writer: Rc<dyn ObjectWriter>,
+    config: Config,
 }
 
 impl Receiver {
-    pub fn new(tsi: u64, writer: Rc<dyn ObjectWriter>) -> Receiver {
-        Receiver {
+    pub fn new(tsi: u64, writer: Rc<dyn ObjectWriter>, config: Option<Config>) -> Self {
+        Self {
             tsi,
             objects: HashMap::new(),
             fdt_receivers: BTreeMap::new(),
             writer,
+            objects_completed: BTreeSet::new(),
+            objects_error: BTreeSet::new(),
+            config: config.unwrap_or_default(),
         }
     }
 
@@ -84,21 +112,66 @@ impl Receiver {
     }
 
     fn push_obj(&mut self, pkt: &alc::AlcPkt) -> Result<()> {
-        let mut obj = self.objects.get_mut(&pkt.lct.toi);
-        if obj.is_none() {
-            if pkt.lct.close_object {
-                return Ok(());
-            }
-            self.create_obj(&pkt.lct.toi);
-            obj = self.objects.get_mut(&pkt.lct.toi);
+        if self.objects_completed.contains(&pkt.lct.toi) {
+            return Ok(());
+        }
+        if self.objects_error.contains(&pkt.lct.toi) {
+            return Ok(());
         }
 
-        let obj = match obj {
-            Some(obj) => obj.as_mut(),
-            None => return Err(FluteError::new("Bug ? Object not found")),
-        };
+        let mut remove_object = false;
+        {
+            let mut obj = self.objects.get_mut(&pkt.lct.toi);
+            if obj.is_none() {
+                if pkt.lct.close_object {
+                    return Ok(());
+                }
+                self.create_obj(&pkt.lct.toi);
+                obj = self.objects.get_mut(&pkt.lct.toi);
+            }
 
-        obj.push(pkt)
+            let obj = match obj {
+                Some(obj) => obj.as_mut(),
+                None => return Err(FluteError::new("Bug ? Object not found")),
+            };
+
+            assert!(obj.state == objectreceiver::State::Receiving);
+            obj.push(pkt).ok();
+            match obj.state {
+                objectreceiver::State::Receiving => {}
+                objectreceiver::State::Completed => {
+                    remove_object = true;
+                    self.objects_completed.insert(obj.toi);
+                    self.gc_object_completed();
+                }
+                objectreceiver::State::Error => {
+                    remove_object = true;
+                    self.objects_error.insert(obj.toi);
+                    self.gc_object_error();
+                }
+            }
+        }
+
+        if remove_object {
+            log::info!("Remove object {}", pkt.lct.toi);
+            self.objects.remove(&pkt.lct.toi);
+        }
+
+        Ok(())
+    }
+
+    fn gc_object_completed(&mut self) {
+        while self.objects_completed.len() > self.config.gc_max_objects_completed {
+            let toi = self.objects_completed.pop_first().unwrap();
+            self.objects.remove(&toi);
+        }
+    }
+
+    fn gc_object_error(&mut self) {
+        while self.objects_error.len() > self.config.gc_max_objects_error {
+            let toi = self.objects_error.pop_first().unwrap();
+            self.objects.remove(&toi);
+        }
     }
 
     fn create_obj(&mut self, toi: &u128) {
