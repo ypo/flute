@@ -11,4 +11,5 @@ pub struct Pkt {
     pub cenc: lct::CENC,
     pub inband_cenc: bool,
     pub close_object: bool,
+    pub source_block_length: u32
 }

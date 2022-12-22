@@ -1,7 +1,6 @@
 mod fec;
 
 pub mod alc;
-pub mod flute;
 pub mod network;
 pub mod tools;
 

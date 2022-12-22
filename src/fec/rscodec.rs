@@ -68,8 +68,14 @@ impl FecCodec for RSCodec {
 
     fn decode(&self, shards: &mut Vec<Option<Vec<u8>>>) -> bool {
         match self.rs.reconstruct(shards) {
-            Ok(_) => true,
-            Err(_) => false,
+            Ok(_) => {
+                log::info!("Reconstruct with success !");
+                true
+            }
+            Err(e) => {
+                log::error!("{:?}", e);
+                false
+            }
         }
     }
 }

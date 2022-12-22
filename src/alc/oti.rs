@@ -1,11 +1,16 @@
 use serde::Serialize;
 
+///
+/// FEC Type
+/// FECEncodingID < 128 Fully-Specified FEC
+/// FECEncodingID >= 128 Under-Specified
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum FECEncodingID {
     NoCode = 0,
-    ReedSolomonGF28 = 129,
     ReedSolomonGF2M = 2,
+    ReedSolomonGF28 = 5,
+    ReedSolomonGF28SmallBlockSystematic = 129,
     // LDPCStaircase = 3,
 }
 
@@ -15,8 +20,11 @@ impl TryFrom<u8> for FECEncodingID {
     fn try_from(v: u8) -> Result<Self, Self::Error> {
         match v {
             x if x == FECEncodingID::NoCode as u8 => Ok(FECEncodingID::NoCode),
-            x if x == FECEncodingID::ReedSolomonGF28 as u8 => Ok(FECEncodingID::ReedSolomonGF28),
+            x if x == FECEncodingID::ReedSolomonGF28SmallBlockSystematic as u8 => {
+                Ok(FECEncodingID::ReedSolomonGF28SmallBlockSystematic)
+            }
             x if x == FECEncodingID::ReedSolomonGF2M as u8 => Ok(FECEncodingID::ReedSolomonGF2M),
+            x if x == FECEncodingID::ReedSolomonGF28 as u8 => Ok(FECEncodingID::ReedSolomonGF28),
             _ => Err(()),
         }
     }
@@ -25,6 +33,7 @@ impl TryFrom<u8> for FECEncodingID {
 #[derive(Clone, Debug)]
 pub struct Oti {
     pub fec_encoding_id: FECEncodingID,
+    /// FEC Instance ID for Under-Specified spec
     pub fec_instance_id: u16,
     pub maximum_source_block_length: u32,
     pub encoding_symbol_length: u16,

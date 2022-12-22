@@ -79,6 +79,7 @@ impl BlockEncoder {
                 inband_cenc: self.file.object.inband_cenc,
                 close_object: self.source_size_transferred
                     >= self.file.object.transfer_length as usize,
+                source_block_length: block.nb_source_symbols as u32,
             });
         }
     }

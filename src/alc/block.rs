@@ -1,4 +1,4 @@
-use super::oti::Oti;
+use super::oti::{self, Oti};
 use crate::fec;
 use crate::fec::FecCodec;
 use crate::tools::error::{FluteError, Result};
@@ -7,7 +7,7 @@ pub struct Block {
     snb: u32,
     esi: u32,
     shards: Vec<Vec<u8>>,
-    nb_source_symbols: usize,
+    pub nb_source_symbols: usize,
 }
 
 pub struct EncodingSymbol<'a> {
@@ -27,24 +27,26 @@ impl Block {
         let nb_source_symbols: usize =
             num_integer::div_ceil(buffer.len(), oti.encoding_symbol_length as usize);
         let shards: Vec<Vec<u8>> = match oti.fec_encoding_id {
-            super::oti::FECEncodingID::NoCode => buffer
+            oti::FECEncodingID::NoCode => buffer
                 .chunks(oti.encoding_symbol_length as usize)
                 .map(|chunk| chunk.to_vec())
                 .collect(),
-            super::oti::FECEncodingID::ReedSolomonGF28 => {
-                assert!(nb_source_symbols <= oti.maximum_source_block_length as usize);
-                assert!(nb_source_symbols <= block_length as usize);
-                let encoder = fec::rscodec::RSCodec::new(
+            oti::FECEncodingID::ReedSolomonGF28 => Block::create_shards_reed_solomon_gf8(
+                oti,
+                nb_source_symbols,
+                block_length as usize,
+                buffer,
+            )?,
+
+            oti::FECEncodingID::ReedSolomonGF28SmallBlockSystematic => {
+                Block::create_shards_reed_solomon_gf8(
+                    oti,
                     nb_source_symbols,
-                    oti.max_number_of_parity_symbols as usize,
-                    oti.encoding_symbol_length as usize,
-                )?;
-                let shards = encoder.encode(&buffer)?;
-                shards
+                    block_length as usize,
+                    buffer,
+                )?
             }
-            super::oti::FECEncodingID::ReedSolomonGF2M => {
-                return Err(FluteError::new("Not implemented"))
-            }
+            oti::FECEncodingID::ReedSolomonGF2M => return Err(FluteError::new("Not implemented")),
         };
 
         Ok(Box::new(Block {
@@ -69,5 +71,22 @@ impl Block {
         };
         self.esi += 1;
         Some(symbol)
+    }
+
+    fn create_shards_reed_solomon_gf8(
+        oti: &Oti,
+        nb_source_symbols: usize,
+        block_length: usize,
+        buffer: &[u8],
+    ) -> Result<Vec<Vec<u8>>> {
+        assert!(nb_source_symbols <= oti.maximum_source_block_length as usize);
+        assert!(nb_source_symbols <= block_length as usize);
+        let encoder = fec::rscodec::RSCodec::new(
+            nb_source_symbols,
+            oti.max_number_of_parity_symbols as usize,
+            oti.encoding_symbol_length as usize,
+        )?;
+        let shards = encoder.encode(&buffer)?;
+        Ok(shards)
     }
 }

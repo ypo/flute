@@ -1,3 +1,5 @@
+use quick_xml::se;
+
 use super::alc;
 use super::oti;
 use crate::fec::rscodec;
@@ -39,6 +41,14 @@ impl BlockDecoder {
         match oti.fec_encoding_id {
             oti::FECEncodingID::NoCode => {}
             oti::FECEncodingID::ReedSolomonGF28 => {
+                let codec = rscodec::RSCodec::new(
+                    source_block_length as usize,
+                    oti.max_number_of_parity_symbols as usize,
+                    oti.encoding_symbol_length as usize,
+                )?;
+                self.decoder = Some(Box::new(codec));
+            }
+            oti::FECEncodingID::ReedSolomonGF28SmallBlockSystematic => {
                 let codec = rscodec::RSCodec::new(
                     source_block_length as usize,
                     oti.max_number_of_parity_symbols as usize,
@@ -93,8 +103,41 @@ impl BlockDecoder {
             self.nb_shards_source_symbol += 1;
         }
 
+        self.repair();
+
         if self.nb_shards_source_symbol == self.source_block_length {
             self.completed = true;
         }
+    }
+
+    fn repair(&mut self) {
+        if self.decoder.is_none() {
+            return;
+        }
+
+        if self.nb_shards_source_symbol == self.source_block_length
+            || self.nb_shards < self.source_block_length
+        {
+            return;
+        }
+
+        let success = self.decoder.as_ref().unwrap().decode(&mut self.shards);
+        let source_block_length = self.source_block_length;
+        let nb_shards_source_symbol = self.nb_shards_source_symbol;
+        self.nb_shards_source_symbol = self
+            .shards
+            .iter()
+            .enumerate()
+            .filter(|(index, item)| *index < source_block_length && item.is_some())
+            .count();
+        assert!(self.nb_shards_source_symbol >= nb_shards_source_symbol);
+        log::info!(
+            "Run FEC Repair success={} {} symbols {} / {} nb shards = {}",
+            success,
+            self.nb_shards_source_symbol - nb_shards_source_symbol,
+            self.nb_shards_source_symbol,
+            self.source_block_length,
+            self.nb_shards,
+        );
     }
 }

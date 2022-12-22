@@ -42,10 +42,10 @@ impl Sender {
     }
 
     pub fn run(&mut self) -> Option<Vec<u8>> {
-        self.run_send_object()
+        self.run_send_objects()
     }
 
-    fn run_send_object(&mut self) -> Option<Vec<u8>> {
+    fn run_send_objects(&mut self) -> Option<Vec<u8>> {
         let session_index_orig = self.session_index;
         loop {
             let session = self.sessions.get_mut(self.session_index).unwrap();
