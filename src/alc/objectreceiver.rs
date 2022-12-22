@@ -1,6 +1,7 @@
 use std::rc::Rc;
+use std::time::Instant;
 
-use super::alc;
+use super::alc::{self, AlcPkt};
 use super::blockdecoder::BlockDecoder;
 use super::blockwriter::BlockWriter;
 use super::fdtinstance::FdtInstance;
@@ -41,6 +42,7 @@ pub struct ObjectReceiver {
     fdt_instance_id: Option<u32>,
     toi: u128,
     content_location: Option<String>,
+    last_activity: Instant,
 }
 
 impl ObjectReceiver {
@@ -64,20 +66,27 @@ impl ObjectReceiver {
             fdt_instance_id: None,
             toi: toi.clone(),
             content_location: None,
+            last_activity: Instant::now(),
         }
     }
 
-    pub fn push(&mut self, pkt: &alc::AlcPkt) -> Result<bool> {
+    pub fn push(&mut self, pkt: &alc::AlcPkt) -> Result<()> {
         if self.state != State::Receiving {
-            return Ok(false);
+            return Ok(());
         }
 
+        self.last_activity = Instant::now();
         self.set_oti_from_pkt(pkt);
 
         if self.oti.is_none() {
             self.cache(pkt);
-            return Ok(true);
+            return Ok(());
         }
+
+        self.push_to_block(pkt)
+    }
+
+    fn push_to_block(&mut self, pkt: &alc::AlcPkt) -> Result<()> {
         let oti = self.oti.as_ref().unwrap();
         let payload_id = alc::parse_payload_id(pkt, self.oti.as_ref().unwrap())?;
         log::debug!("Receive snb {} esi {}", payload_id.snb, payload_id.esi);
@@ -97,7 +106,7 @@ impl ObjectReceiver {
 
         let block = &mut self.blocks[payload_id.snb as usize];
         if block.completed {
-            return Ok(true);
+            return Ok(());
         }
 
         if block.initialized == false {
@@ -123,7 +132,7 @@ impl ObjectReceiver {
             self.write_blocks(payload_id.snb);
         }
 
-        Ok(true)
+        Ok(())
     }
 
     pub fn attach_fdt(&mut self, fdt_instance_id: u32, fdt: &FdtInstance) -> bool {
@@ -143,6 +152,7 @@ impl ObjectReceiver {
 
             if self.oti.is_some() && self.transfer_length.is_some() {
                 self.setup_block_writer();
+                self.push_from_cache();
             }
         }
 
@@ -206,6 +216,21 @@ impl ObjectReceiver {
     fn complete(&mut self) {
         self.state = State::Completed;
         self.writer_session.complete();
+        // Free space by removing blocks
+        self.blocks.clear();
+        self.cache.clear();
+    }
+
+    fn push_from_cache(&mut self) {
+        if self.oti.is_none() {
+            return;
+        }
+
+        while !self.cache.is_empty() {
+            let item = self.cache.pop().unwrap();
+            let pkt = item.to_pkt();
+            self.push_to_block(&pkt).ok();
+        }
     }
 
     fn set_oti_from_pkt(&mut self, pkt: &alc::AlcPkt) {
@@ -225,6 +250,7 @@ impl ObjectReceiver {
         }
         self.setup_block_writer();
         self.open_object_writer();
+        self.push_from_cache();
     }
 
     fn setup_block_writer(&mut self) {
@@ -262,7 +288,8 @@ impl ObjectReceiver {
         self.a_small = num_integer::div_floor(t, n);
         self.nb_a_large = t - (self.a_small * n);
 
-        self.blocks_variable_size = oti.fec_encoding_id == oti::FECEncodingID::ReedSolomonGF28SmallBlockSystematic;
+        self.blocks_variable_size =
+            oti.fec_encoding_id == oti::FECEncodingID::ReedSolomonGF28SmallBlockSystematic;
         log::info!(
             "Preallocate {} blocks of {} or {} symbols",
             n,

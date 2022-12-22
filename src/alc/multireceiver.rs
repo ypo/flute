@@ -13,11 +13,11 @@ pub struct MultiReceiver {
 
 impl MultiReceiver {
     ///
-    /// Create a new FLUTE Receiver
+    /// Creates a new `MultiReceiver` instance, which allows receiving multiple interlaced FLUTE sessions.
     ///
     /// # Arguments
     /// * `tsi` - Optional List of Transport Session Identifier (TSI) accepted by the receiver.
-    /// if tsi is None, all Transport Session are accepted
+    /// if `None`, all Transport Session are accepted
     ///
     /// * `writer` - Responsible to write object to its final destination.
     ///
@@ -49,7 +49,7 @@ impl MultiReceiver {
     /// # Arguments
     /// * `pkt`- Payload of the UDP/IP packet.
     ///
-    pub fn push(&mut self, pkt: &Vec<u8>) -> Result<bool> {
+    pub fn push(&mut self, pkt: &Vec<u8>) -> Result<()> {
         let alc = alc::parse_alc_pkt(pkt)?;
 
         let can_handle = match &self.tsi {
@@ -59,7 +59,7 @@ impl MultiReceiver {
 
         if !can_handle {
             log::debug!("skip pkt with tsi {}", alc.lct.tsi);
-            return Ok(false);
+            return Ok(());
         }
 
         let receiver = self.get_receiver(alc.lct.tsi);

@@ -50,6 +50,21 @@ impl<'a> AlcPkt<'a> {
     }
 }
 
+impl<'a> AlcPktCache {
+    pub fn to_pkt(&'a self) -> AlcPkt<'a>  {
+        AlcPkt {
+            lct: self.lct.clone(),
+            oti: self.oti.clone(),
+            transfer_length: self.transfer_length,
+            cenc: self.cenc.clone(),
+            server_time: self.server_time.clone(),
+            data_alc_header_offset: self.data_alc_header_offset,
+            data_payload_offset: self.data_payload_offset,
+            data: self.data.as_ref()
+        }
+    }
+}
+
 pub fn create_alc_pkt(
     oti: &oti::Oti,
     cci: &u128,

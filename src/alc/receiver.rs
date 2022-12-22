@@ -26,7 +26,7 @@ impl Receiver {
         }
     }
 
-    pub fn push(&mut self, alc_pkt: &alc::AlcPkt) -> Result<bool> {
+    pub fn push(&mut self, alc_pkt: &alc::AlcPkt) -> Result<()> {
         assert!(self.tsi == alc_pkt.lct.tsi);
 
         match alc_pkt.lct.toi {
@@ -35,16 +35,16 @@ impl Receiver {
         }
     }
 
-    fn push_fdt_obj(&mut self, alc_pkt: &alc::AlcPkt) -> Result<bool> {
+    fn push_fdt_obj(&mut self, alc_pkt: &alc::AlcPkt) -> Result<()> {
         let fdt_ext = alc::find_ext_fdt(&alc_pkt)?;
         if fdt_ext.is_none() {
             if alc_pkt.lct.close_object {
-                return Ok(true);
+                return Ok(());
             }
 
             if alc_pkt.lct.close_session {
                 // TODO close this receiver
-                return Ok(true);
+                return Ok(());
             }
 
             return Err(FluteError::new("FDT pkt received without FDT Extension"));
@@ -58,19 +58,19 @@ impl Receiver {
                 .or_insert(Box::new(FdtReceiver::new(fdt_ext.fdt_instance_id)));
 
             if fdt_receiver.state() != fdtreceiver::State::Receiving {
-                return Ok(true);
+                return Ok(());
             }
 
             fdt_receiver.push(alc_pkt).ok();
             if fdt_receiver.state() != fdtreceiver::State::Complete {
-                return Ok(true);
+                return Ok(());
             }
         }
 
         log::info!("FDT Received !");
         self.attach_fdt_to_objects(fdt_ext.fdt_instance_id);
 
-        Ok(true)
+        Ok(())
     }
 
     fn attach_fdt_to_objects(&mut self, fdt_id: u32) -> Option<()> {
@@ -83,11 +83,11 @@ impl Receiver {
         Some(())
     }
 
-    fn push_obj(&mut self, pkt: &alc::AlcPkt) -> Result<bool> {
+    fn push_obj(&mut self, pkt: &alc::AlcPkt) -> Result<()> {
         let mut obj = self.objects.get_mut(&pkt.lct.toi);
         if obj.is_none() {
             if pkt.lct.close_object {
-                return Ok(true);
+                return Ok(());
             }
             self.create_obj(&pkt.lct.toi);
             obj = self.objects.get_mut(&pkt.lct.toi);

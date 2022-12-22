@@ -47,7 +47,7 @@ impl FdtReceiver {
         }
     }
 
-    pub fn push(&mut self, pkt: &alc::AlcPkt) -> Result<bool> {
+    pub fn push(&mut self, pkt: &alc::AlcPkt) -> Result<()> {
         match self.obj.push(pkt) {
             Ok(res) => Ok(res),
             Err(e) => {

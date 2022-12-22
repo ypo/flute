@@ -13,6 +13,9 @@ pub struct Sender {
 }
 
 impl Sender {
+    ///
+    /// Creation of a FLUTE Sender
+    ///
     pub fn new(tsi: u64, fdtid: u32, oti: &oti::Oti) -> Sender {
         let fdt = Rc::new(RefCell::new(Fdt::new(fdtid, oti)));
         let sessions = (0..4)
@@ -80,7 +83,6 @@ mod tests {
         crate::tests::init();
 
         let oti: oti::Oti = Default::default();
-        // oti.fec = oti::FECEncodingID::ReedSolomonGF28;
         let mut sender = super::Sender::new(1, 1, &oti);
         let mut buffer: Vec<u8> = Vec::new();
         let nb_pkt = oti.encoding_symbol_length as usize * 3;
