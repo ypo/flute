@@ -104,7 +104,7 @@ impl FileDesc {
                 _ => None,
             },
             content_type: Some(self.object.content_type.clone()),
-            content_encoding: Some(self.object.content_encoding().to_string()),
+            content_encoding: Some(self.object.cenc.to_str().to_string()),
             content_md5: self.object.md5.clone(),
             fec_oti_fec_encoding_id: oti_attributes
                 .as_ref()

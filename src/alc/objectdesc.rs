@@ -88,13 +88,4 @@ impl ObjectDesc {
             carousel_delay_ns,
         }))
     }
-
-    pub fn content_encoding(&self) -> &str {
-        match self.cenc {
-            lct::CENC::Null => "null",
-            lct::CENC::Zlib => "zlib",
-            lct::CENC::Deflate => "deflate",
-            lct::CENC::Gzip => "gzip",
-        }
-    }
 }

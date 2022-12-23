@@ -1,17 +1,19 @@
-use super::{blockdecoder::BlockDecoder, objectwriter::ObjectWriterSession};
+use std::io::Write;
+
+use super::{blockdecoder::BlockDecoder, lct, objectwriter::ObjectWriterSession};
 
 pub struct BlockWriter {
     snb: u32,
-    transfer_length: usize,
     bytes_left: usize,
+    cenc: lct::CENC,
 }
 
 impl BlockWriter {
-    pub fn new(transfer_length: usize) -> BlockWriter {
+    pub fn new(transfer_length: usize, cenc: lct::CENC) -> BlockWriter {
         BlockWriter {
             snb: 0,
-            transfer_length,
             bytes_left: transfer_length,
+            cenc,
         }
     }
 

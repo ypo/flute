@@ -33,6 +33,7 @@ pub struct ObjectReceiver {
     blocks: Vec<BlockDecoder>,
     blocks_variable_size: bool,
     transfer_length: Option<u64>,
+    cenc: Option<lct::CENC>,
     a_large: u64,
     a_small: u64,
     nb_a_large: u64,
@@ -55,6 +56,7 @@ impl ObjectReceiver {
             cache_size: 0,
             blocks: Vec::new(),
             transfer_length: None,
+            cenc: None,
             blocks_variable_size: false,
             a_large: 0,
             a_small: 0,
@@ -80,6 +82,7 @@ impl ObjectReceiver {
         }
 
         self.last_activity = Instant::now();
+        self.set_cenc_from_pkt(pkt);
         self.set_oti_from_pkt(pkt);
 
         if self.oti.is_none() {
@@ -91,6 +94,7 @@ impl ObjectReceiver {
     }
 
     fn push_to_block(&mut self, pkt: &alc::AlcPkt) -> Result<()> {
+        assert!(self.oti.is_some());
         let oti = self.oti.as_ref().unwrap();
         let payload_id = alc::parse_payload_id(pkt, self.oti.as_ref().unwrap())?;
         log::debug!("Receive snb {} esi {}", payload_id.snb, payload_id.esi);
@@ -150,14 +154,21 @@ impl ObjectReceiver {
             None => return false,
         };
 
+        if self.cenc.is_none() {
+            self.cenc = match &file.content_encoding {
+                Some(str) => Some(str.as_str().try_into().unwrap_or(lct::CENC::Null)),
+                None => Some(lct::CENC::Null),
+            };
+            log::info!("Set cenc from FDT {:?}", self.cenc);
+        }
+
         if self.oti.is_none() {
             self.oti = fdt.get_oti_for_file(file);
             self.transfer_length = file.transfer_length.clone();
+        }
 
-            if self.oti.is_some() && self.transfer_length.is_some() {
-                self.setup_block_writer();
-                self.push_from_cache();
-            }
+        if self.oti.is_some() && self.transfer_length.is_some() && self.block_writer.is_none() {
+            self.setup_block_writer();
         }
 
         log::info!("FDT attached to object TOI={}", self.toi);
@@ -165,6 +176,7 @@ impl ObjectReceiver {
         self.waiting_for_fdt = false;
         self.content_location = Some(file.content_location.clone());
         self.open_object_writer();
+        self.push_from_cache();
 
         if self.oti.is_some() {
             self.write_blocks(0);
@@ -177,7 +189,7 @@ impl ObjectReceiver {
             return;
         }
 
-        if self.oti.is_none() || self.waiting_for_fdt {
+        if self.oti.is_none() || self.waiting_for_fdt || self.block_writer.is_none() {
             return;
         }
 
@@ -195,10 +207,11 @@ impl ObjectReceiver {
             return;
         }
 
+        assert!(self.block_writer.is_some());
         let mut snb = snb_start as usize;
         let writer = self.block_writer.as_mut().unwrap();
         while snb < self.blocks.len() {
-            let block = &self.blocks[snb as usize];
+            let block = &mut self.blocks[snb as usize];
             if !block.completed {
                 break;
             }
@@ -208,6 +221,7 @@ impl ObjectReceiver {
                 break;
             }
             snb += 1;
+            block.deallocate();
 
             if writer.completed() {
                 log::info!("Object completed");
@@ -237,6 +251,17 @@ impl ObjectReceiver {
         }
     }
 
+    fn set_cenc_from_pkt(&mut self, pkt: &alc::AlcPkt) {
+        if self.cenc.is_some() {
+            return;
+        }
+        self.cenc = pkt.cenc;
+        if self.toi == lct::TOI_FDT && self.cenc.is_none() {
+            log::info!("Force CENC to Null for the FDT");
+            self.cenc = Some(lct::CENC::Null);
+        }
+    }
+
     fn set_oti_from_pkt(&mut self, pkt: &alc::AlcPkt) {
         if self.oti.is_some() {
             return;
@@ -248,10 +273,18 @@ impl ObjectReceiver {
 
         self.oti = pkt.oti.clone();
         self.transfer_length = pkt.transfer_length;
+
         if pkt.transfer_length.is_none() {
             log::warn!("Bug? Pkt contains OTI without transfer length");
             return;
         }
+
+        if self.cenc.is_none() {
+            log::warn!("Cenc is unknown ?");
+            assert!(self.toi != lct::TOI_FDT);
+            return;
+        }
+
         self.setup_block_writer();
         self.open_object_writer();
         self.push_from_cache();
@@ -260,8 +293,16 @@ impl ObjectReceiver {
     fn setup_block_writer(&mut self) {
         assert!(self.oti.is_some());
         assert!(self.transfer_length.is_some());
-        assert!(self.block_writer.is_none());
-        self.block_writer = Some(BlockWriter::new(self.transfer_length.unwrap() as usize));
+        assert!(self.cenc.is_some());
+
+        if self.block_writer.is_some() {
+            return;
+        }
+
+        self.block_writer = Some(BlockWriter::new(
+            self.transfer_length.unwrap() as usize,
+            self.cenc.unwrap(),
+        ));
         self.block_partitioning();
     }
 

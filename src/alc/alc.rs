@@ -51,7 +51,7 @@ impl<'a> AlcPkt<'a> {
 }
 
 impl<'a> AlcPktCache {
-    pub fn to_pkt(&'a self) -> AlcPkt<'a>  {
+    pub fn to_pkt(&'a self) -> AlcPkt<'a> {
         AlcPkt {
             lct: self.lct.clone(),
             oti: self.oti.clone(),
@@ -60,7 +60,7 @@ impl<'a> AlcPktCache {
             server_time: self.server_time.clone(),
             data_alc_header_offset: self.data_alc_header_offset,
             data_payload_offset: self.data_payload_offset,
-            data: self.data.as_ref()
+            data: self.data.as_ref(),
         }
     }
 }
@@ -170,11 +170,17 @@ pub fn parse_alc_pkt(data: &Vec<u8>) -> Result<AlcPkt> {
     let data_alc_header_offset = lct_header.len;
     let data_payload_offset = alc_payload_id_length + lct_header.len;
 
+    let cenc = lct::get_ext(data.as_ref(), &lct_header, lct::EXT::Cenc)?;
+    let cenc = match cenc {
+        Some(ext) => parse_cenc(ext).ok(),
+        None => None,
+    };
+
     Ok(AlcPkt {
         lct: lct_header,
         oti: oti,
         transfer_length: transfer_length,
-        cenc: None,
+        cenc: cenc,
         server_time: None,
         data: data.as_ref(),
         data_alc_header_offset,
@@ -259,6 +265,15 @@ fn push_cenc(data: &mut Vec<u8>, cenc: u8) {
     let ext = (lct::EXT::Cenc as u32) << 24 | (cenc as u32) << 16;
     data.extend(ext.to_be_bytes());
     lct::inc_hdr_len(data, 1);
+}
+
+fn parse_cenc(ext: &[u8]) -> Result<lct::CENC> {
+    if ext.len() != 4 {
+        return Err(FluteError::new("Wrong extension size"));
+    }
+    ext[1]
+        .try_into()
+        .map_err(|e| FluteError::new("CENC not supported"))
 }
 
 fn push_sct(data: &mut Vec<u8>, time: &std::time::SystemTime) {

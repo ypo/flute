@@ -33,6 +33,45 @@ pub struct LCTHeader {
     pub length: usize,
 }
 
+impl TryFrom<u8> for CENC {
+    type Error = ();
+
+    fn try_from(v: u8) -> std::result::Result<Self, Self::Error> {
+        match v {
+            x if x == CENC::Null as u8 => Ok(CENC::Null),
+            x if x == CENC::Zlib as u8 => Ok(CENC::Zlib),
+            x if x == CENC::Deflate as u8 => Ok(CENC::Deflate),
+            x if x == CENC::Gzip as u8 => Ok(CENC::Gzip),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<&str> for CENC {
+    type Error = ();
+
+    fn try_from(v: &str) -> std::result::Result<Self, Self::Error> {
+        match v {
+            "null" => Ok(CENC::Null),
+            "zlib" => Ok(CENC::Zlib),
+            "deflate" => Ok(CENC::Deflate),
+            "gzip" => Ok(CENC::Gzip),
+            _ => Err(()),
+        }
+    }
+}
+
+impl CENC {
+    pub fn to_str(&self) -> &str {
+        match self {
+            CENC::Null => "null",
+            CENC::Zlib => "zlib",
+            CENC::Deflate => "deflate",
+            CENC::Gzip => "gzip",
+        }
+    }
+}
+
 fn nb_bytes_128(cci: &u128) -> u32 {
     if (cci & 0xFFFF0000000000000000000000000000) != 0x0 {
         return 16;
