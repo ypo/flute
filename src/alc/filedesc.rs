@@ -4,12 +4,14 @@ use std::rc::Rc;
 use super::objectdesc::ObjectDesc;
 use super::{fdtinstance, oti};
 
+#[derive(Debug)]
 struct TransferInfo {
     transferring: bool,
     transfer_count: u32,
     last_transfer: Option<std::time::Instant>,
 }
 
+#[derive(Debug)]
 pub struct FileDesc {
     pub object: Box<ObjectDesc>,
     pub oti: oti::Oti,
@@ -47,7 +49,7 @@ impl FileDesc {
         info.transferring = true;
 
         if info.transfer_count == self.object.max_transfer_count {
-            if self.object.carousel_delay_ns.is_some() {
+            if self.object.carousel_delay.is_some() {
                 info.transfer_count = 0;
             }
         }
@@ -66,7 +68,7 @@ impl FileDesc {
         if self.object.max_transfer_count > info.transfer_count {
             return false;
         }
-        self.object.carousel_delay_ns.is_none()
+        self.object.carousel_delay.is_none()
     }
 
     pub fn is_transferring(&self) -> bool {
@@ -80,11 +82,11 @@ impl FileDesc {
             return true;
         }
 
-        if self.object.carousel_delay_ns.is_none() || info.last_transfer.is_none() {
+        if self.object.carousel_delay.is_none() || info.last_transfer.is_none() {
             return true;
         }
 
-        let delay = self.object.carousel_delay_ns.as_ref().unwrap();
+        let delay = self.object.carousel_delay.as_ref().unwrap();
         let last_transfer = info.last_transfer.as_ref().unwrap();
         now.duration_since(*last_transfer) > *delay
     }

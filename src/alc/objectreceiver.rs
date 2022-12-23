@@ -1,4 +1,4 @@
-use super::alc::{self, AlcPkt};
+use super::alc;
 use super::blockdecoder::BlockDecoder;
 use super::blockwriter::BlockWriter;
 use super::fdtinstance::FdtInstance;
@@ -24,6 +24,7 @@ enum ObjectWriterSessionState {
     Error,
 }
 
+#[derive(Debug)]
 pub struct ObjectReceiver {
     pub state: State,
     pub toi: u128,
@@ -72,7 +73,7 @@ impl ObjectReceiver {
         }
     }
 
-    pub fn last_activity_duration_since(&self, earlier: Instant) -> Duration {
+    pub fn _last_activity_duration_since(&self, earlier: Instant) -> Duration {
         self.last_activity.duration_since(earlier)
     }
 

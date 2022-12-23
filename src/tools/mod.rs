@@ -2,8 +2,10 @@ use self::error::FluteError;
 use self::error::Result;
 use std::time::SystemTime;
 
+/// FLUTE Error
 pub mod error;
 
+/// Convert the `SystemTime`into NTP.
 pub fn system_time_to_ntp(time: &SystemTime) -> Result<(u32, u32)> {
     let duration = time
         .duration_since(std::time::UNIX_EPOCH)

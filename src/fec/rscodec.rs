@@ -3,6 +3,7 @@ use reed_solomon_erasure::galois_8::ReedSolomon;
 
 use super::FecCodec;
 
+#[derive(Debug)]
 pub struct RSCodec {
     nb_source_symbols: usize,
     nb_parity_symbols: usize,

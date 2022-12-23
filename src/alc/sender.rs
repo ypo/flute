@@ -6,6 +6,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::SystemTime;
 
+///
+/// FLUTE `Sender` session
+/// Transform objects (files) to ALC/LCT packet
+///
+#[derive(Debug)]
 pub struct Sender {
     fdt: Rc<RefCell<Fdt>>,
     sessions: Vec<SenderSession>,
@@ -29,22 +34,33 @@ impl Sender {
         }
     }
 
+    /// Add an object to the FDT
+    /// After calling this function, a call to `publish()` to publish your modifications
     pub fn add_object(&self, obj: Box<objectdesc::ObjectDesc>) {
         let mut fdt = self.fdt.borrow_mut();
         fdt.add_object(obj);
     }
 
+    /// Publish modification to the FDT
+    /// An updated version of the FDT will be generated and transferred
+    /// Multiple modification can be made (ex: several call to 'add_object()`) before publishing a new FDT version
     pub fn publish(&self, now: &SystemTime) -> Result<()> {
         let mut fdt = self.fdt.borrow_mut();
         fdt.publish(now)
     }
 
+    /// Inform that the FDT is complete, no new object should be added after this call
+    /// You must not call `add_object()`after
+    /// After calling this function, a call to `publish()` to publish your modifications
     pub fn set_complete(&self) {
         let mut fdt = self.fdt.borrow_mut();
         fdt.set_complete();
     }
 
-    pub fn run(&mut self) -> Option<Vec<u8>> {
+    /// Read the next ALC/LCT packet
+    /// return None if there is no new packet to be transferred
+    /// ALC/LCT packet should be encapsulated into a UDP/IP payload and transferred via UDP/multicast
+    pub fn read(&mut self) -> Option<Vec<u8>> {
         self.run_send_objects()
     }
 
@@ -99,7 +115,7 @@ mod tests {
         );
         sender.publish(&SystemTime::now()).unwrap();
         loop {
-            let data = sender.run();
+            let data = sender.read();
             if data.is_none() {
                 break;
             }

@@ -1,11 +1,10 @@
-use std::io::Write;
-
 use super::{blockdecoder::BlockDecoder, lct, objectwriter::ObjectWriterSession};
 
+#[derive(Debug)]
 pub struct BlockWriter {
     snb: u32,
     bytes_left: usize,
-    cenc: lct::CENC,
+    _cenc: lct::CENC,
 }
 
 impl BlockWriter {
@@ -13,7 +12,7 @@ impl BlockWriter {
         BlockWriter {
             snb: 0,
             bytes_left: transfer_length,
-            cenc,
+            _cenc: cenc,
         }
     }
 

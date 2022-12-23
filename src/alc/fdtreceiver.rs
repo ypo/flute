@@ -5,13 +5,14 @@ use super::{
 use crate::tools::error::Result;
 use std::{cell::RefCell, rc::Rc};
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum State {
     Receiving,
     Complete,
     Error,
 }
 
+#[derive(Debug)]
 pub struct FdtReceiver {
     pub fdt_id: u32,
     obj: Box<ObjectReceiver>,
@@ -19,10 +20,12 @@ pub struct FdtReceiver {
     fdt_instance: Option<FdtInstance>,
 }
 
+#[derive(Debug)]
 struct FdtWriter {
     inner: RefCell<FdtWriterInner>,
 }
 
+#[derive(Debug)]
 struct FdtWriterInner {
     data: Vec<u8>,
     fdt: Option<FdtInstance>,

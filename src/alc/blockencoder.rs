@@ -4,6 +4,7 @@ use super::filedesc;
 use super::pkt;
 use crate::tools::error::Result;
 
+#[derive(Debug)]
 pub struct BlockEncoder {
     file: Rc<filedesc::FileDesc>,
     curr_content_offset: u64,

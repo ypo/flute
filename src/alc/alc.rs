@@ -2,6 +2,7 @@ use super::{lct, oti, pkt::Pkt};
 use crate::tools::{self, error::FluteError, error::Result};
 use std::time::SystemTime;
 
+#[derive(Debug)]
 pub struct AlcPkt<'a> {
     pub lct: lct::LCTHeader,
     pub oti: Option<oti::Oti>,
@@ -13,6 +14,7 @@ pub struct AlcPkt<'a> {
     pub data_payload_offset: usize,
 }
 
+#[derive(Debug)]
 pub struct AlcPktCache {
     pub lct: lct::LCTHeader,
     pub oti: Option<oti::Oti>,
@@ -273,7 +275,7 @@ fn parse_cenc(ext: &[u8]) -> Result<lct::CENC> {
     }
     ext[1]
         .try_into()
-        .map_err(|e| FluteError::new("CENC not supported"))
+        .map_err(|_| FluteError::new("CENC not supported"))
 }
 
 fn push_sct(data: &mut Vec<u8>, time: &std::time::SystemTime) {

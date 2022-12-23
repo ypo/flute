@@ -11,6 +11,7 @@ use super::oti;
 use crate::tools;
 use crate::tools::error::{FluteError, Result};
 
+#[derive(Debug)]
 pub struct Fdt {
     fdtid: u32,
     oti: oti::Oti,

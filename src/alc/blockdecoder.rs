@@ -1,11 +1,10 @@
-use quick_xml::se;
-
 use super::alc;
 use super::oti;
 use crate::fec::rscodec;
 use crate::fec::FecCodec;
 use crate::tools::error::Result;
 
+#[derive(Debug)]
 pub struct BlockDecoder {
     pub completed: bool,
     pub initialized: bool,

@@ -1,6 +1,8 @@
 use crate::tools::error::Result;
 use std::net::{IpAddr, ToSocketAddrs, UdpSocket};
 
+#[derive(Debug)]
+/// UDP/IP writer
 pub struct UdpWriter<A>
 where
     A: ToSocketAddrs,
@@ -13,6 +15,7 @@ impl<A> UdpWriter<A>
 where
     A: ToSocketAddrs,
 {
+    /// Return a new UDP/IP writer
     pub fn new(addr: A) -> Result<UdpWriter<A>> {
         let socket_addr: Vec<std::net::SocketAddr> = addr.to_socket_addrs()?.collect();
         let sock = UdpSocket::bind("0.0.0.0:0")?;
@@ -22,16 +25,19 @@ where
         Ok(writer)
     }
 
+    /// Gets the value of the `IP_MULTICAST_LOOP` option for this socket.
     pub fn multicast_loop_v4(&self) -> Result<bool> {
         let success = self.sock.multicast_loop_v4()?;
         Ok(success)
     }
 
+    /// Gets the value of the `IPV6_MULTICAST_LOOP` option for this socket.
     pub fn multicast_loop_v6(&self) -> Result<bool> {
         let success = self.sock.multicast_loop_v6()?;
         Ok(success)
     }
 
+    /// Write a packet to this socket
     pub fn write(&self, pkt: &Vec<u8>) -> Result<usize> {
         let ret = self.sock.send(pkt)?;
         Ok(ret)

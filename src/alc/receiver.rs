@@ -31,6 +31,11 @@ impl Default for Config {
     }
 }
 
+///
+/// FLUTE `Receiver`
+/// Used to re-construct objects from ALC/LCT packets
+///
+#[derive(Debug)]
 pub struct Receiver {
     tsi: u64,
     objects: HashMap<u128, Box<ObjectReceiver>>,
@@ -42,6 +47,8 @@ pub struct Receiver {
 }
 
 impl Receiver {
+    /// Return a new `Receiver`
+    ///
     pub fn new(tsi: u64, writer: Rc<dyn ObjectWriter>, config: Option<Config>) -> Self {
         Self {
             tsi,
@@ -54,6 +61,7 @@ impl Receiver {
         }
     }
 
+    /// Push ALC/LCT packets to the `Receiver`
     pub fn push(&mut self, alc_pkt: &alc::AlcPkt) -> Result<()> {
         assert!(self.tsi == alc_pkt.lct.tsi);
 

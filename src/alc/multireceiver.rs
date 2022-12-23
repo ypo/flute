@@ -5,6 +5,11 @@ use crate::tools::error::Result;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+///
+/// Multi-sessions FLUTE receiver
+/// Demultiplex multiple FLUTE Transport Sessions
+/// 
+#[derive(Debug)]
 pub struct MultiReceiver {
     alc_receiver: HashMap<u64, Box<Receiver>>,
     tsi: Option<Vec<u64>>,
@@ -32,8 +37,6 @@ impl MultiReceiver {
     ///
     /// let tsi: u64 = 1;
     /// // Write object to a buffer
-    ///
-    ///
     /// let writer = ObjectWriterBuffer::new();
     /// let receiver = MultiReceiver::new(Some(&vec![1]), writer.clone(), None);
     /// ```
@@ -107,7 +110,7 @@ mod tests {
 
     fn run(sender: &mut sender::Sender, receiver: &mut super::MultiReceiver) {
         loop {
-            let data = sender.run();
+            let data = sender.read();
             if data.is_none() {
                 break;
             }
@@ -118,7 +121,7 @@ mod tests {
     fn run_loss(sender: &mut sender::Sender, receiver: &mut super::MultiReceiver) {
         let mut i = 0u32;
         loop {
-            let data = sender.run();
+            let data = sender.read();
             if data.is_none() {
                 break;
             }

@@ -6,6 +6,7 @@ use super::blockencoder::BlockEncoder;
 use super::fdt::Fdt;
 use super::filedesc::FileDesc;
 
+#[derive(Debug)]
 pub struct SenderSession {
     tsi: u64,
     fdt: Rc<RefCell<Fdt>>,

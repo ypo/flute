@@ -3,6 +3,7 @@ use crate::fec;
 use crate::fec::FecCodec;
 use crate::tools::error::{FluteError, Result};
 
+#[derive(Debug)]
 pub struct Block {
     snb: u32,
     esi: u32,
