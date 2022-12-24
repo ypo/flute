@@ -2,8 +2,9 @@ use serde::Serialize;
 
 ///
 /// FEC Type
-/// FECEncodingID < 128 Fully-Specified FEC
-/// FECEncodingID >= 128 Under-Specified
+/// FECEncodingID < 128 Fully-Specified FEC  
+/// FECEncodingID >= 128 Under-Specified  
+///
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum FECEncodingID {
@@ -33,7 +34,7 @@ impl TryFrom<u8> for FECEncodingID {
     }
 }
 
-/// 
+///
 /// FEC Object Transmission Information
 /// Contains the parameters using the build the blocks and FEC for the objects transmission
 #[derive(Clone, Debug)]

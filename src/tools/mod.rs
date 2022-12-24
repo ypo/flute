@@ -2,7 +2,7 @@ use self::error::FluteError;
 use self::error::Result;
 use std::time::SystemTime;
 
-/// FLUTE Error
+/// Handle errors
 pub mod error;
 
 /// Convert the `SystemTime`into NTP.

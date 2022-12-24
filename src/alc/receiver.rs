@@ -15,25 +15,24 @@ use std::rc::Rc;
 ///
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Config {
-    /// Keep a reference of a maximum of `gc_max_objects_completed` objects that are completed.
-    /// Packets
-    pub gc_max_objects_completed: usize,
-    /// Keep
+    /// Max number of successfully completed objects that the receiver is keeping track of.
+    /// `None` to keep track of an infinite number of objects
+    pub gc_max_objects_completed: Option<usize>,
+    /// Max number of objects with error that the receiver is keeping track of.
     pub gc_max_objects_error: usize,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            gc_max_objects_completed: 25,
+            gc_max_objects_completed: Some(100),
             gc_max_objects_error: 0,
         }
     }
 }
 
 ///
-/// FLUTE `Receiver`
-/// Used to re-construct objects from ALC/LCT packets
+/// FLUTE `Receiver` able to re-construct objects from ALC/LCT packets
 ///
 #[derive(Debug)]
 pub struct Receiver {
@@ -169,7 +168,12 @@ impl Receiver {
     }
 
     fn gc_object_completed(&mut self) {
-        while self.objects_completed.len() > self.config.gc_max_objects_completed {
+        if self.config.gc_max_objects_completed.is_none() {
+            return;
+        }
+
+        let max = self.config.gc_max_objects_completed.unwrap();
+        while self.objects_completed.len() > max {
             let toi = self.objects_completed.pop_first().unwrap();
             self.objects.remove(&toi);
         }
