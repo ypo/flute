@@ -138,7 +138,7 @@ impl ObjectReceiver {
         block.push(pkt, &payload_id);
         if block.completed {
             log::info!("block {} is completed", payload_id.snb);
-            self.write_blocks(payload_id.snb);
+            self.write_blocks(payload_id.snb)?;
         }
 
         Ok(())
@@ -180,7 +180,13 @@ impl ObjectReceiver {
         self.push_from_cache();
 
         if self.oti.is_some() {
-            self.write_blocks(0);
+            match self.write_blocks(0) {
+                Err(_) => {
+                    self.error();
+                    return false;
+                }
+                _ => {}
+            }
         }
         true
     }
@@ -199,13 +205,13 @@ impl ObjectReceiver {
         self.writer_session_state = ObjectWriterSessionState::Opened;
     }
 
-    fn write_blocks(&mut self, snb_start: u32) {
+    fn write_blocks(&mut self, snb_start: u32) -> Result<()> {
         if self.waiting_for_fdt {
-            return;
+            return Ok(());
         }
 
         if self.writer_session_state != ObjectWriterSessionState::Opened {
-            return;
+            return Ok(());
         }
 
         assert!(self.block_writer.is_some());
@@ -217,25 +223,33 @@ impl ObjectReceiver {
                 break;
             }
 
-            let success = writer.write(snb as u32, block, self.writer_session.as_ref());
+            let success = writer.write(snb as u32, block, self.writer_session.as_ref())?;
             if !success {
                 break;
             }
             snb += 1;
             block.deallocate();
 
-            if writer.completed() {
+            if writer.is_completed() {
                 log::info!("Object completed");
                 self.complete();
                 break;
             }
         }
+        Ok(())
     }
 
     fn complete(&mut self) {
         self.state = State::Completed;
         self.writer_session.complete();
         // Free space by removing blocks
+        self.blocks.clear();
+        self.cache.clear();
+    }
+
+    fn error(&mut self) {
+        self.state = State::Error;
+        self.writer_session.error();
         self.blocks.clear();
         self.cache.clear();
     }
@@ -248,7 +262,10 @@ impl ObjectReceiver {
         while !self.cache.is_empty() {
             let item = self.cache.pop().unwrap();
             let pkt = item.to_pkt();
-            self.push_to_block(&pkt).ok();
+            match self.push_to_block(&pkt) {
+                Err(_) => self.error(),
+                _ => {}
+            }
         }
     }
 

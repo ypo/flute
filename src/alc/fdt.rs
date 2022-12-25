@@ -20,11 +20,12 @@ pub struct Fdt {
     fdt_transfer_queue: Vec<Rc<FileDesc>>,
     files: std::collections::HashMap<u128, Rc<FileDesc>>,
     current_fdt_transfer: Option<Rc<FileDesc>>,
-    complete: Option<bool>
+    complete: Option<bool>,
+    cenc: lct::CENC,
 }
 
 impl Fdt {
-    pub fn new(fdtid: u32, default_oti: &oti::Oti) -> Fdt {
+    pub fn new(fdtid: u32, default_oti: &oti::Oti, cenc: lct::CENC) -> Fdt {
         Fdt {
             fdtid,
             oti: default_oti.clone(),
@@ -33,7 +34,8 @@ impl Fdt {
             fdt_transfer_queue: Vec::new(),
             files: std::collections::HashMap::new(),
             current_fdt_transfer: None,
-            complete: None
+            complete: None,
+            cenc,
         }
     }
 
@@ -85,6 +87,10 @@ impl Fdt {
             &url::Url::parse("file:///").unwrap(),
             1,
             Some(std::time::Duration::new(1, 0)),
+            self.cenc,
+            true,
+            None,
+            true,
         )?;
         let filedesc = FileDesc::new(obj, &self.oti, &lct::TOI_FDT, Some(self.fdtid));
         self.fdt_transfer_queue.push(filedesc);
@@ -186,6 +192,8 @@ mod tests {
 
     use std::time::SystemTime;
 
+    use crate::alc::lct;
+
     use super::objectdesc;
     use super::oti;
 
@@ -194,13 +202,17 @@ mod tests {
         crate::tests::init();
 
         let oti: oti::Oti = Default::default();
-        let mut fdt = super::Fdt::new(1, &oti);
+        let mut fdt = super::Fdt::new(1, &oti, lct::CENC::Null);
         let obj = objectdesc::ObjectDesc::create_from_buffer(
             &Vec::new(),
             "txt",
             &url::Url::parse("file:///").unwrap(),
             2,
             None,
+            lct::CENC::Null,
+            true,
+            None,
+            true,
         )
         .unwrap();
 

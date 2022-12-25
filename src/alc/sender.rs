@@ -1,6 +1,6 @@
 use super::fdt::Fdt;
 use super::sendersession::SenderSession;
-use super::{objectdesc, oti};
+use super::{lct, objectdesc, oti};
 use crate::tools::error::Result;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -21,8 +21,8 @@ impl Sender {
     ///
     /// Creation of a FLUTE Sender
     ///
-    pub fn new(tsi: u64, fdtid: u32, oti: &oti::Oti) -> Sender {
-        let fdt = Rc::new(RefCell::new(Fdt::new(fdtid, oti)));
+    pub fn new(tsi: u64, fdtid: u32, oti: &oti::Oti, fdt_cenc: lct::CENC) -> Sender {
+        let fdt = Rc::new(RefCell::new(Fdt::new(fdtid, oti, fdt_cenc)));
         let sessions = (0..4)
             .map(|index| SenderSession::new(tsi, fdt.clone(), 4, index == 0))
             .collect();
@@ -90,6 +90,8 @@ impl Sender {
 #[cfg(test)]
 mod tests {
 
+    use crate::alc::lct;
+
     use super::objectdesc;
     use super::oti;
     use std::time::SystemTime;
@@ -99,7 +101,7 @@ mod tests {
         crate::tests::init();
 
         let oti: oti::Oti = Default::default();
-        let mut sender = super::Sender::new(1, 1, &oti);
+        let mut sender = super::Sender::new(1, 1, &oti, lct::CENC::Null);
         let mut buffer: Vec<u8> = Vec::new();
         let nb_pkt = oti.encoding_symbol_length as usize * 3;
         buffer.extend(vec![0xAA; nb_pkt]);
@@ -110,6 +112,10 @@ mod tests {
                 &url::Url::parse("file:///hello").unwrap(),
                 1,
                 None,
+                lct::CENC::Null,
+                true,
+                None,
+                true,
             )
             .unwrap(),
         );

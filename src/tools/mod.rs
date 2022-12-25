@@ -4,6 +4,7 @@ use std::time::SystemTime;
 
 /// Handle errors
 pub mod error;
+pub mod ringbuffer;
 
 /// Convert the `SystemTime`into NTP.
 pub fn system_time_to_ntp(time: &SystemTime) -> Result<(u32, u32)> {

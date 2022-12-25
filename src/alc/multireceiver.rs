@@ -8,7 +8,7 @@ use std::rc::Rc;
 ///
 /// Multi-sessions FLUTE receiver
 /// Demultiplex multiple FLUTE Transport Sessions
-/// 
+///
 #[derive(Debug)]
 pub struct MultiReceiver {
     alc_receiver: HashMap<u64, Box<Receiver>>,
@@ -32,8 +32,8 @@ impl MultiReceiver {
     /// # Example
     /// ```
     /// // Receive objects from Transport Session 1
-    /// use flute::alc::objectwriter::ObjectWriterBuffer;
-    /// use flute::alc::multireceiver::MultiReceiver;
+    /// use flute::receiver::objectwriter::ObjectWriterBuffer;
+    /// use flute::receiver::MultiReceiver;
     ///
     /// let tsi: u64 = 1;
     /// // Write object to a buffer
@@ -91,18 +91,29 @@ impl MultiReceiver {
 mod tests {
 
     use crate::alc::objectwriter::ObjectWriterBuffer;
-    use crate::alc::{objectdesc, oti, sender};
+    use crate::alc::{lct, objectdesc, oti, sender};
     use std::time::SystemTime;
 
     fn create_sender(
         buffer: &Vec<u8>,
         content_location: &url::Url,
         oti: &oti::Oti,
+        cenc: lct::CENC,
     ) -> Box<sender::Sender> {
-        let sender = Box::new(sender::Sender::new(1, 1, &oti));
+        let sender = Box::new(sender::Sender::new(1, 1, &oti, cenc));
         sender.add_object(
-            objectdesc::ObjectDesc::create_from_buffer(buffer, "text", content_location, 1, None)
-                .unwrap(),
+            objectdesc::ObjectDesc::create_from_buffer(
+                buffer,
+                "text",
+                content_location,
+                1,
+                None,
+                cenc,
+                true,
+                None,
+                true,
+            )
+            .unwrap(),
         );
         sender.publish(&SystemTime::now()).unwrap();
         sender
@@ -148,6 +159,11 @@ mod tests {
         let output_content_location =
             url::Url::parse(output_object.content_location().as_ref().unwrap().as_str()).unwrap();
 
+        log::info!(
+            "Receiver buffer {} expect {}",
+            output_file_buffer.len(),
+            input_buffer.len()
+        );
         assert!(output_file_buffer.eq(input_buffer));
         assert!(output_content_location.eq(input_content_location));
     }
@@ -159,11 +175,11 @@ mod tests {
         (input_file_buffer, input_content_location)
     }
 
-    fn test_receiver_with_oti(oti: &oti::Oti, with_loss: bool) {
+    fn test_receiver_with_oti(oti: &oti::Oti, with_loss: bool, cenc: lct::CENC) {
         let (input_file_buffer, input_content_location) = create_file_buffer();
         let output = ObjectWriterBuffer::new();
         let mut receiver = super::MultiReceiver::new(None, output.clone(), None);
-        let mut sender = create_sender(&input_file_buffer, &input_content_location, &oti);
+        let mut sender = create_sender(&input_file_buffer, &input_content_location, &oti, cenc);
 
         if with_loss {
             run_loss(&mut sender, &mut receiver)
@@ -176,7 +192,25 @@ mod tests {
     #[test]
     pub fn test_receiver_no_code() {
         crate::tests::init();
-        test_receiver_with_oti(&Default::default(), false);
+        test_receiver_with_oti(&Default::default(), false, lct::CENC::Null);
+    }
+
+    #[test]
+    pub fn test_receiver_cenc_gzip() {
+        crate::tests::init();
+        test_receiver_with_oti(&Default::default(), false, lct::CENC::Gzip);
+    }
+
+    #[test]
+    pub fn test_receiver_cenc_deflate() {
+        crate::tests::init();
+        test_receiver_with_oti(&Default::default(), false, lct::CENC::Deflate);
+    }
+
+    #[test]
+    pub fn test_receiver_cenc_zlib() {
+        crate::tests::init();
+        test_receiver_with_oti(&Default::default(), false, lct::CENC::Zlib);
     }
 
     #[test]
@@ -185,7 +219,7 @@ mod tests {
         let mut oti: oti::Oti = Default::default();
         oti.fec_encoding_id = oti::FECEncodingID::ReedSolomonGF28SmallBlockSystematic;
         oti.max_number_of_parity_symbols = 3;
-        test_receiver_with_oti(&oti, true);
+        test_receiver_with_oti(&oti, true, lct::CENC::Null);
     }
 
     #[test]
@@ -194,7 +228,7 @@ mod tests {
         let mut oti: oti::Oti = Default::default();
         oti.fec_encoding_id = oti::FECEncodingID::ReedSolomonGF28;
         oti.max_number_of_parity_symbols = 3;
-        test_receiver_with_oti(&oti, true);
+        test_receiver_with_oti(&oti, true, lct::CENC::Null);
     }
 
     #[test]
@@ -202,6 +236,6 @@ mod tests {
         crate::tests::init();
         let mut oti: oti::Oti = Default::default();
         oti.inband_oti = false;
-        test_receiver_with_oti(&oti, false);
+        test_receiver_with_oti(&oti, false, lct::CENC::Null);
     }
 }

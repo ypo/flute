@@ -37,6 +37,7 @@ pub mod sender {
     pub use crate::alc::oti::Oti;
     pub use crate::alc::sender::Sender;
     pub use crate::alc::oti::FECEncodingID;
+    pub use crate::alc::lct::CENC;
 }
 
 pub use crate::network::udpwriter::UdpWriter;

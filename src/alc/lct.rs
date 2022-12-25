@@ -1,11 +1,16 @@
 use crate::tools::error::{FluteError, Result};
 
+/// Content Encoding, compressed
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum CENC {
+    /// Do not encode content before transmission
     Null = 0,
+    /// Encode content with ZLIB
     Zlib = 1,
+    /// Encode content with Deflate
     Deflate = 2,
+    /// Encode content with Gzip
     Gzip = 3,
 }
 
@@ -62,6 +67,7 @@ impl TryFrom<&str> for CENC {
 }
 
 impl CENC {
+    /// Convert CENC to its string representation
     pub fn to_str(&self) -> &str {
         match self {
             CENC::Null => "null",

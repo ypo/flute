@@ -1,3 +1,4 @@
+use super::compress;
 use super::lct;
 use super::oti;
 use crate::tools::error::Result;
@@ -49,13 +50,12 @@ impl ObjectDesc {
         content_type: &str,
         max_transfer_count: u32,
         carousel_delay: Option<std::time::Duration>,
+        cenc: lct::CENC,
+        inband_cenc: bool,
+        oti: Option<oti::Oti>,
+        md5: bool,
     ) -> Result<Box<ObjectDesc>> {
         let content = std::fs::read(path)?;
-        let content_length = content.len();
-        let transfer_length = content_length;
-
-        // TODO CENC
-
         let content_location = match content_location {
             Some(cl) => cl.clone(),
             None => url::Url::parse(&format!(
@@ -68,21 +68,17 @@ impl ObjectDesc {
             .unwrap_or(url::Url::parse("file:///").unwrap()),
         };
 
-        Ok(Box::new(ObjectDesc {
-            content_location: content_location.clone(),
-            path: Some(path.to_path_buf()),
-            content: Some(content),
-            content_type: content_type.to_string(),
-            content_length: content_length as u64,
-            transfer_length: transfer_length as u64,
-            cenc: lct::CENC::Null,
-            inband_cenc: true,
-            md5: None,
-            attributes: None,
-            oti: None,
+        ObjectDesc::create_with_content(
+            content,
+            content_type.to_string(),
+            content_location,
             max_transfer_count,
             carousel_delay,
-        }))
+            cenc,
+            inband_cenc,
+            oti,
+            md5,
+        )
     }
 
     /// Return an `ObjectDesc` from a buffer
@@ -92,22 +88,65 @@ impl ObjectDesc {
         content_location: &url::Url,
         max_transfer_count: u32,
         carousel_delay: Option<std::time::Duration>,
+        cenc: lct::CENC,
+        inband_cenc: bool,
+        oti: Option<oti::Oti>,
+        md5: bool,
+    ) -> Result<Box<ObjectDesc>> {
+        ObjectDesc::create_with_content(
+            content.clone(),
+            content_type.to_string(),
+            content_location.clone(),
+            max_transfer_count,
+            carousel_delay,
+            cenc,
+            inband_cenc,
+            oti,
+            md5,
+        )
+    }
+
+    fn create_with_content(
+        mut content: Vec<u8>,
+        content_type: String,
+        content_location: url::Url,
+        max_transfer_count: u32,
+        carousel_delay: Option<std::time::Duration>,
+        cenc: lct::CENC,
+        inband_cenc: bool,
+        oti: Option<oti::Oti>,
+        md5: bool,
     ) -> Result<Box<ObjectDesc>> {
         let content_length = content.len();
-        let transfer_length = content_length;
+
+        if cenc != lct::CENC::Null {
+            content = compress::compress(&content, cenc)?;
+            log::info!(
+                "compress content from {} to {}",
+                content_length,
+                content.len()
+            );
+        }
+
+        let transfer_length = content.len();
+
+        if md5 {
+            log::debug!("md5 not implemented")
+        }
+        // TODO MD5
 
         Ok(Box::new(ObjectDesc {
-            content_location: content_location.clone(),
+            content_location: content_location,
             path: None,
-            content: Some(content.clone()),
-            content_type: content_type.to_string(),
+            content: Some(content),
+            content_type: content_type,
             content_length: content_length as u64,
             transfer_length: transfer_length as u64,
-            cenc: lct::CENC::Null,
-            inband_cenc: true,
+            cenc: cenc,
+            inband_cenc: inband_cenc,
             md5: None,
             attributes: None,
-            oti: None,
+            oti: oti,
             max_transfer_count,
             carousel_delay,
         }))
