@@ -18,7 +18,6 @@
 
 mod alc;
 mod fec;
-mod network;
 mod tools;
 
 ///
@@ -33,14 +32,13 @@ pub mod receiver {
 
 /// FLUTE Sender to convert Objects (files) to ALC/LCT packets
 pub mod sender {
+    pub use crate::alc::lct::CENC;
     pub use crate::alc::objectdesc::ObjectDesc;
+    pub use crate::alc::oti::FECEncodingID;
     pub use crate::alc::oti::Oti;
     pub use crate::alc::sender::Sender;
-    pub use crate::alc::oti::FECEncodingID;
-    pub use crate::alc::lct::CENC;
 }
 
-pub use crate::network::udpwriter::UdpWriter;
 pub use crate::tools::error;
 
 #[cfg(test)]

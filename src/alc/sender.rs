@@ -61,10 +61,6 @@ impl Sender {
     /// return None if there is no new packet to be transferred
     /// ALC/LCT packet should be encapsulated into a UDP/IP payload and transferred via UDP/multicast
     pub fn read(&mut self) -> Option<Vec<u8>> {
-        self.run_send_objects()
-    }
-
-    fn run_send_objects(&mut self) -> Option<Vec<u8>> {
         let session_index_orig = self.session_index;
         loop {
             let session = self.sessions.get_mut(self.session_index).unwrap();

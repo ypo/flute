@@ -28,7 +28,7 @@ pub trait ObjectWriter {
 #[derive(Debug)]
 pub struct FluteWriterBuffer {
     /// List of all objects received
-    pub sessions: RefCell<Vec<Rc<ObjectWriterBuffer>>>,
+    pub objects: RefCell<Vec<Rc<ObjectWriterBuffer>>>,
 }
 
 ///
@@ -63,7 +63,7 @@ impl FluteWriterBuffer {
     /// Return a new `ObjectWriterBuffer`
     pub fn new() -> Rc<FluteWriterBuffer> {
         Rc::new(FluteWriterBuffer {
-            sessions: RefCell::new(Vec::new()),
+            objects: RefCell::new(Vec::new()),
         })
     }
 }
@@ -78,7 +78,7 @@ impl FluteWriter for FluteWriterBuffer {
                 content_location: None,
             }),
         });
-        let mut sessions = self.sessions.borrow_mut();
+        let mut sessions = self.objects.borrow_mut();
         sessions.push(obj.clone());
         obj
     }

@@ -138,6 +138,10 @@ impl Fdt {
             .find(|(_, item)| item.should_transfer_now(now))?;
 
         let file = self.files_transfer_queue.swap_remove(index);
+        log::info!(
+            "Start transmission for {}",
+            file.object.content_location.as_str()
+        );
         file.transfer_started();
         Some(file.clone())
     }
@@ -151,11 +155,14 @@ impl Fdt {
                 self.current_fdt_transfer = None;
             }
         } else {
+            log::info!(
+                "Stop transmission for {}",
+                file.object.content_location.as_str()
+            );
             if file.is_expired() == false {
                 log::debug!("Transfer file again");
                 self.files_transfer_queue.push(file);
             } else {
-                log::info!("Remove file {} from FDT", file.toi);
                 self.files.remove(&file.toi);
                 self.publish(&SystemTime::now()).ok();
             }

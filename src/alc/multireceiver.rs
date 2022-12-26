@@ -152,7 +152,7 @@ mod tests {
         input_content_location: &url::Url,
         output: &FluteWriterBuffer,
     ) {
-        let output_session = output.sessions.borrow();
+        let output_session = output.objects.borrow();
         assert!(output_session.len() == 1);
 
         let output_object = &output_session[0];

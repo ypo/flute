@@ -52,12 +52,6 @@ impl SenderSession {
                 continue;
             }
             let pkt = pkt.as_ref().unwrap();
-            log::info!(
-                "Create ALC Pkt toi={} snb={} esi={}",
-                pkt.toi,
-                pkt.snb,
-                pkt.esi
-            );
             return Some(alc::create_alc_pkt(&file.oti, &0u128, self.tsi, pkt, None));
         }
     }
