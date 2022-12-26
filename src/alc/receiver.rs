@@ -147,7 +147,6 @@ impl Receiver {
                 None => return Err(FluteError::new("Bug ? Object not found")),
             };
 
-            assert!(obj.state == objectreceiver::State::Receiving);
             obj.push(pkt);
             match obj.state {
                 objectreceiver::State::Receiving => {}

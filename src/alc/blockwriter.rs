@@ -86,6 +86,8 @@ impl BlockWriter {
             self.bytes_left -= symbols.len();
         }
 
+        self.snb +=  1;
+
         if self.is_completed() {
             // All blocks have been received -> flush the decoder
             if self.decoder.is_some() {

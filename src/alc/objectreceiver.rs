@@ -43,7 +43,7 @@ pub struct ObjectReceiver {
     writer_session_state: ObjectWriterSessionState,
     block_writer: Option<BlockWriter>,
     fdt_instance_id: Option<u32>,
-    content_location: Option<String>,
+    content_location: Option<url::Url>,
     last_activity: Instant,
 }
 
@@ -172,9 +172,18 @@ impl ObjectReceiver {
             self.transfer_length = file.transfer_length.clone();
         }
 
+        let content_location = match url::Url::parse(&file.content_location) {
+            Ok(val) => val,
+            Err(_) => {
+                log::info!("Fail to parse content-location to URL");
+                self.error();
+                return false;
+            }
+        };
+
         self.content_md5 = file.content_md5.clone();
         self.fdt_instance_id = Some(fdt_instance_id);
-        self.content_location = Some(file.content_location.clone());
+        self.content_location = Some(content_location);
 
         self.init_blocks_partitioning();
         self.init_block_writer();
@@ -194,14 +203,21 @@ impl ObjectReceiver {
 
         assert!(self.block_writer.is_none());
 
+        match self.writer_session.open(self.content_location.as_ref()) {
+            Err(_) => {
+                log::error!("Fail to open destination for {:?}", self.content_location);
+                self.error();
+                return;
+            }
+            _ => {}
+        };
+
         self.block_writer = Some(BlockWriter::new(
             self.transfer_length.unwrap() as usize,
             self.cenc.unwrap(),
             self.content_md5.is_some(),
         ));
 
-        self.writer_session
-            .open(self.content_location.as_ref().map(|f| f.as_str()));
         self.writer_session_state = ObjectWriterSessionState::Opened;
     }
 

@@ -6,6 +6,7 @@ use super::{
     objectwriter::ObjectWriter,
 };
 use std::{cell::RefCell, rc::Rc};
+use crate::tools::error::Result;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum State {
@@ -74,7 +75,9 @@ impl FdtReceiver {
 }
 
 impl ObjectWriter for FdtWriter {
-    fn open(&self, _content_location: Option<&str>) {}
+    fn open(&self, _content_location: Option<&url::Url>) -> Result<()> {
+        Ok(())
+    }
 
     fn write(&self, data: &[u8]) {
         let mut inner = self.inner.borrow_mut();

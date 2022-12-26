@@ -3,11 +3,13 @@ use std::{net::UdpSocket, time::SystemTime};
 
 fn main() {
     std::env::set_var("RUST_LOG", "info");
-    env_logger::builder().is_test(true).try_init().ok();
+    env_logger::builder().try_init().ok();
+    let dest = "224.0.0.1:3400";
 
     let args: Vec<String> = std::env::args().collect();
     if args.len() == 1 {
-        println!("{} path/to/file1 path/to/file2 ...", args[0]);
+        println!("Send a list of files over UDP/FLUTE to {}", dest);
+        println!("Usage: {} path/to/file1 path/to/file2 ...", args[0]);
         std::process::exit(0);
     }
 
@@ -20,7 +22,6 @@ fn main() {
     log::info!("Create FLUTE Sender");
     let mut sender = Sender::new(tsi, fdtid, &Default::default(), CENC::Null);
 
-    let dest = "224.0.0.1:3400";
     log::info!("Connect to {}", dest);
     udp_socket.connect(dest).expect("Connection failed");
 
@@ -57,5 +58,6 @@ fn main() {
             break;
         }
         udp_socket.send(&pkt.unwrap()).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(1));
     }
 }

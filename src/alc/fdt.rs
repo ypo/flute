@@ -139,7 +139,7 @@ impl Fdt {
 
         let file = self.files_transfer_queue.swap_remove(index);
         log::info!(
-            "Start transmission for {}",
+            "Start transmission of {}",
             file.object.content_location.as_str()
         );
         file.transfer_started();
@@ -147,7 +147,6 @@ impl Fdt {
     }
 
     pub fn transfer_done(&mut self, file: Rc<FileDesc>) {
-        log::debug!("Tranfer done for toi {}", file.toi);
         file.transfer_done();
 
         if file.toi == lct::TOI_FDT {
@@ -156,7 +155,7 @@ impl Fdt {
             }
         } else {
             log::info!(
-                "Stop transmission for {}",
+                "Stop transmission of {}",
                 file.object.content_location.as_str()
             );
             if file.is_expired() == false {

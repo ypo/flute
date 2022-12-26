@@ -278,7 +278,7 @@ pub fn inc_hdr_len(data: &mut Vec<u8>, val: u8) {
     data[2] += val;
 }
 
-pub fn parse_lct_header(data: &Vec<u8>) -> Result<LCTHeader> {
+pub fn parse_lct_header(data: &[u8]) -> Result<LCTHeader> {
     /*
      *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
      *  |   V   | C |PSI|S| O |H|Res|A|B|   HDR_LEN     | Codepoint (CP)|

@@ -60,7 +60,7 @@ impl MultiReceiver {
     /// # Arguments
     /// * `pkt`- Payload of the UDP/IP packet.
     ///
-    pub fn push(&mut self, pkt: &Vec<u8>) -> Result<()> {
+    pub fn push(&mut self, pkt: &[u8]) -> Result<()> {
         let alc = alc::parse_alc_pkt(pkt)?;
 
         let can_handle = match &self.tsi {
