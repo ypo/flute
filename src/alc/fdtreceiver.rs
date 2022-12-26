@@ -3,7 +3,7 @@ use super::{
     fdtinstance::FdtInstance,
     lct,
     objectreceiver::{self, ObjectReceiver},
-    objectwriter::ObjectWriterSession,
+    objectwriter::ObjectWriter,
 };
 use std::{cell::RefCell, rc::Rc};
 
@@ -73,7 +73,7 @@ impl FdtReceiver {
     }
 }
 
-impl ObjectWriterSession for FdtWriter {
+impl ObjectWriter for FdtWriter {
     fn open(&self, _content_location: Option<&str>) {}
 
     fn write(&self, data: &[u8]) {

@@ -1,4 +1,4 @@
-use super::objectwriter::ObjectWriter;
+use super::objectwriter::FluteWriter;
 use super::receiver::{Config, Receiver};
 use super::{alc, receiver};
 use crate::tools::error::Result;
@@ -13,7 +13,7 @@ use std::rc::Rc;
 pub struct MultiReceiver {
     alc_receiver: HashMap<u64, Box<Receiver>>,
     tsi: Option<Vec<u64>>,
-    writer: Rc<dyn ObjectWriter>,
+    writer: Rc<dyn FluteWriter>,
     config: Option<Config>,
 }
 
@@ -32,17 +32,17 @@ impl MultiReceiver {
     /// # Example
     /// ```
     /// // Receive objects from Transport Session 1
-    /// use flute::receiver::objectwriter::ObjectWriterBuffer;
+    /// use flute::receiver::objectwriter::FluteWriterBuffer;
     /// use flute::receiver::MultiReceiver;
     ///
     /// let tsi: u64 = 1;
     /// // Write object to a buffer
-    /// let writer = ObjectWriterBuffer::new();
+    /// let writer = FluteWriterBuffer::new();
     /// let receiver = MultiReceiver::new(Some(&vec![1]), writer.clone(), None);
     /// ```
     pub fn new(
         tsi: Option<&Vec<u64>>,
-        writer: Rc<dyn ObjectWriter>,
+        writer: Rc<dyn FluteWriter>,
         config: Option<receiver::Config>,
     ) -> MultiReceiver {
         MultiReceiver {
@@ -90,8 +90,8 @@ impl MultiReceiver {
 #[cfg(test)]
 mod tests {
 
-    use crate::alc::objectwriter::ObjectWriterBuffer;
     use crate::alc::{lct, objectdesc, oti, sender};
+    use crate::receiver::objectwriter::FluteWriterBuffer;
     use std::time::SystemTime;
 
     fn create_sender(
@@ -150,7 +150,7 @@ mod tests {
     fn check_output(
         input_buffer: &Vec<u8>,
         input_content_location: &url::Url,
-        output: &ObjectWriterBuffer,
+        output: &FluteWriterBuffer,
     ) {
         let output_session = output.sessions.borrow();
         assert!(output_session.len() == 1);
@@ -178,7 +178,7 @@ mod tests {
 
     fn test_receiver_with_oti(oti: &oti::Oti, with_loss: bool, cenc: lct::CENC, inband_cenc: bool) {
         let (input_file_buffer, input_content_location) = create_file_buffer();
-        let output = ObjectWriterBuffer::new();
+        let output = FluteWriterBuffer::new();
         let mut receiver = super::MultiReceiver::new(None, output.clone(), None);
         let mut sender = create_sender(
             &input_file_buffer,

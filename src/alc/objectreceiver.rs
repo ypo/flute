@@ -2,7 +2,7 @@ use super::alc;
 use super::blockdecoder::BlockDecoder;
 use super::blockwriter::BlockWriter;
 use super::fdtinstance::FdtInstance;
-use super::objectwriter::ObjectWriterSession;
+use super::objectwriter::ObjectWriter;
 use super::oti;
 use crate::alc::lct;
 use crate::tools::error::{FluteError, Result};
@@ -39,7 +39,7 @@ pub struct ObjectReceiver {
     a_large: u64,
     a_small: u64,
     nb_a_large: u64,
-    writer_session: Rc<dyn ObjectWriterSession>,
+    writer_session: Rc<dyn ObjectWriter>,
     writer_session_state: ObjectWriterSessionState,
     block_writer: Option<BlockWriter>,
     fdt_instance_id: Option<u32>,
@@ -48,7 +48,7 @@ pub struct ObjectReceiver {
 }
 
 impl ObjectReceiver {
-    pub fn new(toi: &u128, writer_session: Rc<dyn ObjectWriterSession>) -> ObjectReceiver {
+    pub fn new(toi: &u128, writer_session: Rc<dyn ObjectWriter>) -> ObjectReceiver {
         log::info!("Create new Object Receiver");
         ObjectReceiver {
             state: State::Receiving,

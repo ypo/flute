@@ -6,7 +6,7 @@ use crate::{
 use super::{
     blockdecoder::BlockDecoder,
     lct,
-    objectwriter::ObjectWriterSession,
+    objectwriter::ObjectWriter,
     uncompress::{Decompress, DecompressGzip},
 };
 
@@ -59,7 +59,7 @@ impl BlockWriter {
         &mut self,
         snb: u32,
         block: &BlockDecoder,
-        writer: &dyn ObjectWriterSession,
+        writer: &dyn ObjectWriter,
     ) -> Result<bool> {
         if self.snb != snb {
             return Ok(false);
@@ -113,12 +113,12 @@ impl BlockWriter {
         self.buffer.resize(data.len(), 0);
     }
 
-    fn write_pkt_cenc_null(&mut self, data: &[u8], writer: &dyn ObjectWriterSession) {
+    fn write_pkt_cenc_null(&mut self, data: &[u8], writer: &dyn ObjectWriter) {
         self.md5_context.as_mut().map(|ctx| ctx.consume(data));
         writer.write(data);
     }
 
-    fn decode_write_pkt(&mut self, pkt: &[u8], writer: &dyn ObjectWriterSession) -> Result<()> {
+    fn decode_write_pkt(&mut self, pkt: &[u8], writer: &dyn ObjectWriter) -> Result<()> {
         if self.decoder.is_none() {
             self.init_decoder(pkt);
             self.decoder_read(writer)?;
@@ -137,7 +137,7 @@ impl BlockWriter {
         Ok(())
     }
 
-    fn decoder_read(&mut self, writer: &dyn ObjectWriterSession) -> Result<()> {
+    fn decoder_read(&mut self, writer: &dyn ObjectWriter) -> Result<()> {
         let decoder = self.decoder.as_mut().unwrap();
         loop {
             let size = match decoder.read(&mut self.buffer) {

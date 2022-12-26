@@ -4,7 +4,7 @@ use super::fdtreceiver::FdtReceiver;
 use super::lct;
 use super::objectreceiver;
 use super::objectreceiver::ObjectReceiver;
-use super::objectwriter::ObjectWriter;
+use super::objectwriter::FluteWriter;
 use crate::tools::error::FluteError;
 use crate::tools::error::Result;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -41,14 +41,14 @@ pub struct Receiver {
     objects_completed: BTreeSet<u128>,
     objects_error: BTreeSet<u128>,
     fdt_receivers: BTreeMap<u32, Box<FdtReceiver>>,
-    writer: Rc<dyn ObjectWriter>,
+    writer: Rc<dyn FluteWriter>,
     config: Config,
 }
 
 impl Receiver {
     /// Return a new `Receiver`
     ///
-    pub fn new(tsi: u64, writer: Rc<dyn ObjectWriter>, config: Option<Config>) -> Self {
+    pub fn new(tsi: u64, writer: Rc<dyn FluteWriter>, config: Option<Config>) -> Self {
         Self {
             tsi,
             objects: HashMap::new(),
