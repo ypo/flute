@@ -15,7 +15,6 @@ impl std::fmt::Debug for dyn Decompress {
     }
 }
 
-/// Decompress
 pub struct DecompressGzip {
     decoder: GzDecoder<RingBuffer>,
 }

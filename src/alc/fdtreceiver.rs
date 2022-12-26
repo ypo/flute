@@ -1,8 +1,10 @@
 use super::{
-    alc, fdtinstance::FdtInstance, lct, objectreceiver::ObjectReceiver,
+    alc,
+    fdtinstance::FdtInstance,
+    lct,
+    objectreceiver::{self, ObjectReceiver},
     objectwriter::ObjectWriterSession,
 };
-use crate::tools::error::Result;
 use std::{cell::RefCell, rc::Rc};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -50,13 +52,10 @@ impl FdtReceiver {
         }
     }
 
-    pub fn push(&mut self, pkt: &alc::AlcPkt) -> Result<()> {
-        match self.obj.push(pkt) {
-            Ok(res) => Ok(res),
-            Err(e) => {
-                self.writer.inner.borrow_mut().state = State::Error;
-                Err(e)
-            }
+    pub fn push(&mut self, pkt: &alc::AlcPkt) {
+        self.obj.push(pkt);
+        if self.obj.state == objectreceiver::State::Error {
+            self.writer.inner.borrow_mut().state = State::Error;
         }
     }
 

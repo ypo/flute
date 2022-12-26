@@ -71,8 +71,7 @@ impl Receiver {
     }
 
     fn push_fdt_obj(&mut self, alc_pkt: &alc::AlcPkt) -> Result<()> {
-        let fdt_ext = alc::find_ext_fdt(&alc_pkt)?;
-        if fdt_ext.is_none() {
+        if alc_pkt.fdt_info.is_none() {
             if alc_pkt.lct.close_object {
                 return Ok(());
             }
@@ -84,26 +83,32 @@ impl Receiver {
 
             return Err(FluteError::new("FDT pkt received without FDT Extension"));
         }
-        let fdt_ext = fdt_ext.unwrap();
+        let fdt_instance_id = alc_pkt
+            .fdt_info
+            .as_ref()
+            .map(|f| f.fdt_instance_id)
+            .unwrap();
 
         {
             let fdt_receiver = self
                 .fdt_receivers
-                .entry(fdt_ext.fdt_instance_id)
-                .or_insert(Box::new(FdtReceiver::new(fdt_ext.fdt_instance_id)));
+                .entry(fdt_instance_id)
+                .or_insert(Box::new(FdtReceiver::new(fdt_instance_id)));
 
             if fdt_receiver.state() != fdtreceiver::State::Receiving {
                 return Ok(());
             }
 
-            fdt_receiver.push(alc_pkt).ok();
-            if fdt_receiver.state() != fdtreceiver::State::Complete {
-                return Ok(());
-            }
+            fdt_receiver.push(alc_pkt);
+            match fdt_receiver.state() {
+                fdtreceiver::State::Receiving => return Ok(()),
+                fdtreceiver::State::Complete => {}
+                fdtreceiver::State::Error => return Err(FluteError::new("Fail to decode FDT")),
+            };
         }
 
         log::info!("FDT Received !");
-        self.attach_fdt_to_objects(fdt_ext.fdt_instance_id);
+        self.attach_fdt_to_objects(fdt_instance_id);
 
         Ok(())
     }
@@ -143,7 +148,7 @@ impl Receiver {
             };
 
             assert!(obj.state == objectreceiver::State::Receiving);
-            obj.push(pkt).ok();
+            obj.push(pkt);
             match obj.state {
                 objectreceiver::State::Receiving => {}
                 objectreceiver::State::Completed => {

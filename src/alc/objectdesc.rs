@@ -70,6 +70,7 @@ impl ObjectDesc {
 
         ObjectDesc::create_with_content(
             content,
+            Some(path.to_path_buf()),
             content_type.to_string(),
             content_location,
             max_transfer_count,
@@ -95,6 +96,7 @@ impl ObjectDesc {
     ) -> Result<Box<ObjectDesc>> {
         ObjectDesc::create_with_content(
             content.clone(),
+            None,
             content_type.to_string(),
             content_location.clone(),
             max_transfer_count,
@@ -108,6 +110,7 @@ impl ObjectDesc {
 
     fn create_with_content(
         mut content: Vec<u8>,
+        path: Option<std::path::PathBuf>,
         content_type: String,
         content_location: url::Url,
         max_transfer_count: u32,
@@ -118,6 +121,12 @@ impl ObjectDesc {
         md5: bool,
     ) -> Result<Box<ObjectDesc>> {
         let content_length = content.len();
+
+        let md5 = match md5 {
+            // https://www.rfc-editor.org/rfc/rfc2616#section-14.15
+            true => Some(base64::encode(md5::compute(&content).0)),
+            false => None,
+        };
 
         if cenc != lct::CENC::Null {
             content = compress::compress(&content, cenc)?;
@@ -130,21 +139,16 @@ impl ObjectDesc {
 
         let transfer_length = content.len();
 
-        if md5 {
-            log::debug!("md5 not implemented")
-        }
-        // TODO MD5
-
         Ok(Box::new(ObjectDesc {
             content_location: content_location,
-            path: None,
+            path: path,
             content: Some(content),
             content_type: content_type,
             content_length: content_length as u64,
             transfer_length: transfer_length as u64,
             cenc: cenc,
             inband_cenc: inband_cenc,
-            md5: None,
+            md5: md5,
             attributes: None,
             oti: oti,
             max_transfer_count,

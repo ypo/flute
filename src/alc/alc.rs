@@ -12,6 +12,7 @@ pub struct AlcPkt<'a> {
     pub data: &'a [u8],
     pub data_alc_header_offset: usize,
     pub data_payload_offset: usize,
+    pub fdt_info: Option<ExtFDT>,
 }
 
 #[derive(Debug)]
@@ -24,6 +25,7 @@ pub struct AlcPktCache {
     pub data_alc_header_offset: usize,
     pub data_payload_offset: usize,
     pub data: Vec<u8>,
+    pub fdt_info: Option<ExtFDT>,
 }
 
 pub struct PayloadID {
@@ -32,6 +34,7 @@ pub struct PayloadID {
     pub source_block_length: Option<u32>,
 }
 
+#[derive(Debug, Clone)]
 pub struct ExtFDT {
     pub version: u32,
     pub fdt_instance_id: u32,
@@ -48,6 +51,7 @@ impl<'a> AlcPkt<'a> {
             data_alc_header_offset: self.data_alc_header_offset,
             data_payload_offset: self.data_payload_offset,
             data: self.data.to_vec(),
+            fdt_info: self.fdt_info.clone(),
         }
     }
 }
@@ -63,6 +67,7 @@ impl<'a> AlcPktCache {
             data_alc_header_offset: self.data_alc_header_offset,
             data_payload_offset: self.data_payload_offset,
             data: self.data.as_ref(),
+            fdt_info: self.fdt_info.clone(),
         }
     }
 }
@@ -178,6 +183,15 @@ pub fn parse_alc_pkt(data: &Vec<u8>) -> Result<AlcPkt> {
         None => None,
     };
 
+    let mut fdt_info: Option<ExtFDT> = None;
+    if lct_header.toi == lct::TOI_FDT {
+        let fdt = lct::get_ext(data.as_ref(), &lct_header, lct::EXT::Fdt)?;
+        fdt_info = match fdt {
+            Some(ext) => parse_ext_fdt(ext)?,
+            None => None,
+        };
+    }
+
     Ok(AlcPkt {
         lct: lct_header,
         oti: oti,
@@ -187,6 +201,7 @@ pub fn parse_alc_pkt(data: &Vec<u8>) -> Result<AlcPkt> {
         data: data.as_ref(),
         data_alc_header_offset,
         data_payload_offset,
+        fdt_info,
     })
 }
 
@@ -216,13 +231,8 @@ pub fn parse_payload_id(pkt: &AlcPkt, oti: &oti::Oti) -> Result<PayloadID> {
     }
 }
 
-pub fn find_ext_fdt(pkt: &AlcPkt) -> Result<Option<ExtFDT>> {
-    let fdt = match lct::get_ext(pkt.data, &pkt.lct, lct::EXT::Fdt)? {
-        Some(fdt) => fdt,
-        None => return Ok(None),
-    };
-
-    if fdt.len() != 4 {
+fn parse_ext_fdt(ext: &[u8]) -> Result<Option<ExtFDT>> {
+    if ext.len() != 4 {
         return Err(FluteError::new("Wrong size of FDT Extension"));
     }
 
@@ -233,7 +243,7 @@ pub fn find_ext_fdt(pkt: &AlcPkt) -> Result<Option<ExtFDT>> {
      */
 
     let mut fdt_bytes: [u8; 4] = [0; 4];
-    fdt_bytes.copy_from_slice(&fdt);
+    fdt_bytes.copy_from_slice(&ext);
     let fdt_bytes = u32::from_be_bytes(fdt_bytes);
 
     let version = (fdt_bytes >> 20) & 0xF;

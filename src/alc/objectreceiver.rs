@@ -35,10 +35,10 @@ pub struct ObjectReceiver {
     blocks_variable_size: bool,
     transfer_length: Option<u64>,
     cenc: Option<lct::CENC>,
+    content_md5: Option<String>,
     a_large: u64,
     a_small: u64,
     nb_a_large: u64,
-    waiting_for_fdt: bool,
     writer_session: Rc<dyn ObjectWriterSession>,
     writer_session_state: ObjectWriterSessionState,
     block_writer: Option<BlockWriter>,
@@ -58,11 +58,11 @@ impl ObjectReceiver {
             blocks: Vec::new(),
             transfer_length: None,
             cenc: None,
+            content_md5: None,
             blocks_variable_size: false,
             a_large: 0,
             a_small: 0,
             nb_a_large: 0,
-            waiting_for_fdt: toi.clone() != lct::TOI_FDT,
             writer_session,
             writer_session_state: ObjectWriterSessionState::Closed,
             block_writer: None,
@@ -77,21 +77,26 @@ impl ObjectReceiver {
         self.last_activity.duration_since(earlier)
     }
 
-    pub fn push(&mut self, pkt: &alc::AlcPkt) -> Result<()> {
+    pub fn push(&mut self, pkt: &alc::AlcPkt) {
         if self.state != State::Receiving {
-            return Ok(());
+            return;
         }
 
         self.last_activity = Instant::now();
+        self.set_fdt_id_from_pkt(pkt);
         self.set_cenc_from_pkt(pkt);
         self.set_oti_from_pkt(pkt);
 
+        self.init_blocks_partitioning();
+        self.init_block_writer();
+        self.push_from_cache();
+
         if self.oti.is_none() {
             self.cache(pkt);
-            return Ok(());
+            return;
         }
 
-        self.push_to_block(pkt)
+        self.push_to_block(pkt).unwrap_or_else(|_| self.error());
     }
 
     fn push_to_block(&mut self, pkt: &alc::AlcPkt) -> Result<()> {
@@ -107,10 +112,9 @@ impl ObjectReceiver {
                     payload_id.snb,
                     self.blocks.len()
                 )));
-            } else {
-                self.blocks
-                    .resize_with(payload_id.snb as usize + 1, || BlockDecoder::new());
             }
+            self.blocks
+                .resize_with(payload_id.snb as usize + 1, || BlockDecoder::new());
         }
 
         let block = &mut self.blocks[payload_id.snb as usize];
@@ -168,37 +172,33 @@ impl ObjectReceiver {
             self.transfer_length = file.transfer_length.clone();
         }
 
-        if self.oti.is_some() && self.transfer_length.is_some() && self.block_writer.is_none() {
-            self.setup_block_writer();
-        }
-
-        log::info!("FDT attached to object TOI={}", self.toi);
+        self.content_md5 = file.content_md5.clone();
         self.fdt_instance_id = Some(fdt_instance_id);
-        self.waiting_for_fdt = false;
         self.content_location = Some(file.content_location.clone());
-        self.open_object_writer();
-        self.push_from_cache();
 
-        if self.oti.is_some() {
-            match self.write_blocks(0) {
-                Err(_) => {
-                    self.error();
-                    return false;
-                }
-                _ => {}
-            }
-        }
+        self.init_blocks_partitioning();
+        self.init_block_writer();
+        self.push_from_cache();
+        self.write_blocks(0).unwrap_or_else(|_| self.error());
         true
     }
 
-    fn open_object_writer(&mut self) {
+    fn init_block_writer(&mut self) {
         if self.writer_session_state != ObjectWriterSessionState::Closed {
             return;
         }
 
-        if self.oti.is_none() || self.waiting_for_fdt || self.block_writer.is_none() {
+        if self.fdt_instance_id.is_none() || self.cenc.is_none() {
             return;
         }
+
+        assert!(self.block_writer.is_none());
+
+        self.block_writer = Some(BlockWriter::new(
+            self.transfer_length.unwrap() as usize,
+            self.cenc.unwrap(),
+            self.content_md5.is_some(),
+        ));
 
         self.writer_session
             .open(self.content_location.as_ref().map(|f| f.as_str()));
@@ -206,10 +206,6 @@ impl ObjectReceiver {
     }
 
     fn write_blocks(&mut self, snb_start: u32) -> Result<()> {
-        if self.waiting_for_fdt {
-            return Ok(());
-        }
-
         if self.writer_session_state != ObjectWriterSessionState::Opened {
             return Ok(());
         }
@@ -231,8 +227,20 @@ impl ObjectReceiver {
             block.deallocate();
 
             if writer.is_completed() {
-                log::info!("Object completed");
-                self.complete();
+                let md5_valid = self
+                    .content_md5
+                    .as_ref()
+                    .map(|md5| writer.check_md5(md5))
+                    .unwrap_or(true);
+
+                if md5_valid {
+                    log::info!("Object completed");
+                    self.complete();
+                } else {
+                    log::error!("MD5 does not match");
+                    self.error();
+                }
+
                 break;
             }
         }
@@ -255,7 +263,7 @@ impl ObjectReceiver {
     }
 
     fn push_from_cache(&mut self) {
-        if self.oti.is_none() {
+        if self.blocks.is_empty() {
             return;
         }
 
@@ -263,7 +271,10 @@ impl ObjectReceiver {
             let item = self.cache.pop().unwrap();
             let pkt = item.to_pkt();
             match self.push_to_block(&pkt) {
-                Err(_) => self.error(),
+                Err(_) => {
+                    self.error();
+                    break;
+                }
                 _ => {}
             }
         }
@@ -278,6 +289,13 @@ impl ObjectReceiver {
             log::info!("Force CENC to Null for the FDT");
             self.cenc = Some(lct::CENC::Null);
         }
+    }
+
+    fn set_fdt_id_from_pkt(&mut self, pkt: &alc::AlcPkt) {
+        if self.fdt_instance_id.is_some() || pkt.lct.toi != lct::TOI_FDT {
+            return;
+        }
+        self.fdt_instance_id = pkt.fdt_info.as_ref().map(|info| info.fdt_instance_id);
     }
 
     fn set_oti_from_pkt(&mut self, pkt: &alc::AlcPkt) {
@@ -302,26 +320,6 @@ impl ObjectReceiver {
             assert!(self.toi != lct::TOI_FDT);
             return;
         }
-
-        self.setup_block_writer();
-        self.open_object_writer();
-        self.push_from_cache();
-    }
-
-    fn setup_block_writer(&mut self) {
-        assert!(self.oti.is_some());
-        assert!(self.transfer_length.is_some());
-        assert!(self.cenc.is_some());
-
-        if self.block_writer.is_some() {
-            return;
-        }
-
-        self.block_writer = Some(BlockWriter::new(
-            self.transfer_length.unwrap() as usize,
-            self.cenc.unwrap(),
-        ));
-        self.block_partitioning();
     }
 
     fn cache(&mut self, pkt: &alc::AlcPkt) {
@@ -331,11 +329,16 @@ impl ObjectReceiver {
 
     ///  Block Partitioning Algorithm
     ///  See https://tools.ietf.org/html/rfc5052
-    fn block_partitioning(&mut self) {
-        assert!(self.oti.is_some());
-        assert!(self.transfer_length.is_some());
-        assert!(self.blocks.is_empty());
+    fn init_blocks_partitioning(&mut self) {
+        if !self.blocks.is_empty() {
+            return;
+        }
 
+        if self.oti.is_none() || self.transfer_length.is_none() {
+            return;
+        }
+
+        assert!(self.blocks.is_empty());
         let oti = self.oti.as_ref().unwrap();
 
         let b = oti.maximum_source_block_length as u64;
