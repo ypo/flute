@@ -34,7 +34,7 @@ pub struct ObjectReceiver {
     blocks: Vec<BlockDecoder>,
     blocks_variable_size: bool,
     transfer_length: Option<u64>,
-    cenc: Option<lct::CENC>,
+    cenc: Option<lct::Cenc>,
     content_md5: Option<String>,
     a_large: u64,
     a_small: u64,
@@ -161,8 +161,8 @@ impl ObjectReceiver {
 
         if self.cenc.is_none() {
             self.cenc = match &file.content_encoding {
-                Some(str) => Some(str.as_str().try_into().unwrap_or(lct::CENC::Null)),
-                None => Some(lct::CENC::Null),
+                Some(str) => Some(str.as_str().try_into().unwrap_or(lct::Cenc::Null)),
+                None => Some(lct::Cenc::Null),
             };
             log::info!("Set cenc from FDT {:?}", self.cenc);
         }
@@ -302,8 +302,8 @@ impl ObjectReceiver {
         }
         self.cenc = pkt.cenc;
         if self.toi == lct::TOI_FDT && self.cenc.is_none() {
-            log::info!("Force CENC to Null for the FDT");
-            self.cenc = Some(lct::CENC::Null);
+            log::info!("Force Cenc to Null for the FDT");
+            self.cenc = Some(lct::Cenc::Null);
         } else if self.cenc.is_some() {
             log::info!("Set cenc from pkt {:?}", self.cenc);
         }

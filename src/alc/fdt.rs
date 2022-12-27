@@ -21,11 +21,11 @@ pub struct Fdt {
     files: std::collections::HashMap<u128, Rc<FileDesc>>,
     current_fdt_transfer: Option<Rc<FileDesc>>,
     complete: Option<bool>,
-    cenc: lct::CENC,
+    cenc: lct::Cenc,
 }
 
 impl Fdt {
-    pub fn new(fdtid: u32, default_oti: &oti::Oti, cenc: lct::CENC) -> Fdt {
+    pub fn new(fdtid: u32, default_oti: &oti::Oti, cenc: lct::Cenc) -> Fdt {
         Fdt {
             fdtid,
             oti: default_oti.clone(),
@@ -208,14 +208,14 @@ mod tests {
         crate::tests::init();
 
         let oti: oti::Oti = Default::default();
-        let mut fdt = super::Fdt::new(1, &oti, lct::CENC::Null);
+        let mut fdt = super::Fdt::new(1, &oti, lct::Cenc::Null);
         let obj = objectdesc::ObjectDesc::create_from_buffer(
             &Vec::new(),
             "txt",
             &url::Url::parse("file:///").unwrap(),
             2,
             None,
-            lct::CENC::Null,
+            lct::Cenc::Null,
             true,
             None,
             true,

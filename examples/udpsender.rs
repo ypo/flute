@@ -1,4 +1,4 @@
-use flute::sender::{ObjectDesc, Sender, CENC};
+use flute::sender::{ObjectDesc, Sender, Cenc};
 use std::net::UdpSocket;
 
 fn main() {
@@ -20,7 +20,7 @@ fn main() {
     let udp_socket = UdpSocket::bind("0.0.0.0:0").unwrap();
 
     log::info!("Create FLUTE Sender");
-    let mut sender = Sender::new(tsi, fdtid, &Default::default(), CENC::Null);
+    let mut sender = Sender::new(tsi, fdtid, &Default::default(), Cenc::Null);
 
     log::info!("Connect to {}", dest);
     udp_socket.connect(dest).expect("Connection failed");
@@ -40,7 +40,7 @@ fn main() {
             "application/octet-stream",
             1,
             None,
-            CENC::Null,
+            Cenc::Null,
             true,
             None,
             true,

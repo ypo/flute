@@ -21,7 +21,7 @@ impl Sender {
     ///
     /// Creation of a FLUTE Sender
     ///
-    pub fn new(tsi: u64, fdtid: u32, oti: &oti::Oti, fdt_cenc: lct::CENC) -> Sender {
+    pub fn new(tsi: u64, fdtid: u32, oti: &oti::Oti, fdt_cenc: lct::Cenc) -> Sender {
         let fdt = Rc::new(RefCell::new(Fdt::new(fdtid, oti, fdt_cenc)));
         let sessions = (0..4)
             .map(|index| SenderSession::new(tsi, fdt.clone(), 4, index == 0))
@@ -96,7 +96,7 @@ mod tests {
         crate::tests::init();
 
         let oti: oti::Oti = Default::default();
-        let mut sender = super::Sender::new(1, 1, &oti, lct::CENC::Null);
+        let mut sender = super::Sender::new(1, 1, &oti, lct::Cenc::Null);
         let mut buffer: Vec<u8> = Vec::new();
         let nb_pkt = oti.encoding_symbol_length as usize * 3;
         buffer.extend(vec![0xAA; nb_pkt]);
@@ -107,7 +107,7 @@ mod tests {
                 &url::Url::parse("file:///hello").unwrap(),
                 1,
                 None,
-                lct::CENC::Null,
+                lct::Cenc::Null,
                 true,
                 None,
                 true,

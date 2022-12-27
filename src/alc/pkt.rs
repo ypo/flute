@@ -8,7 +8,7 @@ pub struct Pkt {
     pub snb: u32,
     pub toi: u128,
     pub fdt_id: Option<u32>,
-    pub cenc: lct::CENC,
+    pub cenc: lct::Cenc,
     pub inband_cenc: bool,
     pub close_object: bool,
     pub source_block_length: u32

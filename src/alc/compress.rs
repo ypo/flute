@@ -4,12 +4,12 @@ use super::lct;
 use crate::tools::error::{FluteError, Result};
 use flate2::write::{DeflateEncoder, GzEncoder, ZlibEncoder};
 
-pub fn compress(data: &[u8], cenc: lct::CENC) -> Result<Vec<u8>> {
+pub fn compress(data: &[u8], cenc: lct::Cenc) -> Result<Vec<u8>> {
     match cenc {
-        lct::CENC::Null => Err(FluteError::new("Null compression ?")),
-        lct::CENC::Zlib => compress_zlib(data),
-        lct::CENC::Deflate => compress_deflate(data),
-        lct::CENC::Gzip => compress_gzip(data),
+        lct::Cenc::Null => Err(FluteError::new("Null compression ?")),
+        lct::Cenc::Zlib => compress_zlib(data),
+        lct::Cenc::Deflate => compress_deflate(data),
+        lct::Cenc::Gzip => compress_gzip(data),
     }
 }
 

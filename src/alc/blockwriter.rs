@@ -13,7 +13,7 @@ use super::{
 pub struct BlockWriter {
     snb: u32,
     bytes_left: usize,
-    cenc: lct::CENC,
+    cenc: lct::Cenc,
     decoder: Option<Box<dyn Decompress>>,
     buffer: Vec<u8>,
     md5_context: Option<md5::Context>,
@@ -35,7 +35,7 @@ impl std::fmt::Debug for BlockWriter {
 }
 
 impl BlockWriter {
-    pub fn new(transfer_length: usize, cenc: lct::CENC, md5: bool) -> BlockWriter {
+    pub fn new(transfer_length: usize, cenc: lct::Cenc, md5: bool) -> BlockWriter {
         BlockWriter {
             snb: 0,
             bytes_left: transfer_length,
@@ -76,7 +76,7 @@ impl BlockWriter {
                 false => &symbols[..self.bytes_left],
             };
 
-            if self.cenc == lct::CENC::Null {
+            if self.cenc == lct::Cenc::Null {
                 self.write_pkt_cenc_null(symbols, writer);
             } else {
                 self.decode_write_pkt(symbols, writer)?;
@@ -107,10 +107,10 @@ impl BlockWriter {
     fn init_decoder(&mut self, data: &[u8]) {
         assert!(self.decoder.is_none());
         self.decoder = match self.cenc {
-            lct::CENC::Null => None,
-            lct::CENC::Zlib => Some(Box::new(DecompressZlib::new(data))),
-            lct::CENC::Deflate => Some(Box::new(DecompressDeflate::new(data))),
-            lct::CENC::Gzip => Some(Box::new(DecompressGzip::new(data))),
+            lct::Cenc::Null => None,
+            lct::Cenc::Zlib => Some(Box::new(DecompressZlib::new(data))),
+            lct::Cenc::Deflate => Some(Box::new(DecompressDeflate::new(data))),
+            lct::Cenc::Gzip => Some(Box::new(DecompressGzip::new(data))),
         };
         self.buffer.resize(data.len(), 0);
     }

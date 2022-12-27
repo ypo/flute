@@ -22,13 +22,13 @@ pub struct ObjectDesc {
     /// Size of the object (uncompressed)
     /// as defined in [rfc2616 14.13](https://www.rfc-editor.org/rfc/rfc2616#section-14.13)
     pub content_length: u64,
-    /// Size of the object after transfer-coding (`CENC`) has been applied
+    /// Size of the object after transfer-coding (`Cenc`) has been applied
     /// as defined in [rfc2616 4.4](https://www.rfc-editor.org/rfc/rfc2616#section-4.4)
     pub transfer_length: u64,
     /// Content Encoding (compression)
-    pub cenc: lct::CENC,
-    /// If `true`, CENC extension are added to ALC/LCT packet
-    /// Else CENC is defined only inside the FDT
+    pub cenc: lct::Cenc,
+    /// If `true`, Cenc extension are added to ALC/LCT packet
+    /// Else Cenc is defined only inside the FDT
     pub inband_cenc: bool,
     /// the MD5 sum of this object. Can be used by the FLUTE `receiver`to validate the integrity of the reception
     pub md5: Option<String>,
@@ -50,7 +50,7 @@ impl ObjectDesc {
         content_type: &str,
         max_transfer_count: u32,
         carousel_delay: Option<std::time::Duration>,
-        cenc: lct::CENC,
+        cenc: lct::Cenc,
         inband_cenc: bool,
         oti: Option<oti::Oti>,
         md5: bool,
@@ -89,7 +89,7 @@ impl ObjectDesc {
         content_location: &url::Url,
         max_transfer_count: u32,
         carousel_delay: Option<std::time::Duration>,
-        cenc: lct::CENC,
+        cenc: lct::Cenc,
         inband_cenc: bool,
         oti: Option<oti::Oti>,
         md5: bool,
@@ -115,7 +115,7 @@ impl ObjectDesc {
         content_location: url::Url,
         max_transfer_count: u32,
         carousel_delay: Option<std::time::Duration>,
-        cenc: lct::CENC,
+        cenc: lct::Cenc,
         inband_cenc: bool,
         oti: Option<oti::Oti>,
         md5: bool,
@@ -128,7 +128,7 @@ impl ObjectDesc {
             false => None,
         };
 
-        if cenc != lct::CENC::Null {
+        if cenc != lct::Cenc::Null {
             content = compress::compress(&content, cenc)?;
             log::info!(
                 "compress content from {} to {}",

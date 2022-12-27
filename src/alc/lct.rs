@@ -3,7 +3,7 @@ use crate::tools::error::{FluteError, Result};
 /// Content Encoding, compressed
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum CENC {
+pub enum Cenc {
     /// Do not encode content before transmission
     Null = 0,
     /// Encode content with ZLIB
@@ -16,7 +16,7 @@ pub enum CENC {
 
 #[repr(u8)]
 #[derive(Clone, Copy)]
-pub enum EXT {
+pub enum Ext {
     Fdt = 192,
     Fti = 64,
     Cenc = 193,
@@ -38,42 +38,42 @@ pub struct LCTHeader {
     pub length: usize,
 }
 
-impl TryFrom<u8> for CENC {
+impl TryFrom<u8> for Cenc {
     type Error = ();
 
     fn try_from(v: u8) -> std::result::Result<Self, Self::Error> {
         match v {
-            x if x == CENC::Null as u8 => Ok(CENC::Null),
-            x if x == CENC::Zlib as u8 => Ok(CENC::Zlib),
-            x if x == CENC::Deflate as u8 => Ok(CENC::Deflate),
-            x if x == CENC::Gzip as u8 => Ok(CENC::Gzip),
+            x if x == Cenc::Null as u8 => Ok(Cenc::Null),
+            x if x == Cenc::Zlib as u8 => Ok(Cenc::Zlib),
+            x if x == Cenc::Deflate as u8 => Ok(Cenc::Deflate),
+            x if x == Cenc::Gzip as u8 => Ok(Cenc::Gzip),
             _ => Err(()),
         }
     }
 }
 
-impl TryFrom<&str> for CENC {
+impl TryFrom<&str> for Cenc {
     type Error = ();
 
     fn try_from(v: &str) -> std::result::Result<Self, Self::Error> {
         match v {
-            "null" => Ok(CENC::Null),
-            "zlib" => Ok(CENC::Zlib),
-            "deflate" => Ok(CENC::Deflate),
-            "gzip" => Ok(CENC::Gzip),
+            "null" => Ok(Cenc::Null),
+            "zlib" => Ok(Cenc::Zlib),
+            "deflate" => Ok(Cenc::Deflate),
+            "gzip" => Ok(Cenc::Gzip),
             _ => Err(()),
         }
     }
 }
 
-impl CENC {
-    /// Convert CENC to its string representation
+impl Cenc {
+    /// Convert Cenc to its string representation
     pub fn to_str(&self) -> &str {
         match self {
-            CENC::Null => "null",
-            CENC::Zlib => "zlib",
-            CENC::Deflate => "deflate",
-            CENC::Gzip => "gzip",
+            Cenc::Null => "null",
+            Cenc::Zlib => "zlib",
+            Cenc::Deflate => "deflate",
+            Cenc::Gzip => "gzip",
         }
     }
 }
@@ -375,7 +375,7 @@ pub fn parse_lct_header(data: &[u8]) -> Result<LCTHeader> {
     })
 }
 
-pub fn get_ext<'a>(data: &'a [u8], lct: &LCTHeader, ext: EXT) -> Result<Option<&'a [u8]>> {
+pub fn get_ext<'a>(data: &'a [u8], lct: &LCTHeader, ext: Ext) -> Result<Option<&'a [u8]>> {
     let mut lct_ext_ext = &data[(lct.header_ext_offset as usize)..lct.len];
     while lct_ext_ext.len() > 4 {
         let het = lct_ext_ext[0];

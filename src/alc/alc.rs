@@ -7,7 +7,7 @@ pub struct AlcPkt<'a> {
     pub lct: lct::LCTHeader,
     pub oti: Option<oti::Oti>,
     pub transfer_length: Option<u64>,
-    pub cenc: Option<lct::CENC>,
+    pub cenc: Option<lct::Cenc>,
     pub server_time: Option<SystemTime>,
     pub data: &'a [u8],
     pub data_alc_header_offset: usize,
@@ -20,7 +20,7 @@ pub struct AlcPktCache {
     pub lct: lct::LCTHeader,
     pub oti: Option<oti::Oti>,
     pub transfer_length: Option<u64>,
-    pub cenc: Option<lct::CENC>,
+    pub cenc: Option<lct::Cenc>,
     pub server_time: Option<SystemTime>,
     pub data_alc_header_offset: usize,
     pub data_payload_offset: usize,
@@ -95,8 +95,8 @@ pub fn create_alc_pkt(
         push_fdt(&mut data, 2, pkt.fdt_id.unwrap())
     }
 
-    // In case of FDT, we must push CENC if CENC is not null
-    if (pkt.toi == lct::TOI_FDT && (pkt.cenc != lct::CENC::Null)) || pkt.inband_cenc {
+    // In case of FDT, we must push Cenc if Cenc is not null
+    if (pkt.toi == lct::TOI_FDT && (pkt.cenc != lct::Cenc::Null)) || pkt.inband_cenc {
         push_cenc(&mut data, pkt.cenc as u8);
     }
 
@@ -154,7 +154,7 @@ pub fn parse_alc_pkt(data: &[u8]) -> Result<AlcPkt> {
         return Err(FluteError::new("Wrong size of ALC packet"));
     }
 
-    let fti = lct::get_ext(data.as_ref(), &lct_header, lct::EXT::Fti)?;
+    let fti = lct::get_ext(data.as_ref(), &lct_header, lct::Ext::Fti)?;
     let mut oti: Option<oti::Oti> = None;
     let mut transfer_length: Option<u64> = None;
     if fti.is_some() {
@@ -178,7 +178,7 @@ pub fn parse_alc_pkt(data: &[u8]) -> Result<AlcPkt> {
     let data_alc_header_offset = lct_header.len;
     let data_payload_offset = alc_payload_id_length + lct_header.len;
 
-    let cenc = lct::get_ext(data.as_ref(), &lct_header, lct::EXT::Cenc)?;
+    let cenc = lct::get_ext(data.as_ref(), &lct_header, lct::Ext::Cenc)?;
     let cenc = match cenc {
         Some(ext) => parse_cenc(ext).ok(),
         None => None,
@@ -186,7 +186,7 @@ pub fn parse_alc_pkt(data: &[u8]) -> Result<AlcPkt> {
 
     let mut fdt_info: Option<ExtFDT> = None;
     if lct_header.toi == lct::TOI_FDT {
-        let fdt = lct::get_ext(data.as_ref(), &lct_header, lct::EXT::Fdt)?;
+        let fdt = lct::get_ext(data.as_ref(), &lct_header, lct::Ext::Fdt)?;
         fdt_info = match fdt {
             Some(ext) => parse_ext_fdt(ext)?,
             None => None,
@@ -262,7 +262,7 @@ fn push_fdt(data: &mut Vec<u8>, version: u8, fdt_id: u32) {
     |   HET = 192   |   V   |          FDT Instance ID              |
     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
      */
-    let ext = (lct::EXT::Fdt as u32) << 24 | (version as u32) << 20 | fdt_id;
+    let ext = (lct::Ext::Fdt as u32) << 24 | (version as u32) << 20 | fdt_id;
     data.extend(ext.to_be_bytes());
     lct::inc_hdr_len(data, 1);
 }
@@ -272,21 +272,21 @@ fn push_cenc(data: &mut Vec<u8>, cenc: u8) {
      0                   1                   2                   3
      0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |   HET = 193   |     CENC      |          Reserved             |
+    |   HET = 193   |     Cenc      |          Reserved             |
     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
       */
-    let ext = (lct::EXT::Cenc as u32) << 24 | (cenc as u32) << 16;
+    let ext = (lct::Ext::Cenc as u32) << 24 | (cenc as u32) << 16;
     data.extend(ext.to_be_bytes());
     lct::inc_hdr_len(data, 1);
 }
 
-fn parse_cenc(ext: &[u8]) -> Result<lct::CENC> {
+fn parse_cenc(ext: &[u8]) -> Result<lct::Cenc> {
     if ext.len() != 4 {
         return Err(FluteError::new("Wrong extension size"));
     }
     ext[1]
         .try_into()
-        .map_err(|_| FluteError::new("CENC not supported"))
+        .map_err(|_| FluteError::new("Cenc not supported"))
 }
 
 fn push_sct(data: &mut Vec<u8>, time: &std::time::SystemTime) {
@@ -311,7 +311,7 @@ fn push_sct(data: &mut Vec<u8>, time: &std::time::SystemTime) {
     */
 
     /* HEL | SCT HIGH | SCT LOW */
-    let header: u32 = (lct::EXT::Time as u32) << 24 | (3u32 << 16) | (1u32 << 15) | (1u32 << 14);
+    let header: u32 = (lct::Ext::Time as u32) << 24 | (3u32 << 16) | (1u32 << 15) | (1u32 << 14);
 
     // Convert UTC to NTP
     let (seconds, rest) = match tools::system_time_to_ntp(time) {
@@ -340,7 +340,7 @@ fn push_no_code_oti(data: &mut Vec<u8>, oti: &oti::Oti, transfer_length: u64) {
     | Max. Source Block Length (LSB)|
     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+*/
 
-    let ext_header: u16 = (lct::EXT::Fti as u16) << 8 | 4u16;
+    let ext_header: u16 = (lct::Ext::Fti as u16) << 8 | 4u16;
     let transfer_header: u64 = transfer_length << 16;
     let esl: u16 = oti.encoding_symbol_length as u16;
     let sbl_msb: u16 = ((oti.maximum_source_block_length >> 16) & 0xFFFF) as u16;
@@ -359,7 +359,7 @@ fn parse_no_code_oti(fti: &[u8]) -> Result<(oti::Oti, u64)> {
         return Err(FluteError::new("Wrong extension size"));
     }
 
-    assert!(fti[0] == lct::EXT::Fti as u8);
+    assert!(fti[0] == lct::Ext::Fti as u8);
     assert!(fti[1] == 4);
 
     let mut transfer_length: [u8; 8] = [0; 8];
@@ -387,7 +387,7 @@ fn parse_no_code_oti(fti: &[u8]) -> Result<(oti::Oti, u64)> {
     Ok((oti, transfer_length))
 }
 
-/// rfc5510 Using the General EXT_FTI Format
+/// rfc5510 Using the General Ext_FTI Format
 fn push_general_oti(data: &mut Vec<u8>, oti: &oti::Oti, transfer_length: u64) {
     /*0                   1                   2                   3
      0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -400,7 +400,7 @@ fn push_general_oti(data: &mut Vec<u8>, oti: &oti::Oti, transfer_length: u64) {
     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+*/
 
     let ext_header_l: u64 =
-        (lct::EXT::Fti as u64) << 56 | 3u64 << 48 | transfer_length & 0xFFFFFFFFFFFF;
+        (lct::Ext::Fti as u64) << 56 | 3u64 << 48 | transfer_length & 0xFFFFFFFFFFFF;
     let max_n: u32 = (oti.max_number_of_parity_symbols + oti.maximum_source_block_length) & 0xFF;
     let e_b_n: u32 = (oti.encoding_symbol_length as u32) << 16
         | (oti.maximum_source_block_length & 0xFF) << 8
@@ -415,7 +415,7 @@ fn parse_general_oti(fti: &[u8], fec_encoding_id: oti::FECEncodingID) -> Result<
         return Err(FluteError::new("Wrong extension size"));
     }
 
-    assert!(fti[0] == lct::EXT::Fti as u8);
+    assert!(fti[0] == lct::Ext::Fti as u8);
     assert!(fti[1] == 3);
 
     let mut transfer_length: [u8; 8] = [0; 8];
@@ -461,7 +461,7 @@ fn push_small_block_systematic_oti(data: &mut Vec<u8>, oti: &oti::Oti, transfer_
      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
     */
 
-    let ext_header: u16 = (lct::EXT::Fti as u16) << 8 | 4u16;
+    let ext_header: u16 = (lct::Ext::Fti as u16) << 8 | 4u16;
     let transfer_header_fec_id: u64 = (transfer_length << 16) | oti.fec_instance_id as u64;
     let esl: u16 = oti.encoding_symbol_length as u16;
     let sbl: u16 = ((oti.maximum_source_block_length) & 0xFFFF) as u16;
@@ -483,7 +483,7 @@ fn parse_small_block_systematic_oti(
         return Err(FluteError::new("Wrong extension size"));
     }
 
-    assert!(fti[0] == lct::EXT::Fti as u8);
+    assert!(fti[0] == lct::Ext::Fti as u8);
     assert!(fti[1] == 4);
 
     let mut transfer_length: [u8; 8] = [0; 8];
@@ -625,7 +625,7 @@ mod tests {
             snb: 2,
             toi: 3,
             fdt_id: None,
-            cenc: lct::CENC::Null,
+            cenc: lct::Cenc::Null,
             inband_cenc: true,
             transfer_length: transfer_length,
             close_object: false,
