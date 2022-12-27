@@ -2,7 +2,7 @@
 //!
 //! Massively scalable multicast distribution solution
 //!
-//! The library implements a unidirectional file delivery (return channel is not required).
+//! The library implements a unidirectional file delivery, without the need of a return channel.
 //!
 //!
 //! # RFC
