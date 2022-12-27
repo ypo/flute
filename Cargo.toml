@@ -3,6 +3,8 @@ name = "flute"
 version = "0.1.0"
 authors = ["Yannick Poirier <contact@yannickpoirier.fr>"]
 edition = "2021"
+license = "MIT"
+description = "File Delivery over Unidirectional Transport (FLUTE)"
 
 [dependencies]
 log  = "0.4"

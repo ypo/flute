@@ -1,5 +1,5 @@
 use flute::sender::{ObjectDesc, Sender, CENC};
-use std::{net::UdpSocket, time::SystemTime};
+use std::net::UdpSocket;
 
 fn main() {
     std::env::set_var("RUST_LOG", "info");
@@ -34,7 +34,7 @@ fn main() {
         }
 
         log::info!("Insert file {} to FLUTE sender", file);
-        let obj = Box::new(ObjectDesc::create_from_file(
+        let obj = ObjectDesc::create_from_file(
             path,
             None,
             "application/octet-stream",
@@ -44,20 +44,16 @@ fn main() {
             true,
             None,
             true,
-        ))
+        )
         .unwrap();
         sender.add_object(obj);
     }
 
     log::info!("Publish FDT update");
-    sender.publish(&SystemTime::now()).unwrap();
+    sender.publish().unwrap();
 
-    loop {
-        let pkt = sender.read();
-        if pkt.is_none() {
-            break;
-        }
-        udp_socket.send(&pkt.unwrap()).unwrap();
+    while let Some(pkt) = sender.read() {
+        udp_socket.send(&pkt).unwrap();
         std::thread::sleep(std::time::Duration::from_millis(1));
     }
 }

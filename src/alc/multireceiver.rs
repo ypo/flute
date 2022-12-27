@@ -123,7 +123,6 @@ mod tests {
 
     use crate::alc::{lct, objectdesc, oti, sender};
     use crate::receiver::objectwriter::FluteWriterBuffer;
-    use std::time::SystemTime;
 
     fn create_sender(
         buffer: &Vec<u8>,
@@ -147,7 +146,7 @@ mod tests {
             )
             .unwrap(),
         );
-        sender.publish(&SystemTime::now()).unwrap();
+        sender.publish().unwrap();
         sender
     }
 

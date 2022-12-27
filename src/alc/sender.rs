@@ -44,9 +44,9 @@ impl Sender {
     /// Publish modification to the FDT
     /// An updated version of the FDT will be generated and transferred
     /// Multiple modification can be made (ex: several call to 'add_object()`) before publishing a new FDT version
-    pub fn publish(&self, now: &SystemTime) -> Result<()> {
+    pub fn publish(&self) -> Result<()> {
         let mut fdt = self.fdt.borrow_mut();
-        fdt.publish(now)
+        fdt.publish(&SystemTime::now())
     }
 
     /// Inform that the FDT is complete, no new object should be added after this call
@@ -90,7 +90,6 @@ mod tests {
 
     use super::objectdesc;
     use super::oti;
-    use std::time::SystemTime;
 
     #[test]
     pub fn test_sender() {
@@ -115,7 +114,7 @@ mod tests {
             )
             .unwrap(),
         );
-        sender.publish(&SystemTime::now()).unwrap();
+        sender.publish().unwrap();
         loop {
             let data = sender.read();
             if data.is_none() {

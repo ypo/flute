@@ -84,7 +84,7 @@ impl ObjectDesc {
 
     /// Return an `ObjectDesc` from a buffer
     pub fn create_from_buffer(
-        content: &Vec<u8>,
+        content: &[u8],
         content_type: &str,
         content_location: &url::Url,
         max_transfer_count: u32,
@@ -95,7 +95,7 @@ impl ObjectDesc {
         md5: bool,
     ) -> Result<Box<ObjectDesc>> {
         ObjectDesc::create_with_content(
-            content.clone(),
+            content.to_vec(),
             None,
             content_type.to_string(),
             content_location.clone(),
