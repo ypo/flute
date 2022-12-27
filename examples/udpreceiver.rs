@@ -39,5 +39,6 @@ fn main() {
             Err(_) => log::error!("Wrong ALC/LCT packet"),
             _ => {}
         };
+        receiver.cleanup();
     }
 }

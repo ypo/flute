@@ -49,7 +49,7 @@ pub struct ObjectReceiver {
 
 impl ObjectReceiver {
     pub fn new(toi: &u128, writer_session: Rc<dyn ObjectWriter>) -> ObjectReceiver {
-        log::info!("Create new Object Receiver");
+        log::info!("Create new Object Receiver with toi {}", toi);
         ObjectReceiver {
             state: State::Receiving,
             oti: None,
@@ -73,7 +73,7 @@ impl ObjectReceiver {
         }
     }
 
-    pub fn _last_activity_duration_since(&self, earlier: Instant) -> Duration {
+    pub fn last_activity_duration_since(&self, earlier: Instant) -> Duration {
         self.last_activity.duration_since(earlier)
     }
 
@@ -141,7 +141,7 @@ impl ObjectReceiver {
 
         block.push(pkt, &payload_id);
         if block.completed {
-            log::info!("block {} is completed", payload_id.snb);
+            log::debug!("block {} is completed", payload_id.snb);
             self.write_blocks(payload_id.snb)?;
         }
 
@@ -372,7 +372,7 @@ impl ObjectReceiver {
 
         self.blocks_variable_size =
             oti.fec_encoding_id == oti::FECEncodingID::ReedSolomonGF28SmallBlockSystematic;
-        log::info!(
+        log::debug!(
             "Preallocate {} blocks of {} or {} symbols",
             n,
             self.a_large,

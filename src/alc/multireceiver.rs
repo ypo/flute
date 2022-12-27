@@ -73,11 +73,42 @@ impl MultiReceiver {
             return Ok(());
         }
 
-        let receiver = self.get_receiver(alc.lct.tsi);
-        receiver.push(&alc)
+        if alc.lct.close_session {
+            match self.get_receiver(alc.lct.tsi) {
+                Some(receiver) => receiver.push(&alc),
+                None => {
+                    log::warn!(
+                        "A session that is not allocated is about to be closed, skip the session"
+                    );
+                    return Ok(());
+                }
+            }
+        } else {
+            let receiver = self.get_receiver_or_create(alc.lct.tsi);
+            receiver.push(&alc)
+        }
     }
 
-    fn get_receiver(&mut self, tsi: u64) -> &mut Receiver {
+    ///
+    /// Remove FLUTE session that are closed or expired
+    /// Remove Objects that are expired
+    ///
+    /// Cleanup should be call from time to time to avoid consuming to much memory
+    ///
+    pub fn cleanup(&mut self) {
+        self.alc_receiver.retain(|_, v| !v.is_expired());
+        for (_, receiver) in &mut self.alc_receiver {
+            receiver.cleanup();
+        }
+    }
+
+    fn get_receiver(&mut self, tsi: u64) -> Option<&mut Receiver> {
+        self.alc_receiver
+            .get_mut(&tsi)
+            .map(|receiver| receiver.as_mut())
+    }
+
+    fn get_receiver_or_create(&mut self, tsi: u64) -> &mut Receiver {
         self.alc_receiver
             .entry(tsi)
             .or_insert_with(|| {

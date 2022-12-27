@@ -9,24 +9,40 @@ use crate::tools::error::FluteError;
 use crate::tools::error::Result;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::rc::Rc;
+use std::time::Duration;
+use std::time::Instant;
 
-///
 /// Configuration of the FLUTE Receiver
+///
+/// The FLUTE receiver uses the `Config` struct to specify various settings and timeouts for the FLUTE session.
 ///
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Config {
     /// Max number of successfully completed objects that the receiver is keeping track of.
-    /// `None` to keep track of an infinite number of objects
-    pub gc_max_objects_completed: Option<usize>,
+    /// Packets received for an object that is already completed are discarded.  
+    ///
+    /// `None` to keep track of an infinite number of objects.
+    /// Should be set to `None` if objects are transmitted in a carousel to avoid multiple reconstruction
+    ///
+    pub max_objects_completed: Option<usize>,
     /// Max number of objects with error that the receiver is keeping track of.
-    pub gc_max_objects_error: usize,
+    /// Packets received for an object in error state are discarded
+    pub max_objects_error: usize,
+    /// The receive expires if no data has been received before this timeout
+    /// `None` the receive never expires except if a close session packet is received
+    pub session_timeout: Option<Duration>,
+    /// Objects expire if no data has been received before this timeout
+    /// `None` Objects never expires, not recommended as object that are not fully reconstructed might continue to consume memory for an finite amount of time.
+    pub object_timeout: Option<Duration>,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            gc_max_objects_completed: Some(100),
-            gc_max_objects_error: 0,
+            max_objects_completed: Some(100),
+            max_objects_error: 0,
+            session_timeout: None,
+            object_timeout: Some(Duration::from_secs(10)),
         }
     }
 }
@@ -43,6 +59,8 @@ pub struct Receiver {
     fdt_receivers: BTreeMap<u32, Box<FdtReceiver>>,
     writer: Rc<dyn FluteWriter>,
     config: Config,
+    last_activity: Instant,
+    closed_is_imminent: bool,
 }
 
 impl Receiver {
@@ -57,12 +75,64 @@ impl Receiver {
             objects_completed: BTreeSet::new(),
             objects_error: BTreeSet::new(),
             config: config.unwrap_or_default(),
+            last_activity: Instant::now(),
+            closed_is_imminent: false,
+        }
+    }
+
+    ///
+    /// Check is the receiver is expired
+    /// true -> the receiver should be destroyed to free the resources
+    ///
+    pub fn is_expired(&self) -> bool {
+        if self.config.session_timeout.is_none() {
+            return false;
+        }
+
+        log::info!("Check elapsed {:?}", self.last_activity.elapsed());
+        self.last_activity
+            .elapsed()
+            .gt(self.config.session_timeout.as_ref().unwrap())
+    }
+
+    ///
+    /// Free objects after `object_timeout`
+    ///
+    pub fn cleanup(&mut self) {
+        if self.config.object_timeout.is_none() {
+            return;
+        }
+        let object_timeout = self.config.object_timeout.as_ref().unwrap();
+        let now = Instant::now();
+
+        let expired_objects_toi: std::collections::HashSet<u128> = self
+            .objects
+            .iter()
+            .filter_map(|(key, value)| {
+                let duration = value.last_activity_duration_since(now);
+                if duration.gt(object_timeout) {
+                    Some(key.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        for toi in expired_objects_toi {
+            self.objects_error.remove(&toi);
+            self.objects.remove(&toi);
         }
     }
 
     /// Push ALC/LCT packets to the `Receiver`
     pub fn push(&mut self, alc_pkt: &alc::AlcPkt) -> Result<()> {
         assert!(self.tsi == alc_pkt.lct.tsi);
+        self.last_activity = Instant::now();
+
+        if alc_pkt.lct.close_session {
+            log::info!("Close session");
+            self.closed_is_imminent = true;
+        }
 
         match alc_pkt.lct.toi {
             toi if toi == lct::TOI_FDT => self.push_fdt_obj(alc_pkt),
@@ -77,7 +147,6 @@ impl Receiver {
             }
 
             if alc_pkt.lct.close_session {
-                // TODO close this receiver
                 return Ok(());
             }
 
@@ -172,11 +241,11 @@ impl Receiver {
     }
 
     fn gc_object_completed(&mut self) {
-        if self.config.gc_max_objects_completed.is_none() {
+        if self.config.max_objects_completed.is_none() {
             return;
         }
 
-        let max = self.config.gc_max_objects_completed.unwrap();
+        let max = self.config.max_objects_completed.unwrap();
         while self.objects_completed.len() > max {
             let toi = self.objects_completed.pop_first().unwrap();
             self.objects.remove(&toi);
@@ -184,7 +253,7 @@ impl Receiver {
     }
 
     fn gc_object_error(&mut self) {
-        while self.objects_error.len() > self.config.gc_max_objects_error {
+        while self.objects_error.len() > self.config.max_objects_error {
             let toi = self.objects_error.pop_first().unwrap();
             self.objects.remove(&toi);
         }
