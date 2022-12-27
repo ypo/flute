@@ -204,9 +204,6 @@ impl Receiver {
         {
             let mut obj = self.objects.get_mut(&pkt.lct.toi);
             if obj.is_none() {
-                if pkt.lct.close_object {
-                    return Ok(());
-                }
                 self.create_obj(&pkt.lct.toi);
                 obj = self.objects.get_mut(&pkt.lct.toi);
             }

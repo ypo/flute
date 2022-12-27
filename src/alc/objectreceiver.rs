@@ -250,7 +250,7 @@ impl ObjectReceiver {
                     .unwrap_or(true);
 
                 if md5_valid {
-                    log::info!("Object completed");
+                    log::info!("Object with toi {} completed", self.toi);
                     self.complete();
                 } else {
                     log::error!("MD5 does not match");
@@ -304,6 +304,8 @@ impl ObjectReceiver {
         if self.toi == lct::TOI_FDT && self.cenc.is_none() {
             log::info!("Force CENC to Null for the FDT");
             self.cenc = Some(lct::CENC::Null);
+        } else if self.cenc.is_some() {
+            log::info!("Set cenc from pkt {:?}", self.cenc);
         }
     }
 

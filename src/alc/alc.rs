@@ -96,7 +96,7 @@ pub fn create_alc_pkt(
     }
 
     // In case of FDT, we must push CENC if CENC is not null
-    if pkt.toi == lct::TOI_FDT && (pkt.cenc != lct::CENC::Null) || pkt.inband_cenc {
+    if (pkt.toi == lct::TOI_FDT && (pkt.cenc != lct::CENC::Null)) || pkt.inband_cenc {
         push_cenc(&mut data, pkt.cenc as u8);
     }
 

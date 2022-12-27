@@ -57,7 +57,6 @@ impl BlockEncoder {
             let block = &mut self.blocks[self.block_interlace_index];
             let symbol = block.read();
             if symbol.is_none() {
-                log::debug!("End of the block");
                 self.blocks.remove(self.block_interlace_index);
                 continue;
             }
