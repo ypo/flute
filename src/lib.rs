@@ -17,6 +17,9 @@
 //! | RFC 5510 | Reed-Solomon Forward Error Correction (FEC) Schemes | <https://www.rfc-editor.org/rfc/rfc5510.html> |
 //!
 //! # UDP/IP Multicast files sender
+//! 
+//! Transfer files over a UDP/IP network
+//! 
 //!```rust
 //! use flute::sender::Sender;
 //! use flute::sender::ObjectDesc;
@@ -48,6 +51,9 @@
 //!
 //!```
 //! # UDP/IP Multicast files receiver
+//! 
+//! Receive files from a UDP/IP network
+//! 
 //!```
 //! use flute::receiver::{objectwriter, MultiReceiver};
 //! use std::net::UdpSocket;

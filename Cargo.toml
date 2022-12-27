@@ -5,6 +5,11 @@ authors = ["Yannick Poirier <contact@yannickpoirier.fr>"]
 edition = "2021"
 license = "MIT"
 description = "File Delivery over Unidirectional Transport (FLUTE)"
+homepage = "https://github.com/ypo/flute"
+repository = "https://github.com/ypo/flute"
+keywords = ["multicast", "network", "broadcast", "5g", "satellite"]
+categories = ["network-programming", "encoding"]
+rust-version = "1.66"
 
 [dependencies]
 log  = "0.4"
