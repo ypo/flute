@@ -7,7 +7,7 @@
 //!
 //! # RFC
 //!
-//! RFC used to implement this library
+//! This library implements the following RFCs
 //!
 //!| RFC      | Title      | Link       |
 //!| ------------- | ------------- | ------------- |

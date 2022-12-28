@@ -80,6 +80,7 @@ impl BlockEncoder {
                 close_object: self.source_size_transferred
                     >= self.file.object.transfer_length as usize,
                 source_block_length: block.nb_source_symbols as u32,
+                sender_current_time: self.file.sender_current_time.clone(),
             });
         }
     }

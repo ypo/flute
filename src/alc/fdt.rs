@@ -40,8 +40,8 @@ impl Fdt {
     }
 
     fn get_fdt_instance(&self, now: &SystemTime) -> FdtInstance {
-        let (seconds_ntp, _) = tools::system_time_to_ntp(now).unwrap_or((0, 0));
-        let expires_ntp = seconds_ntp + 3600;
+        let ntp = tools::system_time_to_ntp(now).unwrap_or(0);
+        let expires_ntp = (ntp >> 32) + 3600;
 
         let oti_attributes = self.oti.get_attributes();
         FdtInstance {
@@ -67,7 +67,7 @@ impl Fdt {
     }
 
     pub fn add_object(&mut self, obj: Box<objectdesc::ObjectDesc>) {
-        let filedesc = FileDesc::new(obj, &self.oti, &self.toi, None);
+        let filedesc = FileDesc::new(obj, &self.oti, &self.toi, None, None);
         self.toi += 1;
         if self.toi == lct::TOI_FDT {
             self.toi = 1;
@@ -92,7 +92,13 @@ impl Fdt {
             None,
             true,
         )?;
-        let filedesc = FileDesc::new(obj, &self.oti, &lct::TOI_FDT, Some(self.fdtid));
+        let filedesc = FileDesc::new(
+            obj,
+            &self.oti,
+            &lct::TOI_FDT,
+            Some(self.fdtid),
+            Some(now.clone()),
+        );
         self.fdt_transfer_queue.push(filedesc);
         self.fdtid = (self.fdtid + 1) & 0xFFFFF;
         Ok(())

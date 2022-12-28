@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::time::SystemTime;
 
 use super::objectdesc::ObjectDesc;
 use super::{fdtinstance, oti};
@@ -17,6 +18,7 @@ pub struct FileDesc {
     pub oti: oti::Oti,
     pub toi: u128,
     pub fdt_id: Option<u32>,
+    pub sender_current_time: Option<SystemTime>,
     transfer_info: RefCell<TransferInfo>,
 }
 
@@ -26,6 +28,7 @@ impl FileDesc {
         default_oti: &oti::Oti,
         toi: &u128,
         fdt_id: Option<u32>,
+        sender_current_time: Option<SystemTime>,
     ) -> Rc<FileDesc> {
         let oti = match &object.oti {
             Some(res) => res.clone(),
@@ -36,6 +39,7 @@ impl FileDesc {
             oti,
             toi: toi.clone(),
             fdt_id,
+            sender_current_time,
             transfer_info: RefCell::new(TransferInfo {
                 transferring: false,
                 transfer_count: 0,

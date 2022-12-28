@@ -5,8 +5,8 @@ use super::{
     objectreceiver::{self, ObjectReceiver},
     objectwriter::ObjectWriter,
 };
-use std::{cell::RefCell, rc::Rc};
 use crate::tools::error::Result;
+use std::{cell::RefCell, rc::Rc, time::SystemTime};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum State {
@@ -21,6 +21,7 @@ pub struct FdtReceiver {
     obj: Box<ObjectReceiver>,
     writer: Rc<FdtWriter>,
     fdt_instance: Option<FdtInstance>,
+    sender_current_time: Option<SystemTime>,
 }
 
 #[derive(Debug)]
@@ -50,10 +51,18 @@ impl FdtReceiver {
             obj: Box::new(ObjectReceiver::new(&lct::TOI_FDT, writer.clone())),
             writer,
             fdt_instance: None,
+            sender_current_time: None,
         }
     }
 
     pub fn push(&mut self, pkt: &alc::AlcPkt) {
+        if self.sender_current_time.is_none() {
+            match alc::get_sender_current_time(pkt) {
+                Ok(res) => self.sender_current_time = res,
+                _ => {}
+            }
+        }
+
         self.obj.push(pkt);
         if self.obj.state == objectreceiver::State::Error {
             self.writer.inner.borrow_mut().state = State::Error;

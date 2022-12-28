@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+
 use super::lct;
 
 #[derive(Debug)]
@@ -11,5 +13,6 @@ pub struct Pkt {
     pub cenc: lct::Cenc,
     pub inband_cenc: bool,
     pub close_object: bool,
-    pub source_block_length: u32
+    pub source_block_length: u32,
+    pub sender_current_time: Option<SystemTime>
 }

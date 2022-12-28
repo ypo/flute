@@ -72,13 +72,7 @@ impl<'a> AlcPktCache {
     }
 }
 
-pub fn create_alc_pkt(
-    oti: &oti::Oti,
-    cci: &u128,
-    tsi: u64,
-    pkt: &Pkt,
-    now: Option<&SystemTime>,
-) -> Vec<u8> {
+pub fn new_alc_pkt(oti: &oti::Oti, cci: &u128, tsi: u64, pkt: &Pkt) -> Vec<u8> {
     let mut data = Vec::new();
     lct::push_lct_header(
         &mut data,
@@ -100,8 +94,8 @@ pub fn create_alc_pkt(
         push_cenc(&mut data, pkt.cenc as u8);
     }
 
-    if now.is_some() {
-        push_sct(&mut data, now.unwrap());
+    if pkt.sender_current_time.is_some() {
+        push_sct(&mut data, pkt.sender_current_time.as_ref().unwrap());
     }
 
     match oti.fec_encoding_id {
@@ -204,6 +198,15 @@ pub fn parse_alc_pkt(data: &[u8]) -> Result<AlcPkt> {
         data_payload_offset,
         fdt_info,
     })
+}
+
+pub fn get_sender_current_time(pkt: &AlcPkt) -> Result<Option<SystemTime>> {
+    let ext = match lct::get_ext(pkt.data, &pkt.lct, lct::Ext::Time)? {
+        Some(res) => res,
+        _ => return Ok(None),
+    };
+
+    parse_sct(ext)
 }
 
 pub fn parse_payload_id(pkt: &AlcPkt, oti: &oti::Oti) -> Result<PayloadID> {
@@ -314,14 +317,43 @@ fn push_sct(data: &mut Vec<u8>, time: &std::time::SystemTime) {
     let header: u32 = (lct::Ext::Time as u32) << 24 | (3u32 << 16) | (1u32 << 15) | (1u32 << 14);
 
     // Convert UTC to NTP
-    let (seconds, rest) = match tools::system_time_to_ntp(time) {
+    let ntp = match tools::system_time_to_ntp(time) {
         Ok(res) => res,
         Err(_) => return,
     };
     data.extend(header.to_be_bytes());
-    data.extend(seconds.to_be_bytes());
-    data.extend(rest.to_be_bytes());
+    data.extend(ntp.to_be_bytes());
     lct::inc_hdr_len(data, 3);
+}
+
+fn parse_sct(ext: &[u8]) -> Result<Option<std::time::SystemTime>> {
+    assert!(ext.len() >= 4);
+    let use_bits_hi = ext[2];
+    let sct_hi = (use_bits_hi >> 7) & 1;
+    let sct_low = (use_bits_hi >> 6) & 1;
+    let ert = (use_bits_hi >> 5) & 1;
+    let slc = (use_bits_hi >> 4) & 1;
+
+    let expected_len = (sct_hi + sct_low + ert + slc + 1) as usize * 4;
+    if ext.len() != expected_len {
+        return Err(FluteError::new(format!(
+            "Wrong ext length, expect {} received {}",
+            expected_len,
+            ext.len()
+        )));
+    }
+
+    if sct_hi == 0 {
+        return Ok(None);
+    }
+
+    let ntp_seconds: u32 = u32::from_be_bytes(ext[4..8].as_ref().try_into().unwrap());
+    let ntp_faction: u32 = match sct_low {
+        1 => u32::from_be_bytes(ext[8..12].as_ref().try_into().unwrap()),
+        _ => 0,
+    };
+    let ntp: u64 = ((ntp_seconds as u64) << 32) | (ntp_faction as u64);
+    tools::ntp_to_system_time(ntp).map(|op| Some(op))
 }
 
 fn push_no_code_oti(data: &mut Vec<u8>, oti: &oti::Oti, transfer_length: u64) {
@@ -630,9 +662,10 @@ mod tests {
             transfer_length: transfer_length,
             close_object: false,
             source_block_length: 1,
+            sender_current_time: None,
         };
 
-        let alc_pkt = super::create_alc_pkt(&oti, &cci, tsi, &pkt, None);
+        let alc_pkt = super::new_alc_pkt(&oti, &cci, tsi, &pkt);
         let decoded_pkt = super::parse_alc_pkt(&alc_pkt).unwrap();
         assert!(decoded_pkt.lct.toi == pkt.toi);
         assert!(decoded_pkt.lct.cci == cci);

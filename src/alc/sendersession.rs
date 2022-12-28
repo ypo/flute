@@ -52,7 +52,7 @@ impl SenderSession {
                 continue;
             }
             let pkt = pkt.as_ref().unwrap();
-            return Some(alc::create_alc_pkt(&file.oti, &0u128, self.tsi, pkt, None));
+            return Some(alc::new_alc_pkt(&file.oti, &0u128, self.tsi, pkt));
         }
     }
 
