@@ -25,7 +25,7 @@ Transfer files over a UDP/IP network
 ```rust
 use flute::sender::Sender;
 use flute::sender::ObjectDesc;
-use flute::sender::CENC;
+use flute::sender::Cenc;
 use std::net::UdpSocket;
 
 // Create UDP Socket
@@ -35,11 +35,11 @@ udp_socket.connect("224.0.0.1:3400").expect("Connection failed");
 // Create FLUTE Sender
 let tsi = 1;
 let fdtid = 1;
-let mut sender = Sender::new(tsi, fdtid, &Default::default(), CENC::Null);
+let mut sender = Sender::new(tsi, fdtid, &Default::default(), Cenc::Null);
 
 // Add object(s) (files) to the FLUTE sender
 let obj = ObjectDesc::create_from_buffer(b"hello world", "text/plain",
-&url::Url::parse("file:///hello.txt").unwrap(), 1, None, CENC::Null, true, None, true).unwrap();
+&url::Url::parse("file:///hello.txt").unwrap(), 1, None, Cenc::Null, true, None, true).unwrap();
 sender.add_object(obj);
 
 // Always call publish after adding objects
