@@ -18,6 +18,25 @@ RFC used to implement this library
 | RFC 5052 | Forward Error Correction (FEC) Building Block | <https://www.rfc-editor.org/rfc/rfc5052> |
 | RFC 5510 | Reed-Solomon Forward Error Correction (FEC) Schemes | <https://www.rfc-editor.org/rfc/rfc5510.html> |
 
+
+## Application-Level Forward Erasure Correction (AL-FEC)
+
+The following error recovery algorithm are supported
+
+- [x] Reed-Solomon GF 2^8
+- [ ] Reed-Solomon GF 2^16
+- [ ] Reed-Solomon GF 2^m
+- [ ] RaptorQ
+
+## Content Encoding (CENC)
+
+The following scheme are supported during the transmission/reception
+
+- [x] Null (no compression)
+- [x] Deflate
+- [x] Zlib
+- [x] Gzip
+
 ## UDP/IP Multicast files sender
 
 Transfer files over a UDP/IP network
