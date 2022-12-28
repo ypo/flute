@@ -131,7 +131,11 @@ mod tests {
         cenc: lct::Cenc,
         inband_cenc: bool,
     ) -> Box<sender::Sender> {
-        let sender = Box::new(sender::Sender::new(1, 1, &oti, cenc));
+        let config = sender::Config {
+            fdt_cenc: cenc,
+            ..Default::default()
+        };
+        let sender = Box::new(sender::Sender::new(1, &oti, &config));
         sender.add_object(
             objectdesc::ObjectDesc::create_from_buffer(
                 buffer,

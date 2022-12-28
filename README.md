@@ -18,25 +18,6 @@ This library implements the following RFCs
 | RFC 5052 | Forward Error Correction (FEC) Building Block | <https://www.rfc-editor.org/rfc/rfc5052> |
 | RFC 5510 | Reed-Solomon Forward Error Correction (FEC) Schemes | <https://www.rfc-editor.org/rfc/rfc5510.html> |
 
-
-## Application-Level Forward Erasure Correction (AL-FEC)
-
-The following error recovery algorithm are supported
-
-- [x] Reed-Solomon GF 2^8
-- [ ] Reed-Solomon GF 2^16
-- [ ] Reed-Solomon GF 2^m
-- [ ] RaptorQ
-
-## Content Encoding (CENC)
-
-The following scheme are supported during the transmission/reception
-
-- [x] Null (no compression)
-- [x] Deflate
-- [x] Zlib
-- [x] Gzip
-
 ## UDP/IP Multicast files sender
 
 Transfer files over a UDP/IP network
@@ -53,8 +34,9 @@ udp_socket.connect("224.0.0.1:3400").expect("Connection failed");
 
 // Create FLUTE Sender
 let tsi = 1;
-let fdtid = 1;
-let mut sender = Sender::new(tsi, fdtid, &Default::default(), Cenc::Null);
+let oti = Default::default();
+let config = Default::default();
+let mut sender = Sender::new(tsi, &oti, &config);
 
 // Add object(s) (files) to the FLUTE sender
 let obj = ObjectDesc::create_from_buffer(b"hello world", "text/plain",
@@ -97,5 +79,22 @@ loop {
     receiver.cleanup();
 }
 ```
+//! # Application-Level Forward Erasure Correction (AL-FEC)
+
+The following error recovery algorithm are supported
+
+- [x] Reed-Solomon GF 2^8
+- [ ] Reed-Solomon GF 2^16
+- [ ] Reed-Solomon GF 2^m
+- [ ] RaptorQ
+
+## Content Encoding (CENC)
+
+The following scheme are supported during the transmission/reception
+
+- [x] Null (no compression)
+- [x] Deflate
+- [x] Zlib
+- [x] Gzip
 
 License: MIT

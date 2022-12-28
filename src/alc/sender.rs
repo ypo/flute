@@ -6,6 +6,23 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::SystemTime;
 
+#[derive(Debug)]
+pub struct Config {
+    pub fdt_duration: std::time::Duration,
+    pub fdt_start_id: u32,
+    pub fdt_cenc: lct::Cenc,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            fdt_duration: std::time::Duration::from_secs(3600),
+            fdt_start_id: 1,
+            fdt_cenc: lct::Cenc::Null,
+        }
+    }
+}
+
 ///
 /// FLUTE `Sender` session
 /// Transform objects (files) to ALC/LCT packet
@@ -21,8 +38,13 @@ impl Sender {
     ///
     /// Creation of a FLUTE Sender
     ///
-    pub fn new(tsi: u64, fdtid: u32, oti: &oti::Oti, fdt_cenc: lct::Cenc) -> Sender {
-        let fdt = Rc::new(RefCell::new(Fdt::new(fdtid, oti, fdt_cenc)));
+    pub fn new(tsi: u64, oti: &oti::Oti, config: &Config) -> Sender {
+        let fdt = Rc::new(RefCell::new(Fdt::new(
+            config.fdt_start_id,
+            oti,
+            config.fdt_cenc,
+            config.fdt_duration,
+        )));
         let sessions = (0..4)
             .map(|index| SenderSession::new(tsi, fdt.clone(), 4, index == 0))
             .collect();
@@ -96,7 +118,7 @@ mod tests {
         crate::tests::init();
 
         let oti: oti::Oti = Default::default();
-        let mut sender = super::Sender::new(1, 1, &oti, lct::Cenc::Null);
+        let mut sender = super::Sender::new(1, &oti, &Default::default());
         let mut buffer: Vec<u8> = Vec::new();
         let nb_pkt = oti.encoding_symbol_length as usize * 3;
         buffer.extend(vec![0xAA; nb_pkt]);

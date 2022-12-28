@@ -15,30 +15,11 @@
 //!| RFC 5775 | Asynchronous Layered Coding (ALC) Protocol Instantiation | <https://www.rfc-editor.org/rfc/rfc5775.html> |
 //!| RFC 5052 | Forward Error Correction (FEC) Building Block | <https://www.rfc-editor.org/rfc/rfc5052> |
 //!| RFC 5510 | Reed-Solomon Forward Error Correction (FEC) Schemes | <https://www.rfc-editor.org/rfc/rfc5510.html> |
-//! 
-//! 
-//! # Application-Level Forward Erasure Correction (AL-FEC)
-//! 
-//! The following error recovery algorithm are supported
-//! 
-//! - [x] Reed-Solomon GF 2^8  
-//! - [ ] Reed-Solomon GF 2^16  
-//! - [ ] Reed-Solomon GF 2^m  
-//! - [ ] RaptorQ  
-//! 
-//! # Content Encoding (CENC)
-//! 
-//! The following scheme are supported during the transmission/reception
-//! 
-//! - [x] Null (no compression)
-//! - [x] Deflate
-//! - [x] Zlib
-//! - [x] Gzip
-//! 
+//!
 //! # UDP/IP Multicast files sender
-//! 
+//!
 //! Transfer files over a UDP/IP network
-//! 
+//!
 //!```rust
 //! use flute::sender::Sender;
 //! use flute::sender::ObjectDesc;
@@ -51,8 +32,9 @@
 //!
 //! // Create FLUTE Sender
 //! let tsi = 1;
-//! let fdtid = 1;
-//! let mut sender = Sender::new(tsi, fdtid, &Default::default(), Cenc::Null);
+//! let oti = Default::default();
+//! let config = Default::default();
+//! let mut sender = Sender::new(tsi, &oti, &config);
 //!
 //! // Add object(s) (files) to the FLUTE sender
 //! let obj = ObjectDesc::create_from_buffer(b"hello world", "text/plain",
@@ -70,20 +52,20 @@
 //!
 //!```
 //! # UDP/IP Multicast files receiver
-//! 
+//!
 //! Receive files from a UDP/IP network
-//! 
+//!
 //!```
 //! use flute::receiver::{objectwriter, MultiReceiver};
 //! use std::net::UdpSocket;
 //!
 //! // Create UDP/IP socket to receive FLUTE pkt
 //! let udp_socket = UdpSocket::bind("224.0.0.1:3400").expect("Fail to bind");
-//! 
+//!
 //! // Create a writer able to write received files to the filesystem
 //! let writer = objectwriter::FluteWriterFS::new(&std::path::Path::new("./flute_dir"))
 //!     .unwrap_or_else(|_| std::process::exit(0));
-//! 
+//!
 //! // Create a multi-receiver capable of de-multiplexing several FLUTE sessions
 //! let mut receiver = MultiReceiver::new(None, writer, None);
 //!
@@ -95,6 +77,23 @@
 //!     receiver.cleanup();
 //! }
 //!```
+//! //! # Application-Level Forward Erasure Correction (AL-FEC)
+//!
+//! The following error recovery algorithm are supported
+//!
+//! - [x] Reed-Solomon GF 2^8  
+//! - [ ] Reed-Solomon GF 2^16  
+//! - [ ] Reed-Solomon GF 2^m  
+//! - [ ] RaptorQ  
+//! 
+//! # Content Encoding (CENC)
+//!
+//! The following scheme are supported during the transmission/reception
+//!
+//! - [x] Null (no compression)
+//! - [x] Deflate
+//! - [x] Zlib
+//! - [x] Gzip
 
 #![deny(missing_docs)]
 #![deny(missing_debug_implementations)]

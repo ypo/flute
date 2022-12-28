@@ -22,10 +22,16 @@ pub struct Fdt {
     current_fdt_transfer: Option<Rc<FileDesc>>,
     complete: Option<bool>,
     cenc: lct::Cenc,
+    duration: std::time::Duration,
 }
 
 impl Fdt {
-    pub fn new(fdtid: u32, default_oti: &oti::Oti, cenc: lct::Cenc) -> Fdt {
+    pub fn new(
+        fdtid: u32,
+        default_oti: &oti::Oti,
+        cenc: lct::Cenc,
+        duration: std::time::Duration,
+    ) -> Fdt {
         Fdt {
             fdtid,
             oti: default_oti.clone(),
@@ -36,12 +42,13 @@ impl Fdt {
             current_fdt_transfer: None,
             complete: None,
             cenc,
+            duration,
         }
     }
 
     fn get_fdt_instance(&self, now: &SystemTime) -> FdtInstance {
         let ntp = tools::system_time_to_ntp(now).unwrap_or(0);
-        let expires_ntp = (ntp >> 32) + 3600;
+        let expires_ntp = (ntp >> 32) + self.duration.as_secs();
 
         let oti_attributes = self.oti.get_attributes();
         FdtInstance {
@@ -214,7 +221,12 @@ mod tests {
         crate::tests::init();
 
         let oti: oti::Oti = Default::default();
-        let mut fdt = super::Fdt::new(1, &oti, lct::Cenc::Null);
+        let mut fdt = super::Fdt::new(
+            1,
+            &oti,
+            lct::Cenc::Null,
+            std::time::Duration::from_secs(3600),
+        );
         let obj = objectdesc::ObjectDesc::create_from_buffer(
             &Vec::new(),
             "txt",
