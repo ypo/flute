@@ -20,5 +20,15 @@ pub mod oti;
 pub mod receiver;
 pub mod sender;
 
-/// Write objects received by the FLUTE receiver to its final destination
+///
+/// Write FLUTE objects to their final destination
+///
+/// # Example
+///
+/// ```
+/// use flute::receiver::objectwriter;
+///
+/// let writer = objectwriter::FluteWriterFS::new(&std::path::Path::new("./destination_dir")).ok();
+/// ```
+///
 pub mod objectwriter;

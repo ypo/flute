@@ -257,7 +257,7 @@ impl Receiver {
     }
 
     fn create_obj(&mut self, toi: &u128) {
-        let session = self.writer.create_session(&self.tsi, toi);
+        let session = self.writer.new_object_writer(&self.tsi, toi);
         let mut obj = Box::new(ObjectReceiver::new(toi, session));
 
         for fdt in &mut self.fdt_receivers {

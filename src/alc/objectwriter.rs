@@ -5,8 +5,8 @@ use std::{cell::RefCell, io::Write, rc::Rc};
 /// Used to write Objects received by a FLUTE receiver to a destination
 ///
 pub trait FluteWriter {
-    /// Return a new writer session for the object defined by its TSI and TOI
-    fn create_session(&self, tsi: &u64, toi: &u128) -> Rc<dyn ObjectWriter>;
+    /// Return a new object writer that will be used to store the received object to its final destination
+    fn new_object_writer(&self, tsi: &u64, toi: &u128) -> Rc<dyn ObjectWriter>;
 }
 
 ///
@@ -19,12 +19,12 @@ pub trait ObjectWriter {
     fn write(&self, data: &[u8]);
     /// Called when all the data has been written
     fn complete(&self);
-    /// Called when an error occured during the reception of this object
+    /// Called when an error occurred during the reception of this object
     fn error(&self);
 }
 
 ///
-/// Write objects received by the `receiver` to a buffer
+/// Write objects received by the `receiver` to a buffers
 ///
 #[derive(Debug)]
 pub struct FluteWriterBuffer {
@@ -33,7 +33,7 @@ pub struct FluteWriterBuffer {
 }
 
 ///
-/// Writer session to write a single object to a buffer
+/// Write a FLUTE object to a buffer
 ///
 #[derive(Debug)]
 pub struct ObjectWriterBuffer {
@@ -70,7 +70,7 @@ impl FluteWriterBuffer {
 }
 
 impl FluteWriter for FluteWriterBuffer {
-    fn create_session(&self, _tsi: &u64, _toi: &u128) -> Rc<dyn ObjectWriter> {
+    fn new_object_writer(&self, _tsi: &u64, _toi: &u128) -> Rc<dyn ObjectWriter> {
         let obj = Rc::new(ObjectWriterBuffer {
             inner: RefCell::new(ObjectWriterBufferInner {
                 complete: false,
@@ -144,7 +144,7 @@ impl FluteWriterFS {
 }
 
 impl FluteWriter for FluteWriterFS {
-    fn create_session(&self, _tsi: &u64, _toi: &u128) -> Rc<dyn ObjectWriter> {
+    fn new_object_writer(&self, _tsi: &u64, _toi: &u128) -> Rc<dyn ObjectWriter> {
         let obj = Rc::new(ObjectWriterFS {
             dest: self.dest.clone(),
             inner: RefCell::new(ObjectWriterFSInner {
@@ -157,10 +157,14 @@ impl FluteWriter for FluteWriterFS {
 }
 
 ///
-/// Write Objects to a file system
+/// Write an object to a file system
+/// Uses the content-location to create the destination path of the object
+/// If the destination path does not exists, the folder hierarchy is created
+/// Existing files will be overwritten by this object
 ///
 #[derive(Debug)]
 pub struct ObjectWriterFS {
+    /// Folder destination were the object will be written
     dest: std::path::PathBuf,
     inner: RefCell<ObjectWriterFSInner>,
 }
