@@ -10,6 +10,11 @@ pub struct FdtInstance {
     pub xmlns_xsi: String,
     #[serde(rename = "xmlns:schemaLocation")]
     pub xsi_schema_location: String,
+    // An FDT Instance is valid until its expiration time.  The
+    //  expiration time is expressed within the FDT Instance payload as a
+    //  UTF-8 decimal representation of a 32-bit unsigned integer.  The
+    //  value of this integer represents the 32 most significant bits of a
+    //  64-bit Network Time Protocol (NTP) [RFC5905] time value
     #[serde(rename = "Expires")]
     pub expires: String,
     #[serde(rename = "Complete")]
@@ -73,9 +78,7 @@ impl FdtInstance {
 
     pub fn get_file(&self, toi: &u128) -> Option<&File> {
         let toi = toi.to_string();
-        self.file.iter().find(|file| {
-            file.toi == toi
-        })
+        self.file.iter().find(|file| file.toi == toi)
     }
 
     pub fn get_oti_for_file(&self, file: &File) -> Option<oti::Oti> {

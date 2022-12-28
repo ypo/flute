@@ -99,6 +99,22 @@ impl Receiver {
     /// Free objects after `object_timeout`
     ///
     pub fn cleanup(&mut self) {
+        self.cleanup_objects();
+        self.cleanup_fdt();
+    }
+
+    fn cleanup_fdt(&mut self) {
+        self.fdt_receivers.iter_mut().for_each(|fdt| {
+            fdt.1.update_expired_state();
+        });
+
+        self.fdt_receivers.retain(|_, fdt| {
+            let state = fdt.state();
+            state == fdtreceiver::State::Complete || state == fdtreceiver::State::Receiving
+        });
+    }
+
+    fn cleanup_objects(&mut self) {
         if self.config.object_timeout.is_none() {
             return;
         }
@@ -169,14 +185,24 @@ impl Receiver {
             }
 
             fdt_receiver.push(alc_pkt);
+
+            if fdt_receiver.state() == fdtreceiver::State::Complete {
+                fdt_receiver.update_expired_state();
+            }
+
             match fdt_receiver.state() {
                 fdtreceiver::State::Receiving => return Ok(()),
                 fdtreceiver::State::Complete => {}
                 fdtreceiver::State::Error => return Err(FluteError::new("Fail to decode FDT")),
+                fdtreceiver::State::Expired => {
+                    log::warn!("FDT has been received but is already expired");
+                    return Ok(());
+                }
             };
         }
 
         log::info!("FDT Received !");
+
         self.attach_fdt_to_objects(fdt_instance_id);
 
         Ok(())

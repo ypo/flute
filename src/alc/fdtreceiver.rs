@@ -5,23 +5,42 @@ use super::{
     objectreceiver::{self, ObjectReceiver},
     objectwriter::ObjectWriter,
 };
+use crate::tools;
 use crate::tools::error::Result;
-use std::{cell::RefCell, rc::Rc, time::SystemTime};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    time::{Instant, SystemTime},
+};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum State {
     Receiving,
     Complete,
     Error,
+    Expired,
 }
 
-#[derive(Debug)]
 pub struct FdtReceiver {
     pub fdt_id: u32,
     obj: Box<ObjectReceiver>,
     writer: Rc<FdtWriter>,
     fdt_instance: Option<FdtInstance>,
     sender_current_time: Option<SystemTime>,
+    receiver_current_time: Instant,
+}
+
+impl std::fmt::Debug for FdtReceiver {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FdtReceiver")
+            .field("fdt_id", &self.fdt_id)
+            .field("obj", &self.obj)
+            .field("writer", &self.writer)
+            .field("fdt_instance", &self.fdt_instance)
+            .field("sender_current_time", &self.sender_current_time)
+            .field("receiver_current_time", &self.receiver_current_time)
+            .finish()
+    }
 }
 
 #[derive(Debug)]
@@ -33,6 +52,7 @@ struct FdtWriter {
 struct FdtWriterInner {
     data: Vec<u8>,
     fdt: Option<FdtInstance>,
+    expires: Option<SystemTime>,
     state: State,
 }
 
@@ -43,6 +63,7 @@ impl FdtReceiver {
                 data: Vec::new(),
                 fdt: None,
                 state: State::Receiving,
+                expires: None,
             }),
         });
 
@@ -52,6 +73,7 @@ impl FdtReceiver {
             writer,
             fdt_instance: None,
             sender_current_time: None,
+            receiver_current_time: Instant::now(),
         }
     }
 
@@ -81,6 +103,36 @@ impl FdtReceiver {
         }
         self.fdt_instance.as_ref()
     }
+
+    pub fn update_expired_state(&self) {
+        if self.state() != State::Complete {
+            return;
+        }
+
+        if self.is_expired() {
+            log::info!("FDT is expired");
+            let mut inner = self.writer.inner.borrow_mut();
+            inner.state = State::Expired;
+        }
+    }
+
+    fn is_expired(&self) -> bool {
+        let inner = self.writer.inner.borrow();
+        let expires = match inner.expires {
+            Some(expires) => expires,
+            None => return true,
+        };
+
+        if self.sender_current_time.is_some() {
+            let expires_duration = match expires.duration_since(self.sender_current_time.unwrap()) {
+                Ok(res) => res,
+                _ => return true,
+            };
+            return self.receiver_current_time.duration_since(Instant::now()) > expires_duration;
+        }
+
+        SystemTime::now() > expires
+    }
 }
 
 impl ObjectWriter for FdtWriter {
@@ -97,6 +149,10 @@ impl ObjectWriter for FdtWriter {
         let mut inner = self.inner.borrow_mut();
         match FdtInstance::parse(&inner.data) {
             Ok(inst) => {
+                inner.expires = match inst.expires.parse::<u32>() {
+                    Ok(seconds_ntp) => tools::ntp_to_system_time((seconds_ntp as u64) << 32).ok(),
+                    _ => None,
+                };
                 inner.fdt = Some(inst);
                 inner.state = State::Complete
             }

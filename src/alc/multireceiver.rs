@@ -157,6 +157,7 @@ mod tests {
                 break;
             }
             receiver.push(data.as_ref().unwrap()).unwrap();
+            receiver.cleanup();
         }
     }
 
@@ -173,6 +174,7 @@ mod tests {
             } else {
                 receiver.push(data.as_ref().unwrap()).unwrap();
             }
+            receiver.cleanup();
             i += 1;
         }
     }
