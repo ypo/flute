@@ -79,7 +79,7 @@ loop {
     receiver.cleanup();
 }
 ```
-//! # Application-Level Forward Erasure Correction (AL-FEC)
+## Application-Level Forward Erasure Correction (AL-FEC)
 
 The following error recovery algorithm are supported
 
