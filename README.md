@@ -9,7 +9,7 @@ The library implements a unidirectional file delivery, without the need of a ret
 
 ## RFC
 
-RFC used to implement this library
+This library implements the following RFCs
 
 | RFC      | Title      | Link       |
 | ------------- | ------------- | ------------- |
