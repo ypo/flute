@@ -246,10 +246,7 @@ fn parse_ext_fdt(ext: &[u8]) -> Result<Option<ExtFDT>> {
     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
      */
 
-    let mut fdt_bytes: [u8; 4] = [0; 4];
-    fdt_bytes.copy_from_slice(&ext);
-    let fdt_bytes = u32::from_be_bytes(fdt_bytes);
-
+    let fdt_bytes = u32::from_be_bytes(ext.try_into().unwrap());
     let version = (fdt_bytes >> 20) & 0xF;
     let fdt_instance_id = fdt_bytes & 0xFFFF;
 
@@ -394,17 +391,9 @@ fn parse_no_code_oti(fti: &[u8]) -> Result<(oti::Oti, u64)> {
     assert!(fti[0] == lct::Ext::Fti as u8);
     assert!(fti[1] == 4);
 
-    let mut transfer_length: [u8; 8] = [0; 8];
-    transfer_length.copy_from_slice(&fti[2..10]);
-    let transfer_length = u64::from_be_bytes(transfer_length) >> 16;
-
-    let mut encoding_symbol_length: [u8; 2] = [0; 2];
-    encoding_symbol_length.copy_from_slice(&fti[10..12]);
-    let encoding_symbol_length = u16::from_be_bytes(encoding_symbol_length);
-
-    let mut maximum_source_block_length: [u8; 4] = [0; 4];
-    maximum_source_block_length.copy_from_slice(&fti[12..16]);
-    let maximum_source_block_length = u32::from_be_bytes(maximum_source_block_length);
+    let transfer_length = u64::from_be_bytes(fti[2..10].as_ref().try_into().unwrap()) >> 16;
+    let encoding_symbol_length = u16::from_be_bytes(fti[10..12].as_ref().try_into().unwrap());
+    let maximum_source_block_length = u32::from_be_bytes(fti[12..16].as_ref().try_into().unwrap());
 
     let oti = oti::Oti {
         fec_encoding_id: oti::FECEncodingID::NoCode,
@@ -450,13 +439,9 @@ fn parse_general_oti(fti: &[u8], fec_encoding_id: oti::FECEncodingID) -> Result<
     assert!(fti[0] == lct::Ext::Fti as u8);
     assert!(fti[1] == 3);
 
-    let mut transfer_length: [u8; 8] = [0; 8];
-    transfer_length.copy_from_slice(&fti[0..8]);
-    let transfer_length = u64::from_be_bytes(transfer_length) & 0xFFFFFFFFFFFF;
-
-    let mut encoding_symbol_length: [u8; 2] = [0; 2];
-    encoding_symbol_length.copy_from_slice(&fti[8..10]);
-    let encoding_symbol_length = u16::from_be_bytes(encoding_symbol_length);
+    let transfer_length =
+        u64::from_be_bytes(fti[0..8].as_ref().try_into().unwrap()) & 0xFFFFFFFFFFFF;
+    let encoding_symbol_length = u16::from_be_bytes(fti[8..10].as_ref().try_into().unwrap());
 
     let maximum_source_block_length = fti[10];
     let num_encoding_symbols = fti[11];
@@ -518,25 +503,11 @@ fn parse_small_block_systematic_oti(
     assert!(fti[0] == lct::Ext::Fti as u8);
     assert!(fti[1] == 4);
 
-    let mut transfer_length: [u8; 8] = [0; 8];
-    transfer_length.copy_from_slice(&fti[2..10]);
-    let transfer_length = u64::from_be_bytes(transfer_length) >> 16;
-
-    let mut fec_instance_id: [u8; 2] = [0; 2];
-    fec_instance_id.copy_from_slice(&fti[8..10]);
-    let fec_instance_id = u16::from_be_bytes(fec_instance_id);
-
-    let mut encoding_symbol_length: [u8; 2] = [0; 2];
-    encoding_symbol_length.copy_from_slice(&fti[10..12]);
-    let encoding_symbol_length = u16::from_be_bytes(encoding_symbol_length);
-
-    let mut maximum_source_block_length: [u8; 2] = [0; 2];
-    maximum_source_block_length.copy_from_slice(&fti[12..14]);
-    let maximum_source_block_length = u16::from_be_bytes(maximum_source_block_length);
-
-    let mut num_encoding_symbols: [u8; 2] = [0; 2];
-    num_encoding_symbols.copy_from_slice(&fti[14..16]);
-    let num_encoding_symbols = u16::from_be_bytes(num_encoding_symbols);
+    let transfer_length = u64::from_be_bytes(fti[2..10].as_ref().try_into().unwrap()) >> 16;
+    let fec_instance_id = u16::from_be_bytes(fti[8..10].as_ref().try_into().unwrap());
+    let encoding_symbol_length = u16::from_be_bytes(fti[10..12].as_ref().try_into().unwrap());
+    let maximum_source_block_length = u16::from_be_bytes(fti[12..14].as_ref().try_into().unwrap());
+    let num_encoding_symbols = u16::from_be_bytes(fti[14..16].as_ref().try_into().unwrap());
 
     let oti = oti::Oti {
         fec_encoding_id: fec_encoding_id,
