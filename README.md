@@ -84,7 +84,7 @@ loop {
 ```
 ## Application-Level Forward Erasure Correction (AL-FEC)
 
-The following error recovery algorithm are supported
+The following error recovery algorithms are supported
 
 - [x] Reed-Solomon GF 2^8
 - [ ] Reed-Solomon GF 2^16
@@ -110,7 +110,7 @@ let mut sender = Sender::new(1, &oti, &Default::default());
 
 ## Content Encoding (CENC)
 
-The following scheme are supported during the transmission/reception
+The following schemes are supported during the transmission/reception
 
 - [x] Null (no compression)
 - [x] Deflate
