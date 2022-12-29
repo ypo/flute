@@ -8,7 +8,7 @@ description = "File Delivery over Unidirectional Transport (FLUTE)"
 homepage = "https://github.com/ypo/flute"
 repository = "https://github.com/ypo/flute"
 keywords = ["multicast", "network", "broadcast", "5g", "satellite"]
-categories = ["network-programming", "encoding"]
+categories = ["network-programming", "encoding", "aerospace::space-protocols"]
 rust-version = "1.66"
 
 [dependencies]
