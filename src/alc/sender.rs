@@ -8,18 +8,26 @@ use std::time::SystemTime;
 
 ///
 /// Configuration of the `Sender`
-/// 
+///
 #[derive(Debug)]
-pub struct Config {    
-    /// Max duration of the FDT before expiration
+pub struct Config {
+    /// Max duration of the FDT before expiration.
     pub fdt_duration: std::time::Duration,
-    /// First FDT ID
-    /// 
+    /// First FDT ID.
     pub fdt_start_id: u32,
-    /// Content Encoding of the FDT
+    /// Content Encoding of the FDT.
     pub fdt_cenc: lct::Cenc,
-    /// Insert Sender Current Time inside ALC/LCT packets containing the FDT
-    pub fdt_inband_sct: bool
+    /// Insert Sender Current Time inside ALC/LCT packets containing the FDT.
+    pub fdt_inband_sct: bool,
+    /// Max number of files that are multiplexed during the transmission  
+    /// <=1 : files are transmitted one after the other.  
+    /// > 1 : multiple files might be transmitted in parallel.   
+    ///
+    pub multiplex_files: u8,
+    /// Max number of blocks that are multiplexed during the transmission of a file.  
+    /// Increasing the block multiplexing with error recovery can improve resilience to burst lost packets, 
+    /// as the erasure symbols will be distributed among multiple blocks.
+    pub multiplex_blocks: u8,
 }
 
 impl Default for Config {
@@ -28,7 +36,9 @@ impl Default for Config {
             fdt_duration: std::time::Duration::from_secs(3600),
             fdt_start_id: 1,
             fdt_cenc: lct::Cenc::Null,
-            fdt_inband_sct: true
+            fdt_inband_sct: true,
+            multiplex_files: 3,
+            multiplex_blocks: 4
         }
     }
 }
@@ -56,7 +66,13 @@ impl Sender {
             config.fdt_duration,
             config.fdt_inband_sct,
         )));
-        let sessions = (0..4)
+
+        let multiplex_files = match config.multiplex_files {
+            0 => 2,
+            n => n + 1,
+        };
+
+        let sessions = (0..multiplex_files)
             .map(|index| SenderSession::new(tsi, fdt.clone(), 4, index == 0))
             .collect();
 

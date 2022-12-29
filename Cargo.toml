@@ -25,3 +25,4 @@ md5 = "0.7"
 
 [dev-dependencies]
 env_logger = "0.10.0"
+rand = "0.8"

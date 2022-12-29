@@ -14,8 +14,8 @@ pub struct BlockEncoder {
     nb_a_large: u64,
     nb_blocks: u64,
     blocks: Vec<Box<Block>>,
-    block_interlace_windows: usize,
-    block_interlace_index: usize,
+    block_multiplex_windows: usize,
+    block_multiplex_index: usize,
     read_end: bool,
     source_size_transferred: usize,
 }
@@ -23,7 +23,7 @@ pub struct BlockEncoder {
 use super::block::Block;
 
 impl BlockEncoder {
-    pub fn new(file: Rc<filedesc::FileDesc>, block_interlace_windows: usize) -> BlockEncoder {
+    pub fn new(file: Rc<filedesc::FileDesc>, block_multiplex_windows: usize) -> BlockEncoder {
         let mut block = BlockEncoder {
             file,
             curr_content_offset: 0,
@@ -33,8 +33,8 @@ impl BlockEncoder {
             nb_a_large: 0,
             nb_blocks: 0,
             blocks: Vec::new(),
-            block_interlace_windows,
-            block_interlace_index: 0,
+            block_multiplex_windows,
+            block_multiplex_index: 0,
             read_end: false,
             source_size_transferred: 0,
         };
@@ -50,20 +50,20 @@ impl BlockEncoder {
                 return None;
             }
 
-            if self.block_interlace_index >= self.blocks.len() {
-                self.block_interlace_index = 0;
+            if self.block_multiplex_index >= self.blocks.len() {
+                self.block_multiplex_index = 0;
             }
 
-            let block = &mut self.blocks[self.block_interlace_index];
+            let block = &mut self.blocks[self.block_multiplex_index];
             let symbol = block.read();
             if symbol.is_none() {
-                self.blocks.remove(self.block_interlace_index);
+                self.blocks.remove(self.block_multiplex_index);
                 continue;
             }
 
             let symbol = symbol.as_ref().unwrap();
 
-            self.block_interlace_index += 1;
+            self.block_multiplex_index += 1;
             if symbol.is_source_symbol {
                 self.source_size_transferred += symbol.symbols.len();
             }
@@ -144,7 +144,7 @@ impl BlockEncoder {
     }
 
     fn read_window(&mut self) {
-        while !self.read_end && (self.blocks.len() < self.block_interlace_windows) {
+        while !self.read_end && (self.blocks.len() < self.block_multiplex_windows) {
             match self.read_block() {
                 Ok(_) => {}
                 Err(_) => self.read_end = true, // TODO handle error

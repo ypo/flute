@@ -122,8 +122,10 @@ impl MultiReceiver {
 #[cfg(test)]
 mod tests {
 
+    use rand::RngCore;
+
     use crate::alc::{lct, objectdesc, oti, sender};
-    use crate::receiver::objectwriter::{FluteWriterBuffer};
+    use crate::receiver::objectwriter::FluteWriterBuffer;
 
     fn create_sender(
         buffer: &Vec<u8>,
@@ -214,7 +216,12 @@ mod tests {
     fn create_file_buffer() -> (Vec<u8>, url::Url) {
         let input_content_location = url::Url::parse("file:///hello").unwrap();
         let mut input_file_buffer: Vec<u8> = Vec::new();
-        input_file_buffer.extend(vec![0xAA; 2048]);
+        input_file_buffer.extend(vec![0; 4048]);
+        
+        // Random buffer
+        let mut rng = rand::thread_rng();
+        rng.fill_bytes(input_file_buffer.as_mut());
+
         (input_file_buffer, input_content_location)
     }
 
