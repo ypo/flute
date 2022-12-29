@@ -25,7 +25,7 @@ pub struct Config {
     ///
     pub multiplex_files: u8,
     /// Max number of blocks that are multiplexed during the transmission of a file.  
-    /// Increasing the block multiplexing with error recovery can improve resilience to burst lost packets, 
+    /// Increasing the block multiplexing with error recovery can improve resilience to burst lost packets,
     /// as the erasure symbols will be distributed among multiple blocks.
     pub multiplex_blocks: u8,
 }
@@ -38,7 +38,7 @@ impl Default for Config {
             fdt_cenc: lct::Cenc::Null,
             fdt_inband_sct: true,
             multiplex_files: 3,
-            multiplex_blocks: 4
+            multiplex_blocks: 4,
         }
     }
 }
@@ -73,7 +73,14 @@ impl Sender {
         };
 
         let sessions = (0..multiplex_files)
-            .map(|index| SenderSession::new(tsi, fdt.clone(), 4, index == 0))
+            .map(|index| {
+                SenderSession::new(
+                    tsi,
+                    fdt.clone(),
+                    config.multiplex_blocks as usize,
+                    index == 0,
+                )
+            })
             .collect();
 
         Sender {

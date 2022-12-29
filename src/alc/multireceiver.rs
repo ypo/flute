@@ -217,7 +217,7 @@ mod tests {
         let input_content_location = url::Url::parse("file:///hello").unwrap();
         let mut input_file_buffer: Vec<u8> = Vec::new();
         input_file_buffer.extend(vec![0; 4048]);
-        
+
         // Random buffer
         let mut rng = rand::thread_rng();
         rng.fill_bytes(input_file_buffer.as_mut());
@@ -225,7 +225,13 @@ mod tests {
         (input_file_buffer, input_content_location)
     }
 
-    fn test_receiver_with_oti(oti: &oti::Oti, with_loss: bool, cenc: lct::Cenc, inband_cenc: bool) {
+    fn test_receiver_with_oti(
+        oti: &oti::Oti,
+        with_loss: bool,
+        cenc: lct::Cenc,
+        inband_cenc: bool,
+        sender_config: Option<sender::Config>,
+    ) {
         let (input_file_buffer, input_content_location) = create_file_buffer();
         let output = FluteWriterBuffer::new();
         let mut receiver = super::MultiReceiver::new(None, output.clone(), None);
@@ -235,7 +241,7 @@ mod tests {
             &oti,
             cenc,
             inband_cenc,
-            None,
+            sender_config,
         );
 
         if with_loss {
@@ -249,25 +255,41 @@ mod tests {
     #[test]
     pub fn test_receiver_no_code() {
         crate::tests::init();
-        test_receiver_with_oti(&Default::default(), false, lct::Cenc::Null, true);
+        test_receiver_with_oti(&Default::default(), false, lct::Cenc::Null, true, None);
+    }
+
+    #[test]
+    pub fn test_receiver_no_code_no_multiplex() {
+        crate::tests::init();
+        test_receiver_with_oti(
+            &Default::default(),
+            false,
+            lct::Cenc::Null,
+            true,
+            Some(sender::Config {
+                multiplex_blocks: 1,
+                multiplex_files: 0,
+                ..Default::default()
+            }),
+        );
     }
 
     #[test]
     pub fn test_receiver_cenc_gzip() {
         crate::tests::init();
-        test_receiver_with_oti(&Default::default(), false, lct::Cenc::Gzip, true);
+        test_receiver_with_oti(&Default::default(), false, lct::Cenc::Gzip, true, None);
     }
 
     #[test]
     pub fn test_receiver_cenc_deflate() {
         crate::tests::init();
-        test_receiver_with_oti(&Default::default(), false, lct::Cenc::Deflate, true);
+        test_receiver_with_oti(&Default::default(), false, lct::Cenc::Deflate, true, None);
     }
 
     #[test]
     pub fn test_receiver_cenc_zlib() {
         crate::tests::init();
-        test_receiver_with_oti(&Default::default(), false, lct::Cenc::Zlib, true);
+        test_receiver_with_oti(&Default::default(), false, lct::Cenc::Zlib, true, None);
     }
 
     #[test]
@@ -276,7 +298,7 @@ mod tests {
         let mut oti: oti::Oti = Default::default();
         oti.fec_encoding_id = oti::FECEncodingID::ReedSolomonGF28SmallBlockSystematic;
         oti.max_number_of_parity_symbols = 3;
-        test_receiver_with_oti(&oti, true, lct::Cenc::Null, true);
+        test_receiver_with_oti(&oti, true, lct::Cenc::Null, true, None);
     }
 
     #[test]
@@ -285,7 +307,7 @@ mod tests {
         let mut oti: oti::Oti = Default::default();
         oti.fec_encoding_id = oti::FECEncodingID::ReedSolomonGF28;
         oti.max_number_of_parity_symbols = 3;
-        test_receiver_with_oti(&oti, true, lct::Cenc::Null, true);
+        test_receiver_with_oti(&oti, true, lct::Cenc::Null, true, None);
     }
 
     #[test]
@@ -293,14 +315,14 @@ mod tests {
         crate::tests::init();
         let mut oti: oti::Oti = Default::default();
         oti.inband_oti = false;
-        test_receiver_with_oti(&oti, false, lct::Cenc::Null, true);
+        test_receiver_with_oti(&oti, false, lct::Cenc::Null, true, None);
     }
 
     #[test]
     pub fn test_receiver_outband_cenc() {
         crate::tests::init();
         let oti: oti::Oti = Default::default();
-        test_receiver_with_oti(&oti, false, lct::Cenc::Null, false);
+        test_receiver_with_oti(&oti, false, lct::Cenc::Null, false, None);
     }
 
     #[test]
@@ -308,7 +330,7 @@ mod tests {
         crate::tests::init();
         let mut oti: oti::Oti = Default::default();
         oti.inband_oti = false;
-        test_receiver_with_oti(&oti, false, lct::Cenc::Null, false);
+        test_receiver_with_oti(&oti, false, lct::Cenc::Null, false, None);
     }
 
     #[test]
