@@ -36,7 +36,7 @@ pub struct FdtInstance {
     #[serde(rename = "FEC-OTI-Scheme-Specific-Info")]
     pub fec_oti_scheme_specific_info: Option<String>, // Base64
     #[serde(rename = "File")]
-    pub file: Vec<File>,
+    pub file: Option<Vec<File>>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -78,7 +78,9 @@ impl FdtInstance {
 
     pub fn get_file(&self, toi: &u128) -> Option<&File> {
         let toi = toi.to_string();
-        self.file.iter().find(|file| file.toi == toi)
+        self.file
+            .as_ref()
+            .and_then(|file| file.into_iter().find(|&file| file.toi == toi))
     }
 
     pub fn get_oti_for_file(&self, file: &File) -> Option<oti::Oti> {

@@ -332,7 +332,7 @@ mod tests {
                 break;
             }
 
-            // Simulate reception 60s later
+            // Simulate reception 60s later -> FDT should be expired
             let now_receiver = std::time::SystemTime::now() + std::time::Duration::from_secs(60);
             receiver.push(data.as_ref().unwrap(), now_receiver).unwrap();
             receiver.cleanup(now_receiver);

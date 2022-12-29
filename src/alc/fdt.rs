@@ -1,8 +1,3 @@
-use std::rc::Rc;
-use std::time::SystemTime;
-
-use serde::Serialize;
-
 use super::fdtinstance::FdtInstance;
 use super::filedesc::FileDesc;
 use super::lct;
@@ -10,6 +5,9 @@ use super::objectdesc;
 use super::oti;
 use crate::tools;
 use crate::tools::error::{FluteError, Result};
+use serde::Serialize;
+use std::rc::Rc;
+use std::time::SystemTime;
 
 #[derive(Debug)]
 pub struct Fdt {
@@ -24,6 +22,7 @@ pub struct Fdt {
     cenc: lct::Cenc,
     duration: std::time::Duration,
     inband_sct: bool,
+    last_publish: Option<SystemTime>,
 }
 
 impl Fdt {
@@ -46,6 +45,7 @@ impl Fdt {
             cenc,
             duration,
             inband_sct,
+            last_publish: None,
         }
     }
 
@@ -68,11 +68,12 @@ impl Fdt {
                 .fec_oti_max_number_of_encoding_symbols,
             fec_oti_maximum_source_block_length: oti_attributes.fec_oti_maximum_source_block_length,
             fec_oti_scheme_specific_info: oti_attributes.fec_oti_scheme_specific_info,
-            file: self
-                .files
-                .iter()
-                .map(|(_, desc)| desc.to_file_xml())
-                .collect(),
+            file: Some(
+                self.files
+                    .iter()
+                    .map(|(_, desc)| desc.to_file_xml())
+                    .collect(),
+            ),
         }
     }
 
@@ -114,7 +115,20 @@ impl Fdt {
         );
         self.fdt_transfer_queue.push(filedesc);
         self.fdtid = (self.fdtid + 1) & 0xFFFFF;
+        self.last_publish = Some(now);
         Ok(())
+    }
+
+    fn current_fdt_will_expire(&self, now: SystemTime) -> bool {
+        if self.current_fdt_transfer.is_none() || self.last_publish.is_none() {
+            return true;
+        }
+
+        let duration = now
+            .duration_since(self.last_publish.unwrap())
+            .unwrap_or_default();
+
+        self.duration + std::time::Duration::from_secs(5) < duration
     }
 
     pub fn get_next_fdt_transfer(&mut self, now: SystemTime) -> Option<Rc<FileDesc>> {
@@ -127,6 +141,11 @@ impl Fdt {
             {
                 return None;
             }
+        }
+
+        if self.current_fdt_will_expire(now) {
+            log::info!("FDT will expire soon, publish new version");
+            self.publish(now).ok();
         }
 
         if !self.fdt_transfer_queue.is_empty() {
