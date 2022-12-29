@@ -6,11 +6,20 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::SystemTime;
 
+///
+/// Configuration of the `Sender`
+/// 
 #[derive(Debug)]
-pub struct Config {
+pub struct Config {    
+    /// Max duration of the FDT before expiration
     pub fdt_duration: std::time::Duration,
+    /// First FDT ID
+    /// 
     pub fdt_start_id: u32,
+    /// Content Encoding of the FDT
     pub fdt_cenc: lct::Cenc,
+    /// Insert Sender Current Time inside ALC/LCT packets containing the FDT
+    pub fdt_inband_sct: bool
 }
 
 impl Default for Config {
@@ -19,6 +28,7 @@ impl Default for Config {
             fdt_duration: std::time::Duration::from_secs(3600),
             fdt_start_id: 1,
             fdt_cenc: lct::Cenc::Null,
+            fdt_inband_sct: true
         }
     }
 }
@@ -44,6 +54,7 @@ impl Sender {
             oti,
             config.fdt_cenc,
             config.fdt_duration,
+            config.fdt_inband_sct,
         )));
         let sessions = (0..4)
             .map(|index| SenderSession::new(tsi, fdt.clone(), 4, index == 0))
@@ -66,9 +77,9 @@ impl Sender {
     /// Publish modification to the FDT
     /// An updated version of the FDT will be generated and transferred
     /// Multiple modification can be made (ex: several call to 'add_object()`) before publishing a new FDT version
-    pub fn publish(&self) -> Result<()> {
+    pub fn publish(&self, now: SystemTime) -> Result<()> {
         let mut fdt = self.fdt.borrow_mut();
-        fdt.publish(&SystemTime::now())
+        fdt.publish(now)
     }
 
     /// Inform that the FDT is complete, no new object should be added after this call
@@ -82,11 +93,11 @@ impl Sender {
     /// Read the next ALC/LCT packet
     /// return None if there is no new packet to be transferred
     /// ALC/LCT packet should be encapsulated into a UDP/IP payload and transferred via UDP/multicast
-    pub fn read(&mut self) -> Option<Vec<u8>> {
+    pub fn read(&mut self, now: SystemTime) -> Option<Vec<u8>> {
         let session_index_orig = self.session_index;
         loop {
             let session = self.sessions.get_mut(self.session_index).unwrap();
-            let data = session.run();
+            let data = session.run(now);
 
             self.session_index += 1;
             if self.session_index == self.sessions.len() {
@@ -136,9 +147,9 @@ mod tests {
             )
             .unwrap(),
         );
-        sender.publish().unwrap();
+        sender.publish(std::time::SystemTime::now()).unwrap();
         loop {
-            let data = sender.read();
+            let data = sender.read(std::time::SystemTime::now());
             if data.is_none() {
                 break;
             }

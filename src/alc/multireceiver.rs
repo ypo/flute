@@ -4,6 +4,7 @@ use super::{alc, receiver};
 use crate::tools::error::Result;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::time::SystemTime;
 
 ///
 /// Multi-sessions FLUTE receiver
@@ -60,7 +61,7 @@ impl MultiReceiver {
     /// # Arguments
     /// * `pkt`- Payload of the UDP/IP packet.
     ///
-    pub fn push(&mut self, pkt: &[u8]) -> Result<()> {
+    pub fn push(&mut self, pkt: &[u8], now: std::time::SystemTime) -> Result<()> {
         let alc = alc::parse_alc_pkt(pkt)?;
 
         let can_handle = match &self.tsi {
@@ -75,7 +76,7 @@ impl MultiReceiver {
 
         if alc.lct.close_session {
             match self.get_receiver(alc.lct.tsi) {
-                Some(receiver) => receiver.push(&alc),
+                Some(receiver) => receiver.push(&alc, now),
                 None => {
                     log::warn!(
                         "A session that is not allocated is about to be closed, skip the session"
@@ -85,7 +86,7 @@ impl MultiReceiver {
             }
         } else {
             let receiver = self.get_receiver_or_create(alc.lct.tsi);
-            receiver.push(&alc)
+            receiver.push(&alc, now)
         }
     }
 
@@ -95,10 +96,10 @@ impl MultiReceiver {
     ///
     /// Cleanup should be call from time to time to avoid consuming to much memory
     ///
-    pub fn cleanup(&mut self) {
+    pub fn cleanup(&mut self, now: SystemTime) {
         self.alc_receiver.retain(|_, v| !v.is_expired());
         for (_, receiver) in &mut self.alc_receiver {
-            receiver.cleanup();
+            receiver.cleanup(now);
         }
     }
 
@@ -122,7 +123,7 @@ impl MultiReceiver {
 mod tests {
 
     use crate::alc::{lct, objectdesc, oti, sender};
-    use crate::receiver::objectwriter::FluteWriterBuffer;
+    use crate::receiver::objectwriter::{FluteWriterBuffer};
 
     fn create_sender(
         buffer: &Vec<u8>,
@@ -130,11 +131,12 @@ mod tests {
         oti: &oti::Oti,
         cenc: lct::Cenc,
         inband_cenc: bool,
+        sender_config: Option<sender::Config>,
     ) -> Box<sender::Sender> {
-        let config = sender::Config {
+        let config = sender_config.unwrap_or(sender::Config {
             fdt_cenc: cenc,
             ..Default::default()
-        };
+        });
         let sender = Box::new(sender::Sender::new(1, &oti, &config));
         sender.add_object(
             objectdesc::ObjectDesc::create_from_buffer(
@@ -150,25 +152,27 @@ mod tests {
             )
             .unwrap(),
         );
-        sender.publish().unwrap();
+        sender.publish(std::time::SystemTime::now()).unwrap();
         sender
     }
 
     fn run(sender: &mut sender::Sender, receiver: &mut super::MultiReceiver) {
         loop {
-            let data = sender.read();
+            let now = std::time::SystemTime::now();
+            let data = sender.read(now);
             if data.is_none() {
                 break;
             }
-            receiver.push(data.as_ref().unwrap()).unwrap();
-            receiver.cleanup();
+            receiver.push(data.as_ref().unwrap(), now).unwrap();
+            receiver.cleanup(now);
         }
     }
 
     fn run_loss(sender: &mut sender::Sender, receiver: &mut super::MultiReceiver) {
         let mut i = 0u32;
         loop {
-            let data = sender.read();
+            let now = std::time::SystemTime::now();
+            let data = sender.read(now);
             if data.is_none() {
                 break;
             }
@@ -176,9 +180,9 @@ mod tests {
             if (i & 3) == 0 {
                 log::info!("ALC pkt {} is lost", i)
             } else {
-                receiver.push(data.as_ref().unwrap()).unwrap();
+                receiver.push(data.as_ref().unwrap(), now).unwrap();
             }
-            receiver.cleanup();
+            receiver.cleanup(now);
             i += 1;
         }
     }
@@ -201,6 +205,8 @@ mod tests {
             output_file_buffer.len(),
             input_buffer.len()
         );
+        assert!(output_object.is_complete() == true);
+        assert!(output_object.is_error() == false);
         assert!(output_file_buffer.eq(input_buffer));
         assert!(output_content_location.eq(input_content_location));
     }
@@ -222,6 +228,7 @@ mod tests {
             &oti,
             cenc,
             inband_cenc,
+            None,
         );
 
         if with_loss {
@@ -295,5 +302,57 @@ mod tests {
         let mut oti: oti::Oti = Default::default();
         oti.inband_oti = false;
         test_receiver_with_oti(&oti, false, lct::Cenc::Null, false);
+    }
+
+    #[test]
+    pub fn test_receiver_expired_fdt() {
+        crate::tests::init();
+
+        let oti: oti::Oti = Default::default();
+        let (input_file_buffer, input_content_location) = create_file_buffer();
+        let output = FluteWriterBuffer::new();
+        let mut receiver = super::MultiReceiver::new(None, output.clone(), None);
+        let mut sender = create_sender(
+            &input_file_buffer,
+            &input_content_location,
+            &oti,
+            lct::Cenc::Null,
+            true,
+            Some(sender::Config {
+                fdt_duration: std::time::Duration::from_secs(1),
+                fdt_inband_sct: false,
+                ..Default::default()
+            }),
+        );
+
+        loop {
+            let now_sender = std::time::SystemTime::now();
+            let data = sender.read(now_sender);
+            if data.is_none() {
+                break;
+            }
+
+            // Simulate reception 60s later
+            let now_receiver = std::time::SystemTime::now() + std::time::Duration::from_secs(60);
+            receiver.push(data.as_ref().unwrap(), now_receiver).unwrap();
+            receiver.cleanup(now_receiver);
+        }
+
+        let nb_complete_objects = output
+            .objects
+            .borrow()
+            .iter()
+            .filter(|&obj| obj.is_complete())
+            .count();
+
+        let nb_error_objects = output
+            .objects
+            .borrow()
+            .iter()
+            .filter(|&obj| obj.is_error())
+            .count();
+
+        assert!(nb_complete_objects == 0);
+        assert!(nb_error_objects == 0);
     }
 }

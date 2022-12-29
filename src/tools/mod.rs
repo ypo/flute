@@ -7,7 +7,7 @@ pub mod error;
 pub mod ringbuffer;
 
 /// Convert the `SystemTime`into NTP.
-pub fn system_time_to_ntp(time: &SystemTime) -> Result<u64> {
+pub fn system_time_to_ntp(time: SystemTime) -> Result<u64> {
     let duration = time
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(|_| FluteError::new("Fail to get UNIX time"))?;

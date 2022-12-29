@@ -7,11 +7,7 @@ use super::{
 };
 use crate::tools;
 use crate::tools::error::Result;
-use std::{
-    cell::RefCell,
-    rc::Rc,
-    time::{Instant, SystemTime},
-};
+use std::{cell::RefCell, rc::Rc, time::SystemTime};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum State {
@@ -27,7 +23,7 @@ pub struct FdtReceiver {
     writer: Rc<FdtWriter>,
     fdt_instance: Option<FdtInstance>,
     sender_current_time: Option<SystemTime>,
-    receiver_current_time: Instant,
+    receiver_current_time: SystemTime,
 }
 
 impl std::fmt::Debug for FdtReceiver {
@@ -57,7 +53,7 @@ struct FdtWriterInner {
 }
 
 impl FdtReceiver {
-    pub fn new(fdt_id: u32) -> FdtReceiver {
+    pub fn new(fdt_id: u32, now: SystemTime) -> FdtReceiver {
         let writer = Rc::new(FdtWriter {
             inner: RefCell::new(FdtWriterInner {
                 data: Vec::new(),
@@ -73,7 +69,7 @@ impl FdtReceiver {
             writer,
             fdt_instance: None,
             sender_current_time: None,
-            receiver_current_time: Instant::now(),
+            receiver_current_time: now,
         }
     }
 
@@ -104,19 +100,19 @@ impl FdtReceiver {
         self.fdt_instance.as_ref()
     }
 
-    pub fn update_expired_state(&self) {
+    pub fn update_expired_state(&self, now: SystemTime) {
         if self.state() != State::Complete {
             return;
         }
 
-        if self.is_expired() {
+        if self.is_expired(now) {
             log::info!("FDT is expired");
             let mut inner = self.writer.inner.borrow_mut();
             inner.state = State::Expired;
         }
     }
 
-    fn is_expired(&self) -> bool {
+    fn is_expired(&self, now: SystemTime) -> bool {
         let inner = self.writer.inner.borrow();
         let expires = match inner.expires {
             Some(expires) => expires,
@@ -128,10 +124,14 @@ impl FdtReceiver {
                 Ok(res) => res,
                 _ => return true,
             };
-            return self.receiver_current_time.duration_since(Instant::now()) > expires_duration;
+            return self
+                .receiver_current_time
+                .duration_since(now)
+                .unwrap_or_default()
+                > expires_duration;
         }
 
-        SystemTime::now() > expires
+        now > expires
     }
 }
 

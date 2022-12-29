@@ -9,7 +9,7 @@ use super::{fdtinstance, oti};
 struct TransferInfo {
     transferring: bool,
     transfer_count: u32,
-    last_transfer: Option<std::time::Instant>,
+    last_transfer: Option<SystemTime>,
 }
 
 #[derive(Debug)]
@@ -59,12 +59,12 @@ impl FileDesc {
         }
     }
 
-    pub fn transfer_done(&self) {
+    pub fn transfer_done(&self, now: SystemTime) {
         let mut info = self.transfer_info.borrow_mut();
         assert!(info.transferring == true);
         info.transferring = false;
         info.transfer_count += 1;
-        info.last_transfer = Some(std::time::Instant::now());
+        info.last_transfer = Some(now);
     }
 
     pub fn is_expired(&self) -> bool {
@@ -80,7 +80,7 @@ impl FileDesc {
         info.transferring
     }
 
-    pub fn should_transfer_now(&self, now: std::time::Instant) -> bool {
+    pub fn should_transfer_now(&self, now: SystemTime) -> bool {
         let info = self.transfer_info.borrow();
         if self.object.max_transfer_count > info.transfer_count {
             return true;
@@ -92,7 +92,7 @@ impl FileDesc {
 
         let delay = self.object.carousel_delay.as_ref().unwrap();
         let last_transfer = info.last_transfer.as_ref().unwrap();
-        now.duration_since(*last_transfer) > *delay
+        now.duration_since(*last_transfer).unwrap_or_default() > *delay
     }
 
     pub fn to_file_xml(&self) -> fdtinstance::File {

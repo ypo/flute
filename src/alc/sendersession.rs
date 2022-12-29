@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::time::SystemTime;
 
 use super::alc;
 use super::blockencoder::BlockEncoder;
@@ -33,10 +34,10 @@ impl SenderSession {
         }
     }
 
-    pub fn run(&mut self) -> Option<Vec<u8>> {
+    pub fn run(&mut self, now: SystemTime) -> Option<Vec<u8>> {
         loop {
             if self.encoder.is_none() {
-                self.get_next();
+                self.get_next(now);
             }
 
             if self.encoder.is_none() {
@@ -48,7 +49,7 @@ impl SenderSession {
             let file = self.file.as_ref().unwrap();
             let pkt = encoder.read();
             if pkt.is_none() {
-                self.release_file();
+                self.release_file(now);
                 continue;
             }
             let pkt = pkt.as_ref().unwrap();
@@ -56,13 +57,13 @@ impl SenderSession {
         }
     }
 
-    fn get_next(&mut self) {
+    fn get_next(&mut self, now: SystemTime) {
         let mut fdt = self.fdt.borrow_mut();
         self.encoder = None;
         if self.transfer_fdt_only {
-            self.file = fdt.get_next_fdt_transfer();
+            self.file = fdt.get_next_fdt_transfer(now);
         } else {
-            self.file = fdt.get_next_file_transfer();
+            self.file = fdt.get_next_file_transfer(now);
         }
         if self.file.is_none() {
             return;
@@ -73,10 +74,10 @@ impl SenderSession {
         ));
     }
 
-    fn release_file(&mut self) {
+    fn release_file(&mut self, now: SystemTime) {
         let mut fdt = self.fdt.borrow_mut();
         match &self.file {
-            Some(file) => fdt.transfer_done(file.clone()),
+            Some(file) => fdt.transfer_done(file.clone(), now),
             _ => {}
         };
         self.file = None;

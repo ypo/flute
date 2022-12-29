@@ -1,5 +1,5 @@
 use flute::sender::{Cenc, ObjectDesc, Sender};
-use std::net::UdpSocket;
+use std::{net::UdpSocket, time::SystemTime};
 
 fn main() {
     std::env::set_var("RUST_LOG", "info");
@@ -48,9 +48,9 @@ fn main() {
     }
 
     log::info!("Publish FDT update");
-    sender.publish().unwrap();
+    sender.publish(SystemTime::now()).unwrap();
 
-    while let Some(pkt) = sender.read() {
+    while let Some(pkt) = sender.read(SystemTime::now()) {
         udp_socket.send(&pkt).unwrap();
         std::thread::sleep(std::time::Duration::from_millis(1));
     }

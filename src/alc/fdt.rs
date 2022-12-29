@@ -23,6 +23,7 @@ pub struct Fdt {
     complete: Option<bool>,
     cenc: lct::Cenc,
     duration: std::time::Duration,
+    inband_sct: bool,
 }
 
 impl Fdt {
@@ -31,6 +32,7 @@ impl Fdt {
         default_oti: &oti::Oti,
         cenc: lct::Cenc,
         duration: std::time::Duration,
+        inband_sct: bool,
     ) -> Fdt {
         Fdt {
             fdtid,
@@ -43,10 +45,11 @@ impl Fdt {
             complete: None,
             cenc,
             duration,
+            inband_sct,
         }
     }
 
-    fn get_fdt_instance(&self, now: &SystemTime) -> FdtInstance {
+    fn get_fdt_instance(&self, now: SystemTime) -> FdtInstance {
         let ntp = tools::system_time_to_ntp(now).unwrap_or(0);
         let expires_ntp = (ntp >> 32) + self.duration.as_secs();
 
@@ -86,7 +89,7 @@ impl Fdt {
         self.files_transfer_queue.push(filedesc);
     }
 
-    pub fn publish(&mut self, now: &SystemTime) -> Result<()> {
+    pub fn publish(&mut self, now: SystemTime) -> Result<()> {
         let content = self.to_xml(now)?;
         let obj = objectdesc::ObjectDesc::create_from_buffer(
             &content,
@@ -104,14 +107,17 @@ impl Fdt {
             &self.oti,
             &lct::TOI_FDT,
             Some(self.fdtid),
-            Some(now.clone()),
+            match self.inband_sct {
+                true => Some(now.clone()),
+                false => None,
+            },
         );
         self.fdt_transfer_queue.push(filedesc);
         self.fdtid = (self.fdtid + 1) & 0xFFFFF;
         Ok(())
     }
 
-    pub fn get_next_fdt_transfer(&mut self) -> Option<Rc<FileDesc>> {
+    pub fn get_next_fdt_transfer(&mut self, now: SystemTime) -> Option<Rc<FileDesc>> {
         if self.current_fdt_transfer.is_some() {
             if self
                 .current_fdt_transfer
@@ -131,7 +137,6 @@ impl Fdt {
             return None;
         }
 
-        let now = std::time::Instant::now();
         match &self.current_fdt_transfer {
             Some(value) if value.should_transfer_now(now) => {
                 value.transfer_started();
@@ -141,9 +146,7 @@ impl Fdt {
         }
     }
 
-    pub fn get_next_file_transfer(&mut self) -> Option<Rc<FileDesc>> {
-        let now = std::time::Instant::now();
-
+    pub fn get_next_file_transfer(&mut self, now: SystemTime) -> Option<Rc<FileDesc>> {
         let (index, _) = self
             .files_transfer_queue
             .iter()
@@ -159,8 +162,8 @@ impl Fdt {
         Some(file.clone())
     }
 
-    pub fn transfer_done(&mut self, file: Rc<FileDesc>) {
-        file.transfer_done();
+    pub fn transfer_done(&mut self, file: Rc<FileDesc>, now: SystemTime) {
+        file.transfer_done(now);
 
         if file.toi == lct::TOI_FDT {
             if file.is_expired() {
@@ -176,7 +179,7 @@ impl Fdt {
                 self.files_transfer_queue.push(file);
             } else {
                 self.files.remove(&file.toi);
-                self.publish(&SystemTime::now()).ok();
+                self.publish(now).ok();
             }
         }
     }
@@ -185,7 +188,7 @@ impl Fdt {
         self.complete = Some(true)
     }
 
-    fn to_xml(&self, now: &SystemTime) -> Result<Vec<u8>> {
+    fn to_xml(&self, now: SystemTime) -> Result<Vec<u8>> {
         let mut buffer = Vec::new();
         let mut writer = quick_xml::Writer::new_with_indent(&mut buffer, b' ', 2);
 
@@ -197,7 +200,7 @@ impl Fdt {
         };
 
         let mut ser = quick_xml::se::Serializer::with_root(writer, Some("FDT-Instance"));
-        match self.get_fdt_instance(&now).serialize(&mut ser) {
+        match self.get_fdt_instance(now).serialize(&mut ser) {
             Ok(_) => {}
             Err(e) => return Err(FluteError::new(e.to_string())),
         };
@@ -226,6 +229,7 @@ mod tests {
             &oti,
             lct::Cenc::Null,
             std::time::Duration::from_secs(3600),
+            true,
         );
         let obj = objectdesc::ObjectDesc::create_from_buffer(
             &Vec::new(),
@@ -242,7 +246,7 @@ mod tests {
 
         fdt.add_object(obj);
 
-        let buffer = fdt.to_xml(&SystemTime::now()).unwrap();
+        let buffer = fdt.to_xml(SystemTime::now()).unwrap();
         let content = String::from_utf8(buffer.clone()).unwrap();
         log::info!("content={}", content);
     }

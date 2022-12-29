@@ -265,6 +265,7 @@ impl ObjectReceiver {
 
     fn complete(&mut self) {
         self.state = State::Completed;
+        self.writer_session_state = ObjectWriterSessionState::Closed;
         self.writer_session.complete();
         // Free space by removing blocks
         self.blocks.clear();
@@ -273,6 +274,7 @@ impl ObjectReceiver {
 
     fn error(&mut self) {
         self.state = State::Error;
+        self.writer_session_state = ObjectWriterSessionState::Error;
         self.writer_session.error();
         self.blocks.clear();
         self.cache.clear();

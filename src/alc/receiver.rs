@@ -98,14 +98,14 @@ impl Receiver {
     ///
     /// Free objects after `object_timeout`
     ///
-    pub fn cleanup(&mut self) {
+    pub fn cleanup(&mut self, now: std::time::SystemTime) {
         self.cleanup_objects();
-        self.cleanup_fdt();
+        self.cleanup_fdt(now);
     }
 
-    fn cleanup_fdt(&mut self) {
+    fn cleanup_fdt(&mut self, now: std::time::SystemTime) {
         self.fdt_receivers.iter_mut().for_each(|fdt| {
-            fdt.1.update_expired_state();
+            fdt.1.update_expired_state(now);
         });
 
         self.fdt_receivers.retain(|_, fdt| {
@@ -141,7 +141,7 @@ impl Receiver {
     }
 
     /// Push ALC/LCT packets to the `Receiver`
-    pub fn push(&mut self, alc_pkt: &alc::AlcPkt) -> Result<()> {
+    pub fn push(&mut self, alc_pkt: &alc::AlcPkt, now: std::time::SystemTime) -> Result<()> {
         assert!(self.tsi == alc_pkt.lct.tsi);
         self.last_activity = Instant::now();
 
@@ -151,12 +151,12 @@ impl Receiver {
         }
 
         match alc_pkt.lct.toi {
-            toi if toi == lct::TOI_FDT => self.push_fdt_obj(alc_pkt),
+            toi if toi == lct::TOI_FDT => self.push_fdt_obj(alc_pkt, now),
             _ => self.push_obj(alc_pkt),
         }
     }
 
-    fn push_fdt_obj(&mut self, alc_pkt: &alc::AlcPkt) -> Result<()> {
+    fn push_fdt_obj(&mut self, alc_pkt: &alc::AlcPkt, now: std::time::SystemTime) -> Result<()> {
         if alc_pkt.fdt_info.is_none() {
             if alc_pkt.lct.close_object {
                 return Ok(());
@@ -178,7 +178,7 @@ impl Receiver {
             let fdt_receiver = self
                 .fdt_receivers
                 .entry(fdt_instance_id)
-                .or_insert(Box::new(FdtReceiver::new(fdt_instance_id)));
+                .or_insert(Box::new(FdtReceiver::new(fdt_instance_id, now)));
 
             if fdt_receiver.state() != fdtreceiver::State::Receiving {
                 return Ok(());
@@ -187,7 +187,7 @@ impl Receiver {
             fdt_receiver.push(alc_pkt);
 
             if fdt_receiver.state() == fdtreceiver::State::Complete {
-                fdt_receiver.update_expired_state();
+                fdt_receiver.update_expired_state(now);
             }
 
             match fdt_receiver.state() {

@@ -25,6 +25,7 @@
 //! use flute::sender::ObjectDesc;
 //! use flute::sender::Cenc;
 //! use std::net::UdpSocket;
+//! use std::time::SystemTime;
 //!
 //! // Create UDP Socket
 //! let udp_socket = UdpSocket::bind("0.0.0.0:0").unwrap();
@@ -42,10 +43,10 @@
 //! sender.add_object(obj);
 //!
 //! // Always call publish after adding objects
-//! sender.publish();
+//! sender.publish(SystemTime::now());
 //!
 //! // Send FLUTE packets over UDP/IP
-//! while let Some(pkt) = sender.read() {
+//! while let Some(pkt) = sender.read(SystemTime::now()) {
 //!     udp_socket.send(&pkt).unwrap();
 //!     std::thread::sleep(std::time::Duration::from_millis(1));
 //! }
@@ -58,6 +59,7 @@
 //!```
 //! use flute::receiver::{objectwriter, MultiReceiver};
 //! use std::net::UdpSocket;
+//! use std::time::SystemTime;
 //!
 //! // Create UDP/IP socket to receive FLUTE pkt
 //! let udp_socket = UdpSocket::bind("224.0.0.1:3400").expect("Fail to bind");
@@ -73,8 +75,9 @@
 //! let mut buf = [0; 2048];
 //! loop {
 //!     let (n, _src) = udp_socket.recv_from(&mut buf).expect("Failed to receive data");
-//!     receiver.push(&buf[..n]).unwrap();
-//!     receiver.cleanup();
+//!     let now = SystemTime::now();
+//!     receiver.push(&buf[..n], now).unwrap();
+//!     receiver.cleanup(now);
 //! }
 //!```
 //! # Application-Level Forward Erasure Correction (AL-FEC)
@@ -85,7 +88,7 @@
 //! - [ ] Reed-Solomon GF 2^16  
 //! - [ ] Reed-Solomon GF 2^m  
 //! - [ ] RaptorQ  
-//! 
+//!
 //! # Content Encoding (CENC)
 //!
 //! The following scheme are supported during the transmission/reception
@@ -120,6 +123,7 @@ pub mod sender {
     pub use crate::alc::oti::FECEncodingID;
     pub use crate::alc::oti::Oti;
     pub use crate::alc::sender::Sender;
+    pub use crate::alc::sender::Config;
 }
 
 pub use crate::tools::error;

@@ -97,6 +97,18 @@ impl ObjectWriterBuffer {
         let inner = self.inner.borrow();
         inner.content_location.clone()
     }
+
+    /// true when the object has been fully received
+    pub fn is_complete(&self) -> bool {
+        let inner = self.inner.borrow();
+        inner.complete
+    }
+
+    /// true when the object has errors
+    pub fn is_error(&self) -> bool {
+        let inner = self.inner.borrow();
+        inner.error
+    }
 }
 
 impl ObjectWriter for ObjectWriterBuffer {
@@ -118,6 +130,7 @@ impl ObjectWriter for ObjectWriterBuffer {
 
     fn error(&self) {
         let mut inner = self.inner.borrow_mut();
+        log::error!("Object received with error");
         inner.error = true;
     }
 }

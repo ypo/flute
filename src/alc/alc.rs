@@ -95,7 +95,7 @@ pub fn new_alc_pkt(oti: &oti::Oti, cci: &u128, tsi: u64, pkt: &Pkt) -> Vec<u8> {
     }
 
     if pkt.sender_current_time.is_some() {
-        push_sct(&mut data, pkt.sender_current_time.as_ref().unwrap());
+        push_sct(&mut data, pkt.sender_current_time.unwrap());
     }
 
     match oti.fec_encoding_id {
@@ -292,7 +292,7 @@ fn parse_cenc(ext: &[u8]) -> Result<lct::Cenc> {
         .map_err(|_| FluteError::new("Cenc not supported"))
 }
 
-fn push_sct(data: &mut Vec<u8>, time: &std::time::SystemTime) {
+fn push_sct(data: &mut Vec<u8>, time: std::time::SystemTime) {
     /*
      0                   1                   2                   3
      0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1

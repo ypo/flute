@@ -35,10 +35,11 @@ fn main() {
             .recv_from(&mut buf)
             .expect("Failed to receive data");
 
-        match receiver.push(&buf[..n]) {
+        let now = std::time::SystemTime::now();
+        match receiver.push(&buf[..n], now) {
             Err(_) => log::error!("Wrong ALC/LCT packet"),
             _ => {}
         };
-        receiver.cleanup();
+        receiver.cleanup(now);
     }
 }
