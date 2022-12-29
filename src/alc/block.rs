@@ -82,7 +82,7 @@ impl Block {
     ) -> Result<Vec<Vec<u8>>> {
         assert!(nb_source_symbols <= oti.maximum_source_block_length as usize);
         assert!(nb_source_symbols <= block_length as usize);
-        let encoder = fec::rscodec::RSCodec::new(
+        let encoder = fec::rscodec::RSGalois8Codec::new(
             nb_source_symbols,
             oti.max_number_of_parity_symbols as usize,
             oti.encoding_symbol_length as usize,

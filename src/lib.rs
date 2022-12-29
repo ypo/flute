@@ -89,6 +89,23 @@
 //! - [ ] Reed-Solomon GF 2^m  
 //! - [ ] RaptorQ  
 //!
+//! Object Transmission Information (OTI) configuration to use FEC during transmission
+//!
+//!```rust
+//! use flute::sender::Oti;
+//! use flute::sender::FECEncodingID;
+//! use flute::sender::Sender;
+//! 
+//! let oti = Oti {
+//!     // Select Reed-Solomon GF 2^8
+//!     fec_encoding_id: FECEncodingID::ReedSolomonGF2M, 
+//!     // Number of ALC/LCT packet used to repair each block that the object is composed of
+//!     max_number_of_parity_symbols: 3,
+//!     ..Default::default()
+//! };
+//! let mut sender = Sender::new(1, &oti, &Default::default());
+//!```
+//! 
 //! # Content Encoding (CENC)
 //!
 //! The following scheme are supported during the transmission/reception

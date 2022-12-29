@@ -35,6 +35,17 @@ impl TryFrom<u8> for FECEncodingID {
 }
 
 ///
+/// Reed Solomon GS2M Scheme Specific parameters
+#[derive(Clone, Debug)]
+pub struct ReedSolomonGF2MSchemeSpecific {
+    /// Length of the finite field elements, in bits
+    pub m: u8,
+    /// number of encoding symbols per group used for the object
+    /// The default value is 1, meaning that each packet contains exactly one symbol
+    pub g: u8,
+}
+
+///
 /// FEC Object Transmission Information
 /// Contains the parameters using the build the blocks and FEC for the objects transmission
 #[derive(Clone, Debug)]
@@ -51,7 +62,7 @@ pub struct Oti {
     /// Maximum number of repairing symbols (FEC)
     pub max_number_of_parity_symbols: u32,
     /// Optional, only if `fec_encoding_id` is `FECEncodingID::ReedSolomonGF2M`
-    pub reed_solomon_m: Option<u8>,
+    pub reed_solomon_scheme_specific: Option<ReedSolomonGF2MSchemeSpecific>,
     /// If `true`, OTI is added to every ALC/LCT packets
     /// If `false`, OTI is only available inside the FDT
     pub inband_oti: bool,
@@ -65,9 +76,15 @@ impl Default for Oti {
             maximum_source_block_length: 64,
             encoding_symbol_length: 1424,
             max_number_of_parity_symbols: 2,
-            reed_solomon_m: None,
+            reed_solomon_scheme_specific: None,
             inband_oti: true,
         }
+    }
+}
+
+impl Default for ReedSolomonGF2MSchemeSpecific {
+    fn default() -> Self {
+        ReedSolomonGF2MSchemeSpecific { m: 8, g: 1 }
     }
 }
 
@@ -88,7 +105,12 @@ impl Oti {
 
     fn scheme_specific_info(&self) -> Option<String> {
         if self.fec_encoding_id == FECEncodingID::ReedSolomonGF2M {
-            return Some(base64::encode([self.reed_solomon_m.unwrap_or_default()]));
+            let data = match self.reed_solomon_scheme_specific.as_ref() {
+                Some(info) => Some(vec![info.m, info.g]),
+                None => None,
+            };
+
+            return data.map(|d| base64::encode(d));
         }
         None
     }

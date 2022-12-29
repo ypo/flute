@@ -40,7 +40,7 @@ impl BlockDecoder {
         match oti.fec_encoding_id {
             oti::FECEncodingID::NoCode => {}
             oti::FECEncodingID::ReedSolomonGF28 => {
-                let codec = rscodec::RSCodec::new(
+                let codec = rscodec::RSGalois8Codec::new(
                     source_block_length as usize,
                     oti.max_number_of_parity_symbols as usize,
                     oti.encoding_symbol_length as usize,
@@ -48,7 +48,7 @@ impl BlockDecoder {
                 self.decoder = Some(Box::new(codec));
             }
             oti::FECEncodingID::ReedSolomonGF28SmallBlockSystematic => {
-                let codec = rscodec::RSCodec::new(
+                let codec = rscodec::RSGalois8Codec::new(
                     source_block_length as usize,
                     oti.max_number_of_parity_symbols as usize,
                     oti.encoding_symbol_length as usize,
