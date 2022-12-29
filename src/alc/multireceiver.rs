@@ -42,13 +42,13 @@ impl MultiReceiver {
     /// let receiver = MultiReceiver::new(Some(&vec![1]), writer.clone(), None);
     /// ```
     pub fn new(
-        tsi: Option<&Vec<u64>>,
+        tsi: Option<&[u64]>,
         writer: Rc<dyn FluteWriter>,
         config: Option<receiver::Config>,
     ) -> MultiReceiver {
         MultiReceiver {
             alc_receiver: HashMap::new(),
-            tsi: tsi.map(|f| f.clone()),
+            tsi: tsi.map(|f| f.to_vec()),
             writer,
             config,
         }
@@ -128,7 +128,7 @@ mod tests {
     use crate::receiver::objectwriter::FluteWriterBuffer;
 
     fn create_sender(
-        buffer: &Vec<u8>,
+        buffer: &[u8],
         content_location: &url::Url,
         oti: &oti::Oti,
         cenc: lct::Cenc,
@@ -190,7 +190,7 @@ mod tests {
     }
 
     fn check_output(
-        input_buffer: &Vec<u8>,
+        input_buffer: &[u8],
         input_content_location: &url::Url,
         output: &FluteWriterBuffer,
     ) {
