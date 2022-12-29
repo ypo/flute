@@ -20,8 +20,8 @@ pub struct Config {
     /// Insert Sender Current Time inside ALC/LCT packets containing the FDT.
     pub fdt_inband_sct: bool,
     /// Max number of files that are multiplexed during the transmission  
-    /// <=1 : files are transmitted one after the other.  
-    /// > 1 : multiple files might be transmitted in parallel.   
+    /// 0..1 : files are transmitted one after the other.  
+    /// 2.. : multiple files might be transmitted in parallel.   
     ///
     pub multiplex_files: u8,
     /// Max number of blocks that are multiplexed during the transmission of a file.  
