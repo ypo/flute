@@ -27,6 +27,7 @@ use flute::sender::Sender;
 use flute::sender::ObjectDesc;
 use flute::sender::Cenc;
 use std::net::UdpSocket;
+use std::time::SystemTime;
 
 // Create UDP Socket
 let udp_socket = UdpSocket::bind("0.0.0.0:0").unwrap();
@@ -44,10 +45,10 @@ let obj = ObjectDesc::create_from_buffer(b"hello world", "text/plain",
 sender.add_object(obj);
 
 // Always call publish after adding objects
-sender.publish();
+sender.publish(SystemTime::now());
 
 // Send FLUTE packets over UDP/IP
-while let Some(pkt) = sender.read() {
+while let Some(pkt) = sender.read(SystemTime::now()) {
     udp_socket.send(&pkt).unwrap();
     std::thread::sleep(std::time::Duration::from_millis(1));
 }
@@ -60,6 +61,7 @@ Receive files from a UDP/IP network
 ```rust
 use flute::receiver::{objectwriter, MultiReceiver};
 use std::net::UdpSocket;
+use std::time::SystemTime;
 
 // Create UDP/IP socket to receive FLUTE pkt
 let udp_socket = UdpSocket::bind("224.0.0.1:3400").expect("Fail to bind");
@@ -75,8 +77,9 @@ let mut receiver = MultiReceiver::new(None, writer, None);
 let mut buf = [0; 2048];
 loop {
     let (n, _src) = udp_socket.recv_from(&mut buf).expect("Failed to receive data");
-    receiver.push(&buf[..n]).unwrap();
-    receiver.cleanup();
+    let now = SystemTime::now();
+    receiver.push(&buf[..n], now).unwrap();
+    receiver.cleanup(now);
 }
 ```
 ## Application-Level Forward Erasure Correction (AL-FEC)
@@ -87,6 +90,23 @@ The following error recovery algorithm are supported
 - [ ] Reed-Solomon GF 2^16
 - [ ] Reed-Solomon GF 2^m
 - [ ] RaptorQ
+
+Object Transmission Information (OTI) configuration to use FEC during transmission
+
+```rust
+use flute::sender::Oti;
+use flute::sender::FECEncodingID;
+use flute::sender::Sender;
+
+let oti = Oti {
+    // Select Reed-Solomon GF 2^8
+    fec_encoding_id: FECEncodingID::ReedSolomonGF2M,
+    // Number of ALC/LCT packet used to repair each block that the object is composed of
+    max_number_of_parity_symbols: 3,
+    ..Default::default()
+};
+let mut sender = Sender::new(1, &oti, &Default::default());
+```
 
 ## Content Encoding (CENC)
 
