@@ -11,6 +11,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::rc::Rc;
 use std::time::Duration;
 use std::time::Instant;
+use std::time::SystemTime;
 
 /// Configuration of the FLUTE Receiver
 ///
@@ -57,6 +58,7 @@ pub struct Receiver {
     objects_completed: BTreeSet<u128>,
     objects_error: BTreeSet<u128>,
     fdt_receivers: BTreeMap<u32, Box<FdtReceiver>>,
+    fdt_current: Option<Box<FdtReceiver>>,
     writer: Rc<dyn FluteWriter>,
     config: Config,
     last_activity: Instant,
@@ -71,6 +73,7 @@ impl Receiver {
             tsi,
             objects: HashMap::new(),
             fdt_receivers: BTreeMap::new(),
+            fdt_current: None,
             writer,
             objects_completed: BTreeSet::new(),
             objects_error: BTreeSet::new(),
@@ -152,7 +155,7 @@ impl Receiver {
 
         match alc_pkt.lct.toi {
             toi if toi == lct::TOI_FDT => self.push_fdt_obj(alc_pkt, now),
-            _ => self.push_obj(alc_pkt),
+            _ => self.push_obj(alc_pkt, now),
         }
     }
 
@@ -173,6 +176,12 @@ impl Receiver {
             .as_ref()
             .map(|f| f.fdt_instance_id)
             .unwrap();
+
+        let current_fdt_instance_id = self.fdt_current.as_ref().map(|fdt| fdt.fdt_id);
+        if current_fdt_instance_id == Some(fdt_instance_id) {
+            // FDT already received
+            return Ok(());
+        }
 
         {
             let fdt_receiver = self
@@ -202,15 +211,18 @@ impl Receiver {
         }
 
         log::info!("FDT Received !");
+        self.fdt_current = self.fdt_receivers.remove(&fdt_instance_id);
+        assert!(self.fdt_current.is_some());
 
-        self.attach_fdt_to_objects(fdt_instance_id);
+        self.attach_fdt_to_objects();
 
         Ok(())
     }
 
-    fn attach_fdt_to_objects(&mut self, fdt_id: u32) -> Option<()> {
-        let fdt_receiver = self.fdt_receivers.get_mut(&fdt_id)?;
-        let fdt_instance = fdt_receiver.fdt_instance()?;
+    fn attach_fdt_to_objects(&mut self) -> Option<()> {
+        let fdt_current = self.fdt_current.as_mut()?;
+        let fdt_id = fdt_current.fdt_id;
+        let fdt_instance = fdt_current.fdt_instance()?;
         for obj in &mut self.objects {
             obj.1.attach_fdt(fdt_id, fdt_instance);
         }
@@ -218,7 +230,7 @@ impl Receiver {
         Some(())
     }
 
-    fn push_obj(&mut self, pkt: &alc::AlcPkt) -> Result<()> {
+    fn push_obj(&mut self, pkt: &alc::AlcPkt, now: SystemTime) -> Result<()> {
         if self.objects_completed.contains(&pkt.lct.toi) {
             return Ok(());
         }
@@ -230,7 +242,7 @@ impl Receiver {
         {
             let mut obj = self.objects.get_mut(&pkt.lct.toi);
             if obj.is_none() {
-                self.create_obj(&pkt.lct.toi);
+                self.create_obj(&pkt.lct.toi, now);
                 obj = self.objects.get_mut(&pkt.lct.toi);
             }
 
@@ -282,19 +294,16 @@ impl Receiver {
         }
     }
 
-    fn create_obj(&mut self, toi: &u128) {
+    fn create_obj(&mut self, toi: &u128, now: SystemTime) {
         let session = self.writer.new_object_writer(&self.tsi, toi);
         let mut obj = Box::new(ObjectReceiver::new(toi, session));
 
-        for fdt in &mut self.fdt_receivers {
-            if fdt.1.state() == fdtreceiver::State::Complete {
-                let fdt_instance = fdt.1.fdt_instance();
-                if fdt_instance.is_some() {
-                    let success = obj.attach_fdt(fdt.0.clone(), fdt_instance.unwrap());
-                    if success {
-                        log::info!("FDT attached during object creation");
-                        break;
-                    }
+        if let Some(fdt) = self.fdt_current.as_mut() {
+            let fdt_id = fdt.fdt_id;
+            fdt.update_expired_state(now);
+            if fdt.state() == fdtreceiver::State::Complete {
+                if let Some(fdt_instance) = fdt.fdt_instance() {
+                    obj.attach_fdt(fdt_id, fdt_instance);
                 }
             }
         }
