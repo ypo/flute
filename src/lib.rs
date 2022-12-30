@@ -10,11 +10,12 @@
 //! This library implements the following RFCs
 //!
 //!| RFC      | Title      | Link       |
-//!| ------------- | ------------- | ------------- |
-//!| RFC 6726 | FLUTE - File Delivery over Unidirectional Transport | <https://www.rfc-editor.org/rfc/rfc6726.html> |
+//!| -------- | ---------- | -----------|
+//!| RFC 6726 | FLUTE - File Delivery over Unidirectional Transport      | <https://www.rfc-editor.org/rfc/rfc6726.html> |
 //!| RFC 5775 | Asynchronous Layered Coding (ALC) Protocol Instantiation | <https://www.rfc-editor.org/rfc/rfc5775.html> |
-//!| RFC 5052 | Forward Error Correction (FEC) Building Block | <https://www.rfc-editor.org/rfc/rfc5052> |
-//!| RFC 5510 | Reed-Solomon Forward Error Correction (FEC) Schemes | <https://www.rfc-editor.org/rfc/rfc5510.html> |
+//!| RFC 5661 | Layered Coding Transport (LCT) Building Block            | <https://www.rfc-editor.org/rfc/rfc5651>      |
+//!| RFC 5052 | Forward Error Correction (FEC) Building Block            | <https://www.rfc-editor.org/rfc/rfc5052>      |
+//!| RFC 5510 | Reed-Solomon Forward Error Correction (FEC) Schemes      | <https://www.rfc-editor.org/rfc/rfc5510.html> |
 //!
 //! # UDP/IP Multicast files sender
 //!
@@ -114,6 +115,35 @@
 //! - [x] Deflate
 //! - [x] Zlib
 //! - [x] Gzip
+//! 
+//! # File/Block Multiplexing
+//! 
+//! The FLUTE Sender is able to transfer multiple files in parallel by interleaving packets from each file. For example: 
+//! 
+//! **Pkt file1** -> Pkt file2 -> Pkt file3 -> **Pkt file1** -> Pkt file2 -> Pkt file3 ...
+//! 
+//! The Sender can also multiplex blocks within a single file by interleaving encoding symbols (ES) 
+//! from different blocks (B). For example:
+//! 
+//! **(B 1,ES 1)**->(B 2,ES 1)->(B 3,ES 1)->**(B 1,ES 2)**->(B 2,ES 2)...
+//! 
+//! To configure the multiplexing, use the `Config` struct as follows:
+//! 
+//!```rust
+//! use flute::sender::Sender;
+//! use flute::sender::Config;
+//! 
+//! let config = Config {
+//!     // Transfer a maximum of 3 files in parallel
+//!     multiplex_files: 3,
+//!     // Multiplex 3 blocks within each file
+//!     multiplex_blocks: 3,
+//!     ..Default::default()
+//! };
+//! 
+//! let mut sender = Sender::new(1, &Default::default(), &config);
+//! 
+//!```
 
 #![deny(missing_docs)]
 #![deny(missing_debug_implementations)]
