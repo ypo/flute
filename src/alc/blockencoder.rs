@@ -8,7 +8,7 @@ use crate::tools::error::Result;
 pub struct BlockEncoder {
     file: Rc<filedesc::FileDesc>,
     curr_content_offset: u64,
-    curr_snb: u32,
+    curr_sbn: u32,
     a_large: u64,
     a_small: u64,
     nb_a_large: u64,
@@ -27,7 +27,7 @@ impl BlockEncoder {
         let mut block = BlockEncoder {
             file,
             curr_content_offset: 0,
-            curr_snb: 0,
+            curr_sbn: 0,
             a_large: 0,
             a_small: 0,
             nb_a_large: 0,
@@ -72,7 +72,7 @@ impl BlockEncoder {
                 payload: symbol.symbols.to_vec(),
                 transfer_length: self.file.object.transfer_length,
                 esi: symbol.esi,
-                snb: symbol.snb,
+                sbn: symbol.sbn,
                 toi: self.file.toi,
                 fdt_id: self.file.fdt_id,
                 cenc: self.file.object.cenc,
@@ -112,10 +112,10 @@ impl BlockEncoder {
             return Ok(());
         }
 
-        log::debug!("Read block nb {}", self.curr_snb);
+        log::debug!("Read block nb {}", self.curr_sbn);
         let oti = &self.file.oti;
         let content = self.file.object.content.as_ref().unwrap();
-        let block_length = match self.curr_snb as u64 {
+        let block_length = match self.curr_sbn as u64 {
             value if value < self.nb_a_large => self.a_large,
             _ => self.a_small,
         };
@@ -128,9 +128,9 @@ impl BlockEncoder {
         }
 
         let buffer = &content.as_slice()[offset_start..offset_end];
-        let block = Block::new_from_buffer(self.curr_snb, buffer, block_length, &oti)?;
+        let block = Block::new_from_buffer(self.curr_sbn, buffer, block_length, &oti)?;
         self.blocks.push(block);
-        self.curr_snb += 1;
+        self.curr_sbn += 1;
         self.read_end = offset_end == content.len();
         self.curr_content_offset = offset_end as u64;
         log::debug!(

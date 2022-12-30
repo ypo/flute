@@ -64,6 +64,7 @@ impl AlcCodec for AlcNoCode {
             encoding_symbol_length,
             max_number_of_parity_symbols: 0,
             reed_solomon_scheme_specific: None,
+            raptorq_scheme_specific: None,
             inband_oti: true,
         };
 
@@ -81,24 +82,24 @@ impl AlcCodec for AlcNoCode {
             Err(e) => return Err(FluteError::new(e.to_string())),
         };
         let payload_id_header = u32::from_be_bytes(arr);
-        let snb = payload_id_header >> 16;
+        let sbn = payload_id_header >> 16;
         let esi = payload_id_header & 0xFFFF;
         Ok(alc::PayloadID {
             esi,
-            snb,
+            sbn,
             source_block_length: None,
         })
     }
 
     fn add_fec_payload_id(&self, data: &mut Vec<u8>, _oti: &oti::Oti, pkt: &pkt::Pkt) {
-        let snb = pkt.snb;
+        let sbn = pkt.sbn;
         let esi = pkt.esi;
         /*
         +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         |     Source Block Number  16 bits | Enc. Symb. ID  16 bits     |
         +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
          */
-        let header: u32 = ((snb & 0xFF) << 16) | (esi as u32) & 0xFF;
+        let header: u32 = ((sbn & 0xFF) << 16) | (esi as u32) & 0xFF;
         data.extend(header.to_be_bytes());
     }
 

@@ -76,9 +76,9 @@ impl BlockDecoder {
         assert!(self.initialized);
         if payload_id.esi as usize >= self.shards.len() {
             log::error!(
-                "esi {} is outside snb {} of max length {}",
+                "esi {} is outside sbn {} of max length {}",
                 payload_id.esi,
-                payload_id.snb,
+                payload_id.sbn,
                 self.shards.len()
             );
             return;
@@ -87,8 +87,8 @@ impl BlockDecoder {
         let shard = &mut self.shards[payload_id.esi as usize];
         if shard.is_some() {
             log::debug!(
-                "snb/esi {}/{} already received",
-                payload_id.snb,
+                "sbn/esi {}/{} already received",
+                payload_id.sbn,
                 payload_id.esi
             );
             return;

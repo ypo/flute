@@ -2,7 +2,7 @@ use crate::tools::error::{FluteError, Result};
 use quick_xml::de::from_reader;
 use serde::{Deserialize, Serialize};
 
-use super::oti::{self, ReedSolomonGF2MSchemeSpecific};
+use super::oti::{self, RaptorQSchemeSpecific, ReedSolomonGF2MSchemeSpecific};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct FdtInstance {
@@ -89,6 +89,27 @@ fn reed_solomon_scheme_specific(
     }))
 }
 
+fn _raptorq_scheme_specific(
+    fec_oti_scheme_specific_info: &Option<String>,
+) -> Result<Option<RaptorQSchemeSpecific>> {
+    if fec_oti_scheme_specific_info.is_none() {
+        return Ok(None);
+    }
+
+    let info = base64::decode(fec_oti_scheme_specific_info.as_ref().unwrap())
+        .map_err(|_| FluteError::new("Fail to decode base64 specific scheme"))?;
+
+    if info.len() != 4 {
+        return Err(FluteError::new("Wrong size of Scheme-Specific-Info"));
+    }
+
+    Ok(Some(RaptorQSchemeSpecific {
+        source_block_length: info[0],
+        sub_blocks_length: u16::from_be_bytes(info[1..3].as_ref().try_into().unwrap()),
+        symbol_alignment: info[3],
+    }))
+}
+
 impl FdtInstance {
     pub fn parse(buffer: &[u8]) -> Result<FdtInstance> {
         let instance: Result<FdtInstance> =
@@ -131,6 +152,15 @@ impl FdtInstance {
             _ => None,
         };
 
+        /*
+        let raptorq_scheme_specific = match fec_encoding_id {
+            oti::FECEncodingID::RaptorQ => {
+                reed_solomon_scheme_specific(&self.fec_oti_scheme_specific_info).unwrap_or(None)
+            }
+            _ => None,
+        };
+        */
+
         Some(oti::Oti {
             fec_encoding_id: fec_encoding_id,
             fec_instance_id: self.fec_oti_fec_instance_id.unwrap() as u16,
@@ -140,6 +170,7 @@ impl FdtInstance {
                 - self.fec_oti_maximum_source_block_length.unwrap())
                 as u32,
             reed_solomon_scheme_specific: reed_solomon_scheme_specific,
+            raptorq_scheme_specific: None,
             inband_oti: false,
         })
     }
@@ -174,6 +205,7 @@ impl File {
                 - self.fec_oti_maximum_source_block_length.unwrap())
                 as u32,
             reed_solomon_scheme_specific: reed_solomon_scheme_specific,
+            raptorq_scheme_specific: None,
             inband_oti: false,
         })
     }

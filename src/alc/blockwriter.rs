@@ -11,7 +11,7 @@ use super::{
 };
 
 pub struct BlockWriter {
-    snb: u32,
+    sbn: u32,
     bytes_left: usize,
     cenc: lct::Cenc,
     decoder: Option<Box<dyn Decompress>>,
@@ -23,7 +23,7 @@ pub struct BlockWriter {
 impl std::fmt::Debug for BlockWriter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BlockWriter")
-            .field("snb", &self.snb)
+            .field("sbn", &self.sbn)
             .field("bytes_left", &self.bytes_left)
             .field("cenc", &self.cenc)
             .field("decoder", &self.decoder)
@@ -37,7 +37,7 @@ impl std::fmt::Debug for BlockWriter {
 impl BlockWriter {
     pub fn new(transfer_length: usize, cenc: lct::Cenc, md5: bool) -> BlockWriter {
         BlockWriter {
-            snb: 0,
+            sbn: 0,
             bytes_left: transfer_length,
             cenc: cenc,
             decoder: None,
@@ -57,11 +57,11 @@ impl BlockWriter {
 
     pub fn write(
         &mut self,
-        snb: u32,
+        sbn: u32,
         block: &BlockDecoder,
         writer: &dyn ObjectWriter,
     ) -> Result<bool> {
-        if self.snb != snb {
+        if self.sbn != sbn {
             return Ok(false);
         }
         assert!(block.completed);
@@ -86,7 +86,7 @@ impl BlockWriter {
             self.bytes_left -= symbols.len();
         }
 
-        self.snb +=  1;
+        self.sbn +=  1;
 
         if self.is_completed() {
             // All blocks have been received -> flush the decoder

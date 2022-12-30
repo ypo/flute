@@ -47,6 +47,19 @@ pub struct ReedSolomonGF2MSchemeSpecific {
 }
 
 ///
+/// RaptorQ Scheme Specific parameters
+/// <https://www.rfc-editor.org/rfc/rfc6330.html#section-3.3.3>
+#[derive(Clone, Debug)]
+pub struct RaptorQSchemeSpecific {
+    /// The number of source blocks (Z): 8-bit unsigned integer.
+    pub source_block_length: u8,
+    /// The number of sub-blocks (N): 16-bit unsigned integer.
+    pub sub_blocks_length: u16,
+    /// A symbol alignment parameter (Al): 8-bit unsigned integer.
+    pub symbol_alignment: u8,
+}
+
+///
 /// FEC Object Transmission Information
 /// Contains the parameters using the build the blocks and FEC for the objects transmission
 #[derive(Clone, Debug)]
@@ -64,6 +77,8 @@ pub struct Oti {
     pub max_number_of_parity_symbols: u32,
     /// Optional, only if `fec_encoding_id` is `FECEncodingID::ReedSolomonGF2M`
     pub reed_solomon_scheme_specific: Option<ReedSolomonGF2MSchemeSpecific>,
+    /// Optional, only if `fec_encoding_id` is `FECEncodingID::RaptorQ`
+    pub raptorq_scheme_specific: Option<RaptorQSchemeSpecific>,
     /// If `true`, OTI is added to every ALC/LCT packets
     /// If `false`, OTI is only available inside the FDT
     pub inband_oti: bool,
@@ -78,6 +93,7 @@ impl Default for Oti {
             encoding_symbol_length: 1424,
             max_number_of_parity_symbols: 2,
             reed_solomon_scheme_specific: None,
+            raptorq_scheme_specific: None,
             inband_oti: true,
         }
     }
@@ -86,6 +102,16 @@ impl Default for Oti {
 impl Default for ReedSolomonGF2MSchemeSpecific {
     fn default() -> Self {
         ReedSolomonGF2MSchemeSpecific { m: 8, g: 1 }
+    }
+}
+
+impl Default for RaptorQSchemeSpecific {
+    fn default() -> Self {
+        RaptorQSchemeSpecific {
+            source_block_length: 0,
+            sub_blocks_length: 0,
+            symbol_alignment: 0,
+        }
     }
 }
 

@@ -68,6 +68,7 @@ impl AlcCodec for AlcRS28SmallBlockSystematic {
             max_number_of_parity_symbols: num_encoding_symbols as u32
                 - maximum_source_block_length as u32,
             reed_solomon_scheme_specific: None,
+            raptorq_scheme_specific: None,
             inband_oti: true,
         };
 
@@ -83,11 +84,11 @@ impl AlcCodec for AlcRS28SmallBlockSystematic {
             |      Source Block Length      |       Encoding Symbol ID      |
             +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         */
-        let snb = pkt.snb as u32;
+        let sbn = pkt.sbn as u32;
         let source_block_length = pkt.source_block_length as u16;
         let esi = pkt.esi as u16;
 
-        data.extend(snb.to_be_bytes());
+        data.extend(sbn.to_be_bytes());
         data.extend(source_block_length.to_be_bytes());
         data.extend(esi.to_be_bytes());
     }
@@ -112,12 +113,12 @@ impl AlcCodec for AlcRS28SmallBlockSystematic {
             +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         */
         let payload_id_header = u64::from_be_bytes(arr);
-        let snb = ((payload_id_header >> 32) & 0xFFFFFFFF) as u32;
+        let sbn = ((payload_id_header >> 32) & 0xFFFFFFFF) as u32;
         let source_block_length = ((payload_id_header >> 16) & 0xFFFF) as u32;
         let esi = ((payload_id_header) & 0xFFFF) as u32;
 
         Ok(alc::PayloadID {
-            snb,
+            sbn,
             esi,
             source_block_length: Some(source_block_length),
         })

@@ -4,10 +4,11 @@ use super::{
 };
 use crate::tools::error::Result;
 
-pub mod alcnocode;
-pub mod alcrs28;
-pub mod alcrs28smallblocksystematic;
-pub mod alcrs2m;
+mod alcnocode;
+mod alcrs28;
+mod alcrs28smallblocksystematic;
+mod alcrs2m;
+mod alcraptorq;
 
 pub trait AlcCodec {
     fn add_fti(&self, data: &mut Vec<u8>, oti: &oti::Oti, transfer_length: u64);

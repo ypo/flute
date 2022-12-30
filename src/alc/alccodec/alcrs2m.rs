@@ -81,6 +81,7 @@ impl AlcCodec for AlcRS2m {
                     m => m,
                 },
             }),
+            raptorq_scheme_specific: None,
             inband_oti: true,
         };
 
@@ -94,7 +95,7 @@ impl AlcCodec for AlcRS2m {
             .map(|f| f.m)
             .unwrap_or(8);
 
-        let snb = pkt.snb;
+        let sbn = pkt.sbn;
         let esi = pkt.esi;
 
         /*
@@ -102,7 +103,7 @@ impl AlcCodec for AlcRS2m {
         |     Source Block Number (32-m                  | Enc. Symb. ID |
         +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
          */
-        let header: u32 = (snb << m) | (esi as u32) & 0xFF;
+        let header: u32 = (sbn << m) | (esi as u32) & 0xFF;
         data.extend(header.to_be_bytes());
     }
 
@@ -129,13 +130,13 @@ impl AlcCodec for AlcRS2m {
             .map(|f| f.m)
             .unwrap_or(8);
 
-        let snb = payload_id_header >> m;
+        let sbn = payload_id_header >> m;
         let esi_mask = (1u32 << m) - 1u32;
         let esi = payload_id_header & esi_mask;
 
         Ok(alc::PayloadID {
             esi,
-            snb,
+            sbn,
             source_block_length: None,
         })
     }

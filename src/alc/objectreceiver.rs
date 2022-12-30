@@ -103,28 +103,28 @@ impl ObjectReceiver {
         assert!(self.oti.is_some());
         let oti = self.oti.as_ref().unwrap();
         let payload_id = alc::parse_payload_id(pkt, self.oti.as_ref().unwrap())?;
-        log::debug!("Receive snb {} esi {}", payload_id.snb, payload_id.esi);
+        log::debug!("Receive sbn {} esi {}", payload_id.sbn, payload_id.esi);
 
-        if payload_id.snb as usize >= self.blocks.len() {
+        if payload_id.sbn as usize >= self.blocks.len() {
             if self.blocks_variable_size == false {
                 return Err(FluteError::new(format!(
-                    "SNB {} > max SNB {}",
-                    payload_id.snb,
+                    "SBN {} > max SBN {}",
+                    payload_id.sbn,
                     self.blocks.len()
                 )));
             }
             self.blocks
-                .resize_with(payload_id.snb as usize + 1, || BlockDecoder::new());
+                .resize_with(payload_id.sbn as usize + 1, || BlockDecoder::new());
         }
 
-        let block = &mut self.blocks[payload_id.snb as usize];
+        let block = &mut self.blocks[payload_id.sbn as usize];
         if block.completed {
             return Ok(());
         }
 
         if block.initialized == false {
             let source_block_length = payload_id.source_block_length.unwrap_or_else(|| {
-                match payload_id.snb < self.nb_a_large as u32 {
+                match payload_id.sbn < self.nb_a_large as u32 {
                     true => self.a_large as u32,
                     _ => self.a_small as u32,
                 }
@@ -141,8 +141,8 @@ impl ObjectReceiver {
 
         block.push(pkt, &payload_id);
         if block.completed {
-            log::debug!("block {} is completed", payload_id.snb);
-            self.write_blocks(payload_id.snb)?;
+            log::debug!("block {} is completed", payload_id.sbn);
+            self.write_blocks(payload_id.sbn)?;
         }
 
         Ok(())
@@ -221,25 +221,25 @@ impl ObjectReceiver {
         self.writer_session_state = ObjectWriterSessionState::Opened;
     }
 
-    fn write_blocks(&mut self, snb_start: u32) -> Result<()> {
+    fn write_blocks(&mut self, sbn_start: u32) -> Result<()> {
         if self.writer_session_state != ObjectWriterSessionState::Opened {
             return Ok(());
         }
 
         assert!(self.block_writer.is_some());
-        let mut snb = snb_start as usize;
+        let mut sbn = sbn_start as usize;
         let writer = self.block_writer.as_mut().unwrap();
-        while snb < self.blocks.len() {
-            let block = &mut self.blocks[snb as usize];
+        while sbn < self.blocks.len() {
+            let block = &mut self.blocks[sbn as usize];
             if !block.completed {
                 break;
             }
 
-            let success = writer.write(snb as u32, block, self.writer_session.as_ref())?;
+            let success = writer.write(sbn as u32, block, self.writer_session.as_ref())?;
             if !success {
                 break;
             }
-            snb += 1;
+            sbn += 1;
             block.deallocate();
 
             if writer.is_completed() {

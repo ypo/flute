@@ -5,14 +5,14 @@ use crate::tools::error::{FluteError, Result};
 
 #[derive(Debug)]
 pub struct Block {
-    snb: u32,
+    sbn: u32,
     esi: u32,
     shards: Vec<Vec<u8>>,
     pub nb_source_symbols: usize,
 }
 
 pub struct EncodingSymbol<'a> {
-    pub snb: u32,
+    pub sbn: u32,
     pub esi: u32,
     pub symbols: &'a [u8],
     pub is_source_symbol: bool,
@@ -20,7 +20,7 @@ pub struct EncodingSymbol<'a> {
 
 impl Block {
     pub fn new_from_buffer(
-        snb: u32,
+        sbn: u32,
         buffer: &[u8],
         block_length: u64,
         oti: &Oti,
@@ -51,7 +51,7 @@ impl Block {
         };
 
         Ok(Box::new(Block {
-            snb,
+            sbn,
             esi: 0,
             shards: shards,
             nb_source_symbols,
@@ -65,7 +65,7 @@ impl Block {
         let shard = self.shards[self.esi as usize].as_slice();
         let is_source_symbol = (self.esi as usize) < self.nb_source_symbols;
         let symbol = EncodingSymbol {
-            snb: self.snb,
+            sbn: self.sbn,
             esi: self.esi,
             symbols: shard,
             is_source_symbol,

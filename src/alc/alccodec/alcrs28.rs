@@ -62,6 +62,7 @@ impl AlcCodec for AlcRS28 {
             max_number_of_parity_symbols: num_encoding_symbols as u32
                 - maximum_source_block_length as u32,
             reed_solomon_scheme_specific: None,
+            raptorq_scheme_specific: None,
             inband_oti: true,
         };
 
@@ -75,10 +76,10 @@ impl AlcCodec for AlcRS28 {
         +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
          */
 
-        let snb = pkt.snb & 0xFFFFFF;
+        let sbn = pkt.sbn & 0xFFFFFF;
         let esi = pkt.esi & 0xFF;
 
-        let header: u32 = (snb << 8) | (esi as u32) & 0xFF;
+        let header: u32 = (sbn << 8) | (esi as u32) & 0xFF;
         data.extend(header.to_be_bytes());
     }
 
@@ -93,11 +94,11 @@ impl AlcCodec for AlcRS28 {
             Err(e) => return Err(FluteError::new(e.to_string())),
         };
         let payload_id_header = u32::from_be_bytes(arr);
-        let snb = payload_id_header >> 8;
+        let sbn = payload_id_header >> 8;
         let esi = payload_id_header & 0xFF;
         Ok(alc::PayloadID {
             esi,
-            snb,
+            sbn,
             source_block_length: None,
         })
     }

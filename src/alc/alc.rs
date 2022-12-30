@@ -29,7 +29,7 @@ pub struct AlcPktCache {
 }
 
 pub struct PayloadID {
-    pub snb: u32,
+    pub sbn: u32,
     pub esi: u32,
     pub source_block_length: Option<u32>,
 }
@@ -308,7 +308,7 @@ mod tests {
         let pkt = pkt::Pkt {
             payload: payload,
             esi: 1,
-            snb: 2,
+            sbn: 2,
             toi: 3,
             fdt_id: None,
             cenc: lct::Cenc::Null,
