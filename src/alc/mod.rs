@@ -1,4 +1,5 @@
 mod alc;
+mod alccodec;
 mod block;
 mod blockdecoder;
 mod blockencoder;

@@ -14,6 +14,7 @@ pub enum FECEncodingID {
     ReedSolomonGF2M = 2,
     /// Reed Solomon GF28
     ReedSolomonGF28 = 5,
+    // RaptorQ = 6,
     /// Reed Solomon GF28, building block Small Block Systematic
     ReedSolomonGF28SmallBlockSystematic = 129,
 }

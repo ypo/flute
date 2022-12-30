@@ -1,8 +1,5 @@
-use super::{lct, oti, pkt::Pkt};
-use crate::{
-    alc::oti::ReedSolomonGF2MSchemeSpecific,
-    tools::{self, error::FluteError, error::Result},
-};
+use super::{alccodec::AlcCodec, lct, oti, pkt::Pkt};
+use crate::tools::{self, error::FluteError, error::Result};
 use std::time::SystemTime;
 
 #[derive(Debug)]
@@ -101,46 +98,11 @@ pub fn new_alc_pkt(oti: &oti::Oti, cci: &u128, tsi: u64, pkt: &Pkt) -> Vec<u8> {
         push_sct(&mut data, pkt.sender_current_time.unwrap());
     }
 
-    match oti.fec_encoding_id {
-        oti::FECEncodingID::NoCode => {
-            if pkt.toi == lct::TOI_FDT || oti.inband_oti {
-                push_no_code_oti(&mut data, oti, pkt.transfer_length);
-            }
-            push_fec_payload_id_m(&mut data, pkt.snb, pkt.esi as u16, 16);
-        }
-        oti::FECEncodingID::ReedSolomonGF28 => {
-            if pkt.toi == lct::TOI_FDT || oti.inband_oti {
-                push_general_oti(&mut data, oti, pkt.transfer_length);
-            }
-            push_fec_payload_id_m(&mut data, pkt.snb, pkt.esi as u16, 8);
-        }
-        oti::FECEncodingID::ReedSolomonGF28SmallBlockSystematic => {
-            if pkt.toi == lct::TOI_FDT || oti.inband_oti {
-                push_small_block_systematic_oti(&mut data, oti, pkt.transfer_length);
-            }
-            push_fec_payload_id_block_systematic(
-                &mut data,
-                pkt.snb,
-                pkt.esi as u16,
-                pkt.source_block_length as u16,
-            );
-        }
-        oti::FECEncodingID::ReedSolomonGF2M => {
-            if pkt.toi == lct::TOI_FDT || oti.inband_oti {
-                push_rs_2m_oti(&mut data, oti, pkt.transfer_length);
-            }
-            push_fec_payload_id_m(
-                &mut data,
-                pkt.snb,
-                pkt.esi as u16,
-                oti.reed_solomon_scheme_specific
-                    .as_ref()
-                    .map(|f| f.m)
-                    .unwrap_or(8),
-            );
-        }
+    let codec = <dyn AlcCodec>::instance(oti.fec_encoding_id);
+    if pkt.toi == lct::TOI_FDT || oti.inband_oti {
+        codec.add_fti(&mut data, oti, pkt.transfer_length);
     }
-
+    codec.add_fec_payload_id(&mut data, oti, pkt);
     push_payload(&mut data, pkt);
     data
 }
@@ -153,40 +115,15 @@ pub fn parse_alc_pkt(data: &[u8]) -> Result<AlcPkt> {
         .try_into()
         .map_err(|_| FluteError::new(format!("Codepoint {} not supported", lct_header.cp)))?;
 
-    let alc_payload_id_length: usize = match fec {
-        oti::FECEncodingID::NoCode => 4,
-        oti::FECEncodingID::ReedSolomonGF28 => 4,
-        oti::FECEncodingID::ReedSolomonGF2M => 4,
-        oti::FECEncodingID::ReedSolomonGF28SmallBlockSystematic => 8,
-    };
-
-    if alc_payload_id_length + lct_header.len > data.len() {
+    let codec = <dyn AlcCodec>::instance(fec);
+    let fec_payload_id_block_length = codec.fec_payload_id_block_length();
+    if fec_payload_id_block_length + lct_header.len > data.len() {
         return Err(FluteError::new("Wrong size of ALC packet"));
     }
 
-    let fti = lct::get_ext(data.as_ref(), &lct_header, lct::Ext::Fti)?;
-    let mut oti: Option<oti::Oti> = None;
-    let mut transfer_length: Option<u64> = None;
-    if fti.is_some() {
-        let fti = fti.unwrap();
-        let res = match fec {
-            oti::FECEncodingID::NoCode => parse_no_code_oti(fti).ok(),
-            oti::FECEncodingID::ReedSolomonGF28 => {
-                parse_general_oti(fti, oti::FECEncodingID::ReedSolomonGF28).ok()
-            }
-            oti::FECEncodingID::ReedSolomonGF2M => parse_rs_2m_oti(fti).ok(),
-            oti::FECEncodingID::ReedSolomonGF28SmallBlockSystematic => {
-                parse_small_block_systematic_oti(fti, fec).ok()
-            }
-        };
-        if let Some((o, t)) = res {
-            oti = Some(o);
-            transfer_length = Some(t)
-        };
-    }
-
+    let fti = codec.get_fti(data, &lct_header)?;
     let data_alc_header_offset = lct_header.len;
-    let data_payload_offset = alc_payload_id_length + lct_header.len;
+    let data_payload_offset = fec_payload_id_block_length + lct_header.len;
 
     let cenc = lct::get_ext(data.as_ref(), &lct_header, lct::Ext::Cenc)?;
     let cenc = match cenc {
@@ -205,8 +142,8 @@ pub fn parse_alc_pkt(data: &[u8]) -> Result<AlcPkt> {
 
     Ok(AlcPkt {
         lct: lct_header,
-        oti: oti,
-        transfer_length: transfer_length,
+        oti: fti.as_ref().map(|fti| fti.0.clone()),
+        transfer_length: fti.map(|fti| fti.1),
         cenc: cenc,
         server_time: None,
         data: data.as_ref(),
@@ -226,32 +163,8 @@ pub fn get_sender_current_time(pkt: &AlcPkt) -> Result<Option<SystemTime>> {
 }
 
 pub fn parse_payload_id(pkt: &AlcPkt, oti: &oti::Oti) -> Result<PayloadID> {
-    match pkt.lct.cp.try_into() {
-        Ok(oti::FECEncodingID::NoCode) => parse_fec_payload_id_m(
-            &pkt.data[pkt.data_alc_header_offset..pkt.data_payload_offset],
-            16,
-        ),
-        Ok(oti::FECEncodingID::ReedSolomonGF28) => parse_fec_payload_id_m(
-            &pkt.data[pkt.data_alc_header_offset..pkt.data_payload_offset],
-            8,
-        ),
-        Ok(oti::FECEncodingID::ReedSolomonGF2M) => parse_fec_payload_id_m(
-            &pkt.data[pkt.data_alc_header_offset..pkt.data_payload_offset],
-            oti.reed_solomon_scheme_specific
-                .as_ref()
-                .map(|f| f.m)
-                .unwrap_or(8),
-        ),
-        Ok(oti::FECEncodingID::ReedSolomonGF28SmallBlockSystematic) => {
-            parse_fec_payload_id_block_systematic(
-                &pkt.data[pkt.data_alc_header_offset..pkt.data_payload_offset],
-            )
-        }
-        Err(_) => Err(FluteError::new(format!(
-            "Code point {} is not supported",
-            pkt.lct.cp
-        ))),
-    }
+    let codec = <dyn AlcCodec>::instance(oti.fec_encoding_id);
+    codec.get_fec_payload_id(pkt, oti)
 }
 
 fn parse_ext_fdt(ext: &[u8]) -> Result<Option<ExtFDT>> {
@@ -370,324 +283,6 @@ fn parse_sct(ext: &[u8]) -> Result<Option<std::time::SystemTime>> {
     };
     let ntp: u64 = ((ntp_seconds as u64) << 32) | (ntp_faction as u64);
     tools::ntp_to_system_time(ntp).map(|op| Some(op))
-}
-
-fn push_no_code_oti(data: &mut Vec<u8>, oti: &oti::Oti, transfer_length: u64) {
-    // https://tools.ietf.org/html/rfc5445
-
-    /*
-    +-
-    | FTI  <127 8bits | LEN    (8bit)      |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |                      Transfer Length                          |
-    +                               +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |                               |           Reserved            |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-++
-    |    Encoding Symbol Length     | Max. Source Block Length (MSB)|
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    | Max. Source Block Length (LSB)|
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+*/
-
-    let ext_header: u16 = (lct::Ext::Fti as u16) << 8 | 4u16;
-    let transfer_header: u64 = transfer_length << 16;
-    let esl: u16 = oti.encoding_symbol_length as u16;
-    let sbl_msb: u16 = ((oti.maximum_source_block_length >> 16) & 0xFFFF) as u16;
-    let sbl_lsb: u16 = (oti.maximum_source_block_length & 0xFFFF) as u16;
-
-    data.extend(ext_header.to_be_bytes());
-    data.extend(transfer_header.to_be_bytes());
-    data.extend(esl.to_be_bytes());
-    data.extend(sbl_msb.to_be_bytes());
-    data.extend(sbl_lsb.to_be_bytes());
-    lct::inc_hdr_len(data, 4);
-}
-
-fn parse_no_code_oti(fti: &[u8]) -> Result<(oti::Oti, u64)> {
-    if fti.len() != 16 {
-        return Err(FluteError::new("Wrong extension size"));
-    }
-
-    assert!(fti[0] == lct::Ext::Fti as u8);
-    assert!(fti[1] == 4);
-
-    let transfer_length = u64::from_be_bytes(fti[2..10].as_ref().try_into().unwrap()) >> 16;
-    let encoding_symbol_length = u16::from_be_bytes(fti[10..12].as_ref().try_into().unwrap());
-    let maximum_source_block_length = u32::from_be_bytes(fti[12..16].as_ref().try_into().unwrap());
-
-    let oti = oti::Oti {
-        fec_encoding_id: oti::FECEncodingID::NoCode,
-        fec_instance_id: 0,
-        maximum_source_block_length,
-        encoding_symbol_length,
-        max_number_of_parity_symbols: 0,
-        reed_solomon_scheme_specific: None,
-        inband_oti: true,
-    };
-
-    Ok((oti, transfer_length))
-}
-
-/// rfc5510 Using the General Ext_FTI Format
-fn push_general_oti(data: &mut Vec<u8>, oti: &oti::Oti, transfer_length: u64) {
-    /*0                   1                   2                   3
-     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |   HET = 64    |    HEL = 3    |                               |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+                               +
-    |                      Transfer Length (L)                      |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |   Encoding Symbol Length (E)  | MaxBlkLen (B) |     max_n     |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+*/
-
-    let ext_header_l: u64 =
-        (lct::Ext::Fti as u64) << 56 | 3u64 << 48 | transfer_length & 0xFFFFFFFFFFFF;
-    let max_n: u32 = (oti.max_number_of_parity_symbols + oti.maximum_source_block_length) & 0xFF;
-    let e_b_n: u32 = (oti.encoding_symbol_length as u32) << 16
-        | (oti.maximum_source_block_length & 0xFF) << 8
-        | max_n;
-    data.extend(ext_header_l.to_be_bytes());
-    data.extend(e_b_n.to_be_bytes());
-    lct::inc_hdr_len(data, 3);
-}
-
-fn parse_general_oti(fti: &[u8], fec_encoding_id: oti::FECEncodingID) -> Result<(oti::Oti, u64)> {
-    if fti.len() != 12 {
-        return Err(FluteError::new("Wrong extension size"));
-    }
-
-    assert!(fti[0] == lct::Ext::Fti as u8);
-    assert!(fti[1] == 3);
-
-    let transfer_length =
-        u64::from_be_bytes(fti[0..8].as_ref().try_into().unwrap()) & 0xFFFFFFFFFFFF;
-    let encoding_symbol_length = u16::from_be_bytes(fti[8..10].as_ref().try_into().unwrap());
-
-    let maximum_source_block_length = fti[10];
-    let num_encoding_symbols = fti[11];
-
-    let oti = oti::Oti {
-        fec_encoding_id: fec_encoding_id,
-        fec_instance_id: 0,
-        maximum_source_block_length: maximum_source_block_length as u32,
-        encoding_symbol_length,
-        max_number_of_parity_symbols: num_encoding_symbols as u32
-            - maximum_source_block_length as u32,
-        reed_solomon_scheme_specific: None,
-        inband_oti: true,
-    };
-
-    Ok((oti, transfer_length))
-}
-
-/// https://www.rfc-editor.org/rfc/rfc5510.html#section-4.2.4.1
-fn push_rs_2m_oti(data: &mut Vec<u8>, oti: &oti::Oti, transfer_length: u64) {
-    /*  0                   1                   2                   3
-     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |   HET = 64    |    HEL = 4    |                               |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+                               +
-    |                      Transfer Length (L)                      |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |       m       |       G       |   Encoding Symbol Length (E)  |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |  Max Source Block Length (B)  |  Max Nb Enc. Symbols (max_n)  |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+*/
-
-    let scheme_specific = oti.reed_solomon_scheme_specific.clone().unwrap_or_default();
-    let ext_header_l: u64 =
-        (lct::Ext::Fti as u64) << 56 | 4u64 << 48 | transfer_length & 0xFFFFFFFFFFFF;
-
-    let b = oti.maximum_source_block_length as u16;
-    let max_n = (oti.max_number_of_parity_symbols + oti.maximum_source_block_length) as u16;
-
-    data.extend(ext_header_l.to_be_bytes());
-    data.push(scheme_specific.m);
-    data.push(scheme_specific.g);
-    data.extend(oti.encoding_symbol_length.to_be_bytes());
-    data.extend(b.to_be_bytes());
-    data.extend(max_n.to_be_bytes());
-    lct::inc_hdr_len(data, 4);
-}
-
-/// https://www.rfc-editor.org/rfc/rfc5510.html#section-4.2.4.1
-fn parse_rs_2m_oti(fti: &[u8]) -> Result<(oti::Oti, u64)> {
-    if fti.len() != 16 {
-        return Err(FluteError::new("Wrong extension size"));
-    }
-
-    assert!(fti[0] == lct::Ext::Fti as u8);
-    assert!(fti[1] == 4);
-
-    let transfer_length =
-        u64::from_be_bytes(fti[0..8].as_ref().try_into().unwrap()) & 0xFFFFFFFFFFFF;
-    let m = fti[8];
-    let g = fti[9];
-    let encoding_symbol_length = u16::from_be_bytes(fti[10..12].as_ref().try_into().unwrap());
-    let b = u16::from_be_bytes(fti[12..14].as_ref().try_into().unwrap());
-    let max_n = u16::from_be_bytes(fti[14..16].as_ref().try_into().unwrap());
-
-    let oti = oti::Oti {
-        fec_encoding_id: oti::FECEncodingID::ReedSolomonGF2M,
-        fec_instance_id: 0,
-        maximum_source_block_length: b as u32,
-        encoding_symbol_length,
-        max_number_of_parity_symbols: max_n as u32 - b as u32,
-        reed_solomon_scheme_specific: Some(ReedSolomonGF2MSchemeSpecific {
-            g: match g {
-                0 => 1,
-                g => g,
-            },
-            m: match m {
-                0 => 8,
-                m => m,
-            },
-        }),
-        inband_oti: true,
-    };
-
-    Ok((oti, transfer_length))
-}
-
-///
-/// Small Block Systematic FEC Scheme
-/// https://tools.ietf.org/html/rfc5445
-fn push_small_block_systematic_oti(data: &mut Vec<u8>, oti: &oti::Oti, transfer_length: u64) {
-    /*
-    * 0                   1                   2                   3
-      0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-     |                      Transfer Length                          |
-     +                               +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-     |                               |         FEC Instance ID       |
-     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-     |    Encoding Symbol Length     |  Maximum Source Block Length  |
-     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-     | Max. Num. of Encoding Symbols |
-     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    */
-
-    let ext_header: u16 = (lct::Ext::Fti as u16) << 8 | 4u16;
-    let transfer_header_fec_id: u64 = (transfer_length << 16) | oti.fec_instance_id as u64;
-    let esl: u16 = oti.encoding_symbol_length as u16;
-    let sbl: u16 = ((oti.maximum_source_block_length) & 0xFFFF) as u16;
-    let mne: u16 = (oti.max_number_of_parity_symbols + oti.maximum_source_block_length) as u16;
-
-    data.extend(ext_header.to_be_bytes());
-    data.extend(transfer_header_fec_id.to_be_bytes());
-    data.extend(esl.to_be_bytes());
-    data.extend(sbl.to_be_bytes());
-    data.extend(mne.to_be_bytes());
-    lct::inc_hdr_len(data, 4);
-}
-
-fn parse_small_block_systematic_oti(
-    fti: &[u8],
-    fec_encoding_id: oti::FECEncodingID,
-) -> Result<(oti::Oti, u64)> {
-    if fti.len() != 16 {
-        return Err(FluteError::new("Wrong extension size"));
-    }
-
-    assert!(fti[0] == lct::Ext::Fti as u8);
-    assert!(fti[1] == 4);
-
-    let transfer_length = u64::from_be_bytes(fti[2..10].as_ref().try_into().unwrap()) >> 16;
-    let fec_instance_id = u16::from_be_bytes(fti[8..10].as_ref().try_into().unwrap());
-    let encoding_symbol_length = u16::from_be_bytes(fti[10..12].as_ref().try_into().unwrap());
-    let maximum_source_block_length = u16::from_be_bytes(fti[12..14].as_ref().try_into().unwrap());
-    let num_encoding_symbols = u16::from_be_bytes(fti[14..16].as_ref().try_into().unwrap());
-
-    let oti = oti::Oti {
-        fec_encoding_id: fec_encoding_id,
-        fec_instance_id: fec_instance_id,
-        maximum_source_block_length: maximum_source_block_length as u32,
-        encoding_symbol_length,
-        max_number_of_parity_symbols: num_encoding_symbols as u32
-            - maximum_source_block_length as u32,
-        reed_solomon_scheme_specific: None,
-        inband_oti: true,
-    };
-
-    Ok((oti, transfer_length))
-}
-
-fn push_fec_payload_id_block_systematic(
-    data: &mut Vec<u8>,
-    snb: u32,
-    esi: u16,
-    source_block_length: u16,
-) {
-    /*0                   1                   2                   3
-         0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        |                     Source Block Number                       |
-        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        |      Source Block Length      |       Encoding Symbol ID      |
-        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    */
-    data.extend(snb.to_be_bytes());
-    data.extend(source_block_length.to_be_bytes());
-    data.extend(esi.to_be_bytes());
-}
-
-fn parse_fec_payload_id_block_systematic(data: &[u8]) -> Result<PayloadID> {
-    assert!(data.len() == 8);
-    let arr: [u8; 8] = match data.try_into() {
-        Ok(arr) => arr,
-        Err(e) => return Err(FluteError::new(e.to_string())),
-    };
-
-    /*0                   1                   2                   3
-         0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        |                     Source Block Number                       |
-        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        |      Source Block Length      |       Encoding Symbol ID      |
-        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    */
-    let payload_id_header = u64::from_be_bytes(arr);
-    let snb = ((payload_id_header >> 32) & 0xFFFFFFFF) as u32;
-    let source_block_length = ((payload_id_header >> 16) & 0xFFFF) as u32;
-    let esi = ((payload_id_header) & 0xFFFF) as u32;
-
-    Ok(PayloadID {
-        snb,
-        esi,
-        source_block_length: Some(source_block_length),
-    })
-}
-
-fn push_fec_payload_id_m(data: &mut Vec<u8>, snb: u32, esi: u16, m: u8) {
-    /*
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |     Source Block Number (32-m                  | Enc. Symb. ID |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-     */
-    let header: u32 = (snb << m) | (esi as u32) & 0xFF;
-    data.extend(header.to_be_bytes());
-}
-
-fn parse_fec_payload_id_m(data: &[u8], m: u8) -> Result<PayloadID> {
-    /*
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |     Source Block Number (32-m                  | Enc. Symb. ID |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-     */
-    let arr: [u8; 4] = match data.try_into() {
-        Ok(arr) => arr,
-        Err(e) => return Err(FluteError::new(e.to_string())),
-    };
-    let payload_id_header = u32::from_be_bytes(arr);
-
-    let snb = payload_id_header >> m;
-    let esi_mask = (1u32 << m) - 1u32;
-    let esi = payload_id_header & esi_mask;
-
-    Ok(PayloadID {
-        esi,
-        snb,
-        source_block_length: None,
-    })
 }
 
 fn push_payload(data: &mut Vec<u8>, pkt: &Pkt) {
