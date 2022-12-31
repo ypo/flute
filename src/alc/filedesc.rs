@@ -40,7 +40,7 @@ impl FileDesc {
         let max_transfer_length = oti.max_transfer_length();
         if object.transfer_length as usize > max_transfer_length {
             return Err(FluteError::new(format!(
-                "Object transfer length of {} is bigger than {}",
+                "Object transfer length of {} is bigger than {}, so is incompatible with the parameters of your OTI",
                 object.transfer_length, max_transfer_length
             )));
         }
