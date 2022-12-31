@@ -94,7 +94,8 @@ The following error recovery algorithms are supported
 - [ ] Reed-Solomon GF 2^m
 - [ ] RaptorQ
 
-Object Transmission Information (OTI) configuration to use FEC during transmission
+The `Oti` module provides an implementation of the Object Transmission Information (OTI)
+used to configure Forward Error Correction (FEC) encoding in the FLUTE protocol.
 
 ```rust
 use flute::sender::Oti;
