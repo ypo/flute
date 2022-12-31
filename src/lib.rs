@@ -92,18 +92,19 @@
 //! - [ ] Reed-Solomon GF 2^m  
 //! - [ ] RaptorQ  
 //!
-//! Object Transmission Information (OTI) configuration to use FEC during transmission
+//! The `Oti` module provides an implementation of the Object Transmission Information (OTI) 
+//! used to configure Forward Error Correction (FEC) encoding in the FLUTE protocol.
 //!
 //!```rust
 //! use flute::sender::Oti;
 //! use flute::sender::Sender;
-//! 
+//!
 //! // Reed Solomon 2^8 with encoding blocks composed of  
 //! // 60 source symbols and 4 repair symbols of 1424 bytes per symbol
 //! let oti = Oti::new_reed_solomon_rs28(1424, 60, 4).unwrap();
 //! let mut sender = Sender::new(1, &oti, &Default::default());
 //!```
-//! 
+//!
 //! # Content Encoding (CENC)
 //!
 //! The following schemes are supported during the transmission/reception
@@ -112,24 +113,24 @@
 //! - [x] Deflate
 //! - [x] Zlib
 //! - [x] Gzip
-//! 
+//!
 //! # Files multiplex / Blocks interleave
-//! 
-//! The FLUTE Sender is able to transfer multiple files in parallel by interleaving packets from each file. For example: 
-//! 
+//!
+//! The FLUTE Sender is able to transfer multiple files in parallel by interleaving packets from each file. For example:
+//!
 //! **Pkt file1** -> Pkt file2 -> Pkt file3 -> **Pkt file1** -> Pkt file2 -> Pkt file3 ...
-//! 
+//!
 //! The Sender can interleave blocks within a single file.  
 //! The following example shows Encoding Symbols (ES) from different blocks (B) are interleaved. For example:  
-//! 
+//!
 //! **(B 1,ES 1)**->(B 2,ES 1)->(B 3,ES 1)->**(B 1,ES 2)**->(B 2,ES 2)...
-//! 
+//!
 //! To configure the multiplexing, use the `Config` struct as follows:
-//! 
+//!
 //!```rust
 //! use flute::sender::Sender;
 //! use flute::sender::Config;
-//! 
+//!
 //! let config = Config {
 //!     // Transfer a maximum of 3 files in parallel
 //!     multiplex_files: 3,
@@ -137,9 +138,9 @@
 //!     interleave_blocks: 3,
 //!     ..Default::default()
 //! };
-//! 
+//!
 //! let mut sender = Sender::new(1, &Default::default(), &config);
-//! 
+//!
 //!```
 
 #![deny(missing_docs)]
@@ -166,8 +167,8 @@ pub mod sender {
     pub use crate::alc::objectdesc::ObjectDesc;
     pub use crate::alc::oti::FECEncodingID;
     pub use crate::alc::oti::Oti;
-    pub use crate::alc::sender::Sender;
     pub use crate::alc::sender::Config;
+    pub use crate::alc::sender::Sender;
 }
 
 pub use crate::tools::error;
