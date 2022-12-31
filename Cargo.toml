@@ -22,7 +22,7 @@ num-integer = "0.1"
 reed-solomon-erasure = "6.0"
 flate2 = "1.0"
 md5 = "0.7"
-raptorq = "1.7"
+# raptorq = "1.7"
 
 [dev-dependencies]
 env_logger = "0.10.0"
