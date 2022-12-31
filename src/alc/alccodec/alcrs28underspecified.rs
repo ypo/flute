@@ -4,9 +4,9 @@ use crate::{
     error::FluteError,
 };
 
-pub struct AlcRS28SmallBlockSystematic {}
+pub struct AlcRS28UnderSpecified {}
 
-impl AlcCodec for AlcRS28SmallBlockSystematic {
+impl AlcCodec for AlcRS28UnderSpecified {
     fn add_fti(&self, data: &mut Vec<u8>, oti: &oti::Oti, transfer_length: u64) {
         /*
         * 0                   1                   2                   3
@@ -61,7 +61,7 @@ impl AlcCodec for AlcRS28SmallBlockSystematic {
         let num_encoding_symbols = u16::from_be_bytes(fti[14..16].as_ref().try_into().unwrap());
 
         let oti = oti::Oti {
-            fec_encoding_id: oti::FECEncodingID::ReedSolomonGF28SmallBlockSystematic,
+            fec_encoding_id: oti::FECEncodingID::ReedSolomonGF28UnderSpecified,
             fec_instance_id: fec_instance_id,
             maximum_source_block_length: maximum_source_block_length as u32,
             encoding_symbol_length,

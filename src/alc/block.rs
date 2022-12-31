@@ -39,7 +39,7 @@ impl Block {
                 buffer,
             )?,
 
-            oti::FECEncodingID::ReedSolomonGF28SmallBlockSystematic => {
+            oti::FECEncodingID::ReedSolomonGF28UnderSpecified => {
                 Block::create_shards_reed_solomon_gf8(
                     oti,
                     nb_source_symbols,

@@ -267,7 +267,7 @@ mod tests {
             lct::Cenc::Null,
             true,
             Some(sender::Config {
-                multiplex_blocks: 1,
+                interleave_blocks: 1,
                 multiplex_files: 0,
                 ..Default::default()
             }),
@@ -293,10 +293,10 @@ mod tests {
     }
 
     #[test]
-    pub fn test_receiver_reed_solomon_gf28_small_block_systematic() {
+    pub fn test_receiver_reed_solomon_gf28_under_specified() {
         crate::tests::init();
         let mut oti: oti::Oti = Default::default();
-        oti.fec_encoding_id = oti::FECEncodingID::ReedSolomonGF28SmallBlockSystematic;
+        oti.fec_encoding_id = oti::FECEncodingID::ReedSolomonGF28UnderSpecified;
         oti.max_number_of_parity_symbols = 3;
         test_receiver_with_oti(&oti, true, lct::Cenc::Null, true, None);
     }

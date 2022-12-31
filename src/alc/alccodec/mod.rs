@@ -5,10 +5,10 @@ use super::{
 use crate::tools::error::Result;
 
 mod alcnocode;
-mod alcrs28;
-mod alcrs28smallblocksystematic;
-mod alcrs2m;
 mod alcraptorq;
+mod alcrs28;
+mod alcrs28underspecified;
+mod alcrs2m;
 
 pub trait AlcCodec {
     fn add_fti(&self, data: &mut Vec<u8>, oti: &oti::Oti, transfer_length: u64);
@@ -23,15 +23,14 @@ impl dyn AlcCodec {
         const NOCODE: alcnocode::AlcNoCode = alcnocode::AlcNoCode {};
         const ALCRS28: alcrs28::AlcRS28 = alcrs28::AlcRS28 {};
         const ALCRS2M: alcrs2m::AlcRS2m = alcrs2m::AlcRS2m {};
-        const ALCRS28SMALLBLOCKSYSTEMATIC:
-            alcrs28smallblocksystematic::AlcRS28SmallBlockSystematic =
-            alcrs28smallblocksystematic::AlcRS28SmallBlockSystematic {};
+        const ALCRS28UNDERSPECIFIED: alcrs28underspecified::AlcRS28UnderSpecified =
+            alcrs28underspecified::AlcRS28UnderSpecified {};
 
         match fec {
             oti::FECEncodingID::NoCode => &NOCODE,
             oti::FECEncodingID::ReedSolomonGF2M => &ALCRS2M,
             oti::FECEncodingID::ReedSolomonGF28 => &ALCRS28,
-            oti::FECEncodingID::ReedSolomonGF28SmallBlockSystematic => &ALCRS28SMALLBLOCKSYSTEMATIC,
+            oti::FECEncodingID::ReedSolomonGF28UnderSpecified => &ALCRS28UNDERSPECIFIED,
         }
     }
 }

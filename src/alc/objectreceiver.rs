@@ -375,7 +375,7 @@ impl ObjectReceiver {
         self.nb_a_large = t - (self.a_small * n);
 
         self.blocks_variable_size =
-            oti.fec_encoding_id == oti::FECEncodingID::ReedSolomonGF28SmallBlockSystematic;
+            oti.fec_encoding_id == oti::FECEncodingID::ReedSolomonGF28UnderSpecified;
         log::debug!(
             "Preallocate {} blocks of {} or {} symbols",
             n,

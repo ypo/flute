@@ -13,7 +13,7 @@ pub struct SenderSession {
     fdt: Rc<RefCell<Fdt>>,
     file: Option<Rc<FileDesc>>,
     encoder: Option<BlockEncoder>,
-    block_multiplex_windows: usize,
+    interleave_blocks: usize,
     transfer_fdt_only: bool,
 }
 
@@ -21,7 +21,7 @@ impl SenderSession {
     pub fn new(
         tsi: u64,
         fdt: Rc<RefCell<Fdt>>,
-        block_multiplex_windows: usize,
+        interleave_blocks: usize,
         transfer_fdt_only: bool,
     ) -> SenderSession {
         SenderSession {
@@ -29,7 +29,7 @@ impl SenderSession {
             fdt,
             file: None,
             encoder: None,
-            block_multiplex_windows,
+            interleave_blocks,
             transfer_fdt_only,
         }
     }
@@ -70,7 +70,7 @@ impl SenderSession {
         }
         self.encoder = Some(BlockEncoder::new(
             self.file.as_ref().unwrap().clone(),
-            self.block_multiplex_windows,
+            self.interleave_blocks,
         ));
     }
 
