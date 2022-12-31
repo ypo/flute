@@ -87,7 +87,9 @@ loop {
 
 The following error recovery algorithms are supported
 
+- [x] No-code
 - [x] Reed-Solomon GF 2^8
+- [x] Reed-Solomon GF 2^8 Under Specified
 - [ ] Reed-Solomon GF 2^16
 - [ ] Reed-Solomon GF 2^m
 - [ ] RaptorQ
@@ -96,16 +98,11 @@ Object Transmission Information (OTI) configuration to use FEC during transmissi
 
 ```rust
 use flute::sender::Oti;
-use flute::sender::FECEncodingID;
 use flute::sender::Sender;
 
-let oti = Oti {
-    // Select Reed-Solomon GF 2^8
-    fec_encoding_id: FECEncodingID::ReedSolomonGF2M,
-    // Number of ALC/LCT packet used to repair each block that the object is composed of
-    max_number_of_parity_symbols: 3,
-    ..Default::default()
-};
+// Reed Solomon 2^8 with encoding blocks composed of
+// 60 source symbols and 4 repair symbols of 1424 bytes per symbol
+let oti = Oti::new_reed_solomon_rs28(1424, 60, 4).unwrap();
 let mut sender = Sender::new(1, &oti, &Default::default());
 ```
 
@@ -118,14 +115,14 @@ The following schemes are supported during the transmission/reception
 - [x] Zlib
 - [x] Gzip
 
-## File/Block Multiplexing
+## Files multiplex / Blocks interleave
 
 The FLUTE Sender is able to transfer multiple files in parallel by interleaving packets from each file. For example:
 
 **Pkt file1** -> Pkt file2 -> Pkt file3 -> **Pkt file1** -> Pkt file2 -> Pkt file3 ...
 
-The Sender can also multiplex blocks within a single file by interleaving encoding symbols (ES)
-from different blocks (B). For example:
+The Sender can interleave blocks within a single file.
+The following example shows Encoding Symbols (ES) from different blocks (B) are interleaved. For example:
 
 **(B 1,ES 1)**->(B 2,ES 1)->(B 3,ES 1)->**(B 1,ES 2)**->(B 2,ES 2)...
 
@@ -138,8 +135,8 @@ use flute::sender::Config;
 let config = Config {
     // Transfer a maximum of 3 files in parallel
     multiplex_files: 3,
-    // Multiplex 3 blocks within each file
-    multiplex_blocks: 3,
+    // Interleave a maximum of 3 blocks within each file
+    interleave_blocks: 3,
     ..Default::default()
 };
 
