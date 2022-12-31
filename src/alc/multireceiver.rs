@@ -140,20 +140,22 @@ mod tests {
             ..Default::default()
         });
         let sender = Box::new(sender::Sender::new(1, &oti, &config));
-        sender.add_object(
-            objectdesc::ObjectDesc::create_from_buffer(
-                buffer,
-                "text",
-                content_location,
-                1,
-                None,
-                cenc,
-                inband_cenc,
-                None,
-                true,
+        sender
+            .add_object(
+                objectdesc::ObjectDesc::create_from_buffer(
+                    buffer,
+                    "text",
+                    content_location,
+                    1,
+                    None,
+                    cenc,
+                    inband_cenc,
+                    None,
+                    true,
+                )
+                .unwrap(),
             )
-            .unwrap(),
-        );
+            .unwrap();
         sender.publish(std::time::SystemTime::now()).unwrap();
         sender
     }

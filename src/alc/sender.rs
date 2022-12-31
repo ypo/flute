@@ -25,7 +25,7 @@ pub struct Config {
     ///
     pub multiplex_files: u8,
     /// Max number of blocks that are interleaved during the transmission of a file.  
-    /// Blocks interleave permits to spread out errors that may occur during transmission. 
+    /// Blocks interleave permits to spread out errors that may occur during transmission.
     /// Combined with error recovery, it can improve resilience to burst error, but can increase the complexity of the reception.
     pub interleave_blocks: u8,
 }
@@ -92,9 +92,9 @@ impl Sender {
 
     /// Add an object to the FDT
     /// After calling this function, a call to `publish()` to publish your modifications
-    pub fn add_object(&self, obj: Box<objectdesc::ObjectDesc>) {
+    pub fn add_object(&self, obj: Box<objectdesc::ObjectDesc>) -> Result<()> {
         let mut fdt = self.fdt.borrow_mut();
-        fdt.add_object(obj);
+        fdt.add_object(obj)
     }
 
     /// Publish modification to the FDT
@@ -156,20 +156,22 @@ mod tests {
         let mut buffer: Vec<u8> = Vec::new();
         let nb_pkt = oti.encoding_symbol_length as usize * 3;
         buffer.extend(vec![0xAA; nb_pkt]);
-        sender.add_object(
-            objectdesc::ObjectDesc::create_from_buffer(
-                &buffer,
-                "text",
-                &url::Url::parse("file:///hello").unwrap(),
-                1,
-                None,
-                lct::Cenc::Null,
-                true,
-                None,
-                true,
+        sender
+            .add_object(
+                objectdesc::ObjectDesc::create_from_buffer(
+                    &buffer,
+                    "text",
+                    &url::Url::parse("file:///hello").unwrap(),
+                    1,
+                    None,
+                    lct::Cenc::Null,
+                    true,
+                    None,
+                    true,
+                )
+                .unwrap(),
             )
-            .unwrap(),
-        );
+            .unwrap();
         sender.publish(std::time::SystemTime::now()).unwrap();
         loop {
             let data = sender.read(std::time::SystemTime::now());
@@ -177,5 +179,29 @@ mod tests {
                 break;
             }
         }
+    }
+
+    #[test]
+    pub fn test_sender_file_too_large() {
+        crate::tests::init();
+        let oti = oti::Oti::new_no_code(4, 2);
+        // Create a buffer larger that the max transfer length
+        let buffer = vec![0u8; oti.max_transfer_length() + 1];
+        let object = objectdesc::ObjectDesc::create_from_buffer(
+            &buffer,
+            "text",
+            &url::Url::parse("file:///hello").unwrap(),
+            1,
+            None,
+            lct::Cenc::Null,
+            true,
+            None,
+            true,
+        )
+        .unwrap();
+
+        let sender = super::Sender::new(1, &oti, &Default::default());
+        let res = sender.add_object(object);
+        assert!(res.is_err());
     }
 }

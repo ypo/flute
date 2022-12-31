@@ -77,17 +77,17 @@ impl Fdt {
         }
     }
 
-    pub fn add_object(&mut self, obj: Box<objectdesc::ObjectDesc>) {
-        let filedesc = FileDesc::new(obj, &self.oti, &self.toi, None, None);
+    pub fn add_object(&mut self, obj: Box<objectdesc::ObjectDesc>) -> Result<()> {
+        let filedesc = FileDesc::new(obj, &self.oti, &self.toi, None, None)?;
         self.toi += 1;
         if self.toi == lct::TOI_FDT {
             self.toi = 1;
         }
 
         assert!(self.files.contains_key(&filedesc.toi) == false);
-
         self.files.insert(filedesc.toi, filedesc.clone());
         self.files_transfer_queue.push(filedesc);
+        Ok(())
     }
 
     pub fn publish(&mut self, now: SystemTime) -> Result<()> {
@@ -112,7 +112,7 @@ impl Fdt {
                 true => Some(now.clone()),
                 false => None,
             },
-        );
+        )?;
         self.fdt_transfer_queue.push(filedesc);
         self.fdtid = (self.fdtid + 1) & 0xFFFFF;
         self.last_publish = Some(now);
@@ -263,7 +263,7 @@ mod tests {
         )
         .unwrap();
 
-        fdt.add_object(obj);
+        fdt.add_object(obj).unwrap();
 
         let buffer = fdt.to_xml(SystemTime::now()).unwrap();
         let content = String::from_utf8(buffer.clone()).unwrap();

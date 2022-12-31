@@ -2,6 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::SystemTime;
 
+use crate::error::{FluteError, Result};
+
 use super::objectdesc::ObjectDesc;
 use super::{fdtinstance, oti};
 
@@ -29,12 +31,21 @@ impl FileDesc {
         toi: &u128,
         fdt_id: Option<u32>,
         sender_current_time: Option<SystemTime>,
-    ) -> Rc<FileDesc> {
+    ) -> Result<Rc<FileDesc>> {
         let oti = match &object.oti {
             Some(res) => res.clone(),
             None => default_oti.clone(),
         };
-        Rc::new(FileDesc {
+
+        let max_transfer_length = oti.max_transfer_length();
+        if object.transfer_length as usize > max_transfer_length {
+            return Err(FluteError::new(format!(
+                "Object transfer length of {} is bigger than {}",
+                object.transfer_length, max_transfer_length
+            )));
+        }
+
+        Ok(Rc::new(FileDesc {
             object,
             oti,
             toi: toi.clone(),
@@ -45,7 +56,7 @@ impl FileDesc {
                 transfer_count: 0,
                 last_transfer: None,
             }),
-        })
+        }))
     }
 
     pub fn transfer_started(&self) {
