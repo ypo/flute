@@ -11,6 +11,11 @@ keywords = ["multicast", "network", "broadcast", "5g", "satellite"]
 categories = ["network-programming", "encoding", "aerospace::space-protocols"]
 rust-version = "1.66"
 
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "flute"
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 log  = "0.4"
 chrono = "0.4"
@@ -22,8 +27,14 @@ num-integer = "0.1"
 reed-solomon-erasure = "6.0"
 flate2 = "1.0"
 md5 = "0.7"
+pyo3 = { version = "0.17.3", features = ["extension-module"], optional = true }
+pyo3-log = { version = "0.7", optional = true }
 # raptorq = "1.7"
 
 [dev-dependencies]
 env_logger = "0.10.0"
 rand = "0.8"
+
+[features]
+python = ["pyo3", "pyo3-log"]
+

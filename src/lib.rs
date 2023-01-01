@@ -151,6 +151,9 @@ mod alc;
 mod fec;
 mod tools;
 
+#[cfg(feature = "python")]
+mod py;
+
 ///
 /// FLUTE Receivers to re-construct ALC/LCT packets to Objects (files)
 ///
