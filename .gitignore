@@ -80,3 +80,6 @@ docs/_build/
 
 # Pyenv
 .python-version
+
+# maturin
+.env
