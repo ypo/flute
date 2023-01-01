@@ -3,7 +3,7 @@ use super::{
     fdtinstance::FdtInstance,
     lct,
     objectreceiver::{self, ObjectReceiver},
-    objectwriter::ObjectWriter,
+    objectwriter::{self, ObjectWriter},
 };
 use crate::tools;
 use crate::tools::error::Result;
@@ -136,7 +136,7 @@ impl FdtReceiver {
 }
 
 impl ObjectWriter for FdtWriter {
-    fn open(&self, _content_location: Option<&url::Url>) -> Result<()> {
+    fn open(&self, _meta: Option<&objectwriter::ObjectMetadata>) -> Result<()> {
         Ok(())
     }
 

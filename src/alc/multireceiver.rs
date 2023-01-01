@@ -130,6 +130,7 @@ mod tests {
     fn create_sender(
         buffer: &[u8],
         content_location: &url::Url,
+        content_type: &str,
         oti: &oti::Oti,
         cenc: lct::Cenc,
         inband_cenc: bool,
@@ -144,7 +145,7 @@ mod tests {
             .add_object(
                 objectdesc::ObjectDesc::create_from_buffer(
                     buffer,
-                    "text",
+                    content_type,
                     content_location,
                     1,
                     None,
@@ -194,6 +195,7 @@ mod tests {
     fn check_output(
         input_buffer: &[u8],
         input_content_location: &url::Url,
+        input_content_type: &str,
         output: &FluteWriterBuffer,
     ) {
         let output_session = output.objects.borrow();
@@ -201,8 +203,7 @@ mod tests {
 
         let output_object = &output_session[0];
         let output_file_buffer = output_object.data();
-        let output_content_location =
-            url::Url::parse(output_object.content_location().as_ref().unwrap().as_str()).unwrap();
+        let output_meta = output_object.meta().unwrap();
 
         log::info!(
             "Receiver buffer {} expect {}",
@@ -212,7 +213,13 @@ mod tests {
         assert!(output_object.is_complete() == true);
         assert!(output_object.is_error() == false);
         assert!(output_file_buffer.eq(input_buffer));
-        assert!(output_content_location.eq(input_content_location));
+        assert!(output_meta.content_location.eq(input_content_location));
+        assert!(output_meta.content_length.unwrap() == input_buffer.len());
+        assert!(output_meta
+            .content_type
+            .as_ref()
+            .unwrap()
+            .eq(input_content_type));
     }
 
     fn create_file_buffer() -> (Vec<u8>, url::Url) {
@@ -234,12 +241,14 @@ mod tests {
         inband_cenc: bool,
         sender_config: Option<sender::Config>,
     ) {
+        let content_type = "application/octet-stream";
         let (input_file_buffer, input_content_location) = create_file_buffer();
         let output = FluteWriterBuffer::new();
         let mut receiver = super::MultiReceiver::new(None, output.clone(), None);
         let mut sender = create_sender(
             &input_file_buffer,
             &input_content_location,
+            content_type,
             &oti,
             cenc,
             inband_cenc,
@@ -251,7 +260,12 @@ mod tests {
         } else {
             run(&mut sender, &mut receiver);
         }
-        check_output(&input_file_buffer, &input_content_location, &output);
+        check_output(
+            &input_file_buffer,
+            &input_content_location,
+            content_type,
+            &output,
+        );
     }
 
     #[test]
@@ -341,11 +355,13 @@ mod tests {
 
         let oti: oti::Oti = Default::default();
         let (input_file_buffer, input_content_location) = create_file_buffer();
+        let content_type = "application/octet-stream";
         let output = FluteWriterBuffer::new();
         let mut receiver = super::MultiReceiver::new(None, output.clone(), None);
         let mut sender = create_sender(
             &input_file_buffer,
             &input_content_location,
+            content_type,
             &oti,
             lct::Cenc::Null,
             true,

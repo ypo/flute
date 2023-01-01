@@ -2,7 +2,7 @@ use super::alc;
 use super::blockdecoder::BlockDecoder;
 use super::blockwriter::BlockWriter;
 use super::fdtinstance::FdtInstance;
-use super::objectwriter::ObjectWriter;
+use super::objectwriter::{self, ObjectWriter};
 use super::oti;
 use crate::alc::lct;
 use crate::tools::error::{FluteError, Result};
@@ -43,7 +43,7 @@ pub struct ObjectReceiver {
     writer_session_state: ObjectWriterSessionState,
     block_writer: Option<BlockWriter>,
     fdt_instance_id: Option<u32>,
-    content_location: Option<url::Url>,
+    meta: Option<objectwriter::ObjectMetadata>,
     last_activity: Instant,
 }
 
@@ -68,7 +68,7 @@ impl ObjectReceiver {
             block_writer: None,
             fdt_instance_id: None,
             toi: toi.clone(),
-            content_location: None,
+            meta: None,
             last_activity: Instant::now(),
         }
     }
@@ -183,7 +183,11 @@ impl ObjectReceiver {
 
         self.content_md5 = file.content_md5.clone();
         self.fdt_instance_id = Some(fdt_instance_id);
-        self.content_location = Some(content_location);
+        self.meta = Some(objectwriter::ObjectMetadata {
+            content_location: content_location,
+            content_length: file.content_length.map(|s| s as usize),
+            content_type: file.content_type.clone(),
+        });
 
         self.init_blocks_partitioning();
         self.init_block_writer();
@@ -203,9 +207,9 @@ impl ObjectReceiver {
 
         assert!(self.block_writer.is_none());
 
-        match self.writer_session.open(self.content_location.as_ref()) {
+        match self.writer_session.open(self.meta.as_ref()) {
             Err(_) => {
-                log::error!("Fail to open destination for {:?}", self.content_location);
+                log::error!("Fail to open destination for {:?}", self.meta);
                 self.error();
                 return;
             }

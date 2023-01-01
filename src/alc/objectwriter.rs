@@ -2,6 +2,21 @@ use crate::tools::error::{FluteError, Result};
 use std::{cell::RefCell, io::Write, rc::Rc};
 
 ///
+/// Struct representing metadata for an object.
+///
+#[derive(Debug, Clone)]
+pub struct ObjectMetadata {
+    /// URI that can be used as an identifier for this object
+    pub content_location: url::Url,
+    /// Anticipated size of this object
+    pub content_length: Option<usize>,
+    /// The content type of this object.
+    /// This field describes the format of the object's content,
+    /// and can be used to determine how to handle or process the object.
+    pub content_type: Option<String>,
+}
+
+///
 /// Used to write Objects received by a FLUTE receiver to a destination
 ///
 pub trait FluteWriter {
@@ -14,7 +29,7 @@ pub trait FluteWriter {
 ///
 pub trait ObjectWriter {
     /// Open the destination
-    fn open(&self, content_location: Option<&url::Url>) -> Result<()>;
+    fn open(&self, meta: Option<&ObjectMetadata>) -> Result<()>;
     /// Write data
     fn write(&self, data: &[u8]);
     /// Called when all the data has been written
@@ -45,7 +60,7 @@ struct ObjectWriterBufferInner {
     complete: bool,
     error: bool,
     data: Vec<u8>,
-    content_location: Option<String>,
+    meta: Option<ObjectMetadata>,
 }
 
 impl std::fmt::Debug for dyn FluteWriter {
@@ -76,7 +91,7 @@ impl FluteWriter for FluteWriterBuffer {
                 complete: false,
                 error: false,
                 data: Vec::new(),
-                content_location: None,
+                meta: None,
             }),
         });
         let mut sessions = self.objects.borrow_mut();
@@ -93,9 +108,9 @@ impl ObjectWriterBuffer {
     }
 
     /// Get the Content-Location of the received object
-    pub fn content_location(&self) -> Option<String> {
+    pub fn meta(&self) -> Option<ObjectMetadata> {
         let inner = self.inner.borrow();
-        inner.content_location.clone()
+        inner.meta.clone()
     }
 
     /// true when the object has been fully received
@@ -112,9 +127,9 @@ impl ObjectWriterBuffer {
 }
 
 impl ObjectWriter for ObjectWriterBuffer {
-    fn open(&self, content_location: Option<&url::Url>) -> Result<()> {
+    fn open(&self, meta: Option<&ObjectMetadata>) -> Result<()> {
         let mut inner = self.inner.borrow_mut();
-        inner.content_location = content_location.map(|s| s.to_string());
+        inner.meta = meta.map(|meta| meta.clone());
         Ok(())
     }
 
@@ -191,13 +206,13 @@ pub struct ObjectWriterFSInner {
 }
 
 impl ObjectWriter for ObjectWriterFS {
-    fn open(&self, content_location: Option<&url::Url>) -> Result<()> {
-        if content_location.is_none() {
+    fn open(&self, meta: Option<&ObjectMetadata>) -> Result<()> {
+        if meta.is_none() {
             return Ok(());
         }
 
-        let content_location = content_location.unwrap();
-        let content_location_path = content_location.path();
+        let meta = meta.unwrap();
+        let content_location_path = meta.content_location.path();
         let relative_path = content_location_path
             .strip_prefix("/")
             .unwrap_or_else(|| content_location_path);
