@@ -6,7 +6,7 @@ use super::oti;
 use crate::tools;
 use crate::tools::error::{FluteError, Result};
 use serde::Serialize;
-use std::rc::Rc;
+use std::sync::Arc;
 use std::time::SystemTime;
 
 #[derive(Debug)]
@@ -14,10 +14,10 @@ pub struct Fdt {
     fdtid: u32,
     oti: oti::Oti,
     toi: u128,
-    files_transfer_queue: Vec<Rc<FileDesc>>,
-    fdt_transfer_queue: Vec<Rc<FileDesc>>,
-    files: std::collections::HashMap<u128, Rc<FileDesc>>,
-    current_fdt_transfer: Option<Rc<FileDesc>>,
+    files_transfer_queue: Vec<Arc<FileDesc>>,
+    fdt_transfer_queue: Vec<Arc<FileDesc>>,
+    files: std::collections::HashMap<u128, Arc<FileDesc>>,
+    current_fdt_transfer: Option<Arc<FileDesc>>,
     complete: Option<bool>,
     cenc: lct::Cenc,
     duration: std::time::Duration,
@@ -78,7 +78,7 @@ impl Fdt {
     }
 
     pub fn add_object(&mut self, obj: Box<objectdesc::ObjectDesc>) -> Result<()> {
-        let filedesc = FileDesc::new(obj, &self.oti, &self.toi, None, None)?;
+        let filedesc = Arc::new(FileDesc::new(obj, &self.oti, &self.toi, None, None)?);
         self.toi += 1;
         if self.toi == lct::TOI_FDT {
             self.toi = 1;
@@ -103,7 +103,7 @@ impl Fdt {
             None,
             true,
         )?;
-        let filedesc = FileDesc::new(
+        let filedesc = Arc::new(FileDesc::new(
             obj,
             &self.oti,
             &lct::TOI_FDT,
@@ -112,7 +112,7 @@ impl Fdt {
                 true => Some(now.clone()),
                 false => None,
             },
-        )?;
+        )?);
         self.fdt_transfer_queue.push(filedesc);
         self.fdtid = (self.fdtid + 1) & 0xFFFFF;
         self.last_publish = Some(now);
@@ -131,7 +131,7 @@ impl Fdt {
         self.duration + std::time::Duration::from_secs(5) < duration
     }
 
-    pub fn get_next_fdt_transfer(&mut self, now: SystemTime) -> Option<Rc<FileDesc>> {
+    pub fn get_next_fdt_transfer(&mut self, now: SystemTime) -> Option<Arc<FileDesc>> {
         if self.current_fdt_transfer.is_some() {
             if self
                 .current_fdt_transfer
@@ -165,7 +165,7 @@ impl Fdt {
         }
     }
 
-    pub fn get_next_file_transfer(&mut self, now: SystemTime) -> Option<Rc<FileDesc>> {
+    pub fn get_next_file_transfer(&mut self, now: SystemTime) -> Option<Arc<FileDesc>> {
         let (index, _) = self
             .files_transfer_queue
             .iter()
@@ -181,7 +181,7 @@ impl Fdt {
         Some(file.clone())
     }
 
-    pub fn transfer_done(&mut self, file: Rc<FileDesc>, now: SystemTime) {
+    pub fn transfer_done(&mut self, file: Arc<FileDesc>, now: SystemTime) {
         file.transfer_done(now);
 
         if file.toi == lct::TOI_FDT {

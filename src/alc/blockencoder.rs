@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use super::filedesc;
 use super::pkt;
@@ -6,7 +6,7 @@ use crate::tools::error::Result;
 
 #[derive(Debug)]
 pub struct BlockEncoder {
-    file: Rc<filedesc::FileDesc>,
+    file: Arc<filedesc::FileDesc>,
     curr_content_offset: u64,
     curr_sbn: u32,
     a_large: u64,
@@ -23,7 +23,7 @@ pub struct BlockEncoder {
 use super::block::Block;
 
 impl BlockEncoder {
-    pub fn new(file: Rc<filedesc::FileDesc>, block_multiplex_windows: usize) -> BlockEncoder {
+    pub fn new(file: Arc<filedesc::FileDesc>, block_multiplex_windows: usize) -> BlockEncoder {
         let mut block = BlockEncoder {
             file,
             curr_content_offset: 0,

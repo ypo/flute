@@ -3,7 +3,7 @@ use pyo3::{exceptions::PyTypeError, prelude::*};
 
 #[pyclass]
 #[derive(Debug)]
-struct Config(alc::sender::Config);
+pub struct Config(pub alc::sender::Config);
 
 #[pymethods]
 impl Config {
@@ -86,10 +86,4 @@ impl Config {
         self.0.interleave_blocks = value;
         Ok(())
     }
-}
-
-#[pymodule]
-pub fn sender(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_class::<Config>()?;
-    Ok(())
 }

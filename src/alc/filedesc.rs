@@ -1,5 +1,4 @@
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::RwLock;
 use std::time::SystemTime;
 
 use crate::error::{FluteError, Result};
@@ -21,7 +20,7 @@ pub struct FileDesc {
     pub toi: u128,
     pub fdt_id: Option<u32>,
     pub sender_current_time: Option<SystemTime>,
-    transfer_info: RefCell<TransferInfo>,
+    transfer_info: RwLock<TransferInfo>,
 }
 
 impl FileDesc {
@@ -31,7 +30,7 @@ impl FileDesc {
         toi: &u128,
         fdt_id: Option<u32>,
         sender_current_time: Option<SystemTime>,
-    ) -> Result<Rc<FileDesc>> {
+    ) -> Result<FileDesc> {
         let oti = match &object.oti {
             Some(res) => res.clone(),
             None => default_oti.clone(),
@@ -45,22 +44,22 @@ impl FileDesc {
             )));
         }
 
-        Ok(Rc::new(FileDesc {
+        Ok(FileDesc {
             object,
             oti,
             toi: toi.clone(),
             fdt_id,
             sender_current_time,
-            transfer_info: RefCell::new(TransferInfo {
+            transfer_info: RwLock::new(TransferInfo {
                 transferring: false,
                 transfer_count: 0,
                 last_transfer: None,
             }),
-        }))
+        })
     }
 
     pub fn transfer_started(&self) {
-        let mut info = self.transfer_info.borrow_mut();
+        let mut info = self.transfer_info.write().unwrap();
         info.transferring = true;
 
         if info.transfer_count == self.object.max_transfer_count {
@@ -71,7 +70,7 @@ impl FileDesc {
     }
 
     pub fn transfer_done(&self, now: SystemTime) {
-        let mut info = self.transfer_info.borrow_mut();
+        let mut info = self.transfer_info.write().unwrap();
         assert!(info.transferring == true);
         info.transferring = false;
         info.transfer_count += 1;
@@ -79,7 +78,7 @@ impl FileDesc {
     }
 
     pub fn is_expired(&self) -> bool {
-        let info = self.transfer_info.borrow();
+        let info = self.transfer_info.read().unwrap();
         if self.object.max_transfer_count > info.transfer_count {
             return false;
         }
@@ -87,12 +86,12 @@ impl FileDesc {
     }
 
     pub fn is_transferring(&self) -> bool {
-        let info = self.transfer_info.borrow();
+        let info = self.transfer_info.read().unwrap();
         info.transferring
     }
 
     pub fn should_transfer_now(&self, now: SystemTime) -> bool {
-        let info = self.transfer_info.borrow();
+        let info = self.transfer_info.read().unwrap();
         if self.object.max_transfer_count > info.transfer_count {
             return true;
         }

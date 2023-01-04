@@ -1,5 +1,4 @@
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::Arc;
 use std::time::SystemTime;
 
 use super::alc;
@@ -10,23 +9,16 @@ use super::filedesc::FileDesc;
 #[derive(Debug)]
 pub struct SenderSession {
     tsi: u64,
-    fdt: Rc<RefCell<Fdt>>,
-    file: Option<Rc<FileDesc>>,
+    file: Option<Arc<FileDesc>>,
     encoder: Option<BlockEncoder>,
     interleave_blocks: usize,
     transfer_fdt_only: bool,
 }
 
 impl SenderSession {
-    pub fn new(
-        tsi: u64,
-        fdt: Rc<RefCell<Fdt>>,
-        interleave_blocks: usize,
-        transfer_fdt_only: bool,
-    ) -> SenderSession {
+    pub fn new(tsi: u64, interleave_blocks: usize, transfer_fdt_only: bool) -> SenderSession {
         SenderSession {
             tsi,
-            fdt,
             file: None,
             encoder: None,
             interleave_blocks,
@@ -34,10 +26,10 @@ impl SenderSession {
         }
     }
 
-    pub fn run(&mut self, now: SystemTime) -> Option<Vec<u8>> {
+    pub fn run(&mut self, fdt: &mut Fdt, now: SystemTime) -> Option<Vec<u8>> {
         loop {
             if self.encoder.is_none() {
-                self.get_next(now);
+                self.get_next(fdt, now);
             }
 
             if self.encoder.is_none() {
@@ -49,7 +41,7 @@ impl SenderSession {
             let file = self.file.as_ref().unwrap();
             let pkt = encoder.read();
             if pkt.is_none() {
-                self.release_file(now);
+                self.release_file(fdt, now);
                 continue;
             }
             let pkt = pkt.as_ref().unwrap();
@@ -57,8 +49,7 @@ impl SenderSession {
         }
     }
 
-    fn get_next(&mut self, now: SystemTime) {
-        let mut fdt = self.fdt.borrow_mut();
+    fn get_next(&mut self, fdt: &mut Fdt, now: SystemTime) {
         self.encoder = None;
         if self.transfer_fdt_only {
             self.file = fdt.get_next_fdt_transfer(now);
@@ -74,8 +65,7 @@ impl SenderSession {
         ));
     }
 
-    fn release_file(&mut self, now: SystemTime) {
-        let mut fdt = self.fdt.borrow_mut();
+    fn release_file(&mut self, fdt: &mut Fdt, now: SystemTime) {
         match &self.file {
             Some(file) => fdt.transfer_done(file.clone(), now),
             _ => {}

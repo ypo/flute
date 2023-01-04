@@ -140,7 +140,7 @@ mod tests {
             fdt_cenc: cenc,
             ..Default::default()
         });
-        let sender = Box::new(sender::Sender::new(1, &oti, &config));
+        let mut sender = Box::new(sender::Sender::new(1, &oti, &config));
         sender
             .add_object(
                 objectdesc::ObjectDesc::create_from_buffer(

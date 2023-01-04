@@ -2,8 +2,6 @@ use super::fdt::Fdt;
 use super::sendersession::SenderSession;
 use super::{lct, objectdesc, oti};
 use crate::tools::error::Result;
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::time::SystemTime;
 
 ///
@@ -49,7 +47,7 @@ impl Default for Config {
 ///
 #[derive(Debug)]
 pub struct Sender {
-    fdt: Rc<RefCell<Fdt>>,
+    fdt: Fdt,
     sessions: Vec<SenderSession>,
     session_index: usize,
 }
@@ -59,13 +57,13 @@ impl Sender {
     /// Creation of a FLUTE Sender
     ///
     pub fn new(tsi: u64, oti: &oti::Oti, config: &Config) -> Sender {
-        let fdt = Rc::new(RefCell::new(Fdt::new(
+        let fdt = Fdt::new(
             config.fdt_start_id,
             oti,
             config.fdt_cenc,
             config.fdt_duration,
             config.fdt_inband_sct,
-        )));
+        );
 
         let multiplex_files = match config.multiplex_files {
             0 => 2,
@@ -73,14 +71,7 @@ impl Sender {
         };
 
         let sessions = (0..multiplex_files)
-            .map(|index| {
-                SenderSession::new(
-                    tsi,
-                    fdt.clone(),
-                    config.interleave_blocks as usize,
-                    index == 0,
-                )
-            })
+            .map(|index| SenderSession::new(tsi, config.interleave_blocks as usize, index == 0))
             .collect();
 
         Sender {
@@ -92,25 +83,22 @@ impl Sender {
 
     /// Add an object to the FDT
     /// After calling this function, a call to `publish()` to publish your modifications
-    pub fn add_object(&self, obj: Box<objectdesc::ObjectDesc>) -> Result<()> {
-        let mut fdt = self.fdt.borrow_mut();
-        fdt.add_object(obj)
+    pub fn add_object(&mut self, obj: Box<objectdesc::ObjectDesc>) -> Result<()> {
+        self.fdt.add_object(obj)
     }
 
     /// Publish modification to the FDT
     /// An updated version of the FDT will be generated and transferred
     /// Multiple modification can be made (ex: several call to 'add_object()`) before publishing a new FDT version
-    pub fn publish(&self, now: SystemTime) -> Result<()> {
-        let mut fdt = self.fdt.borrow_mut();
-        fdt.publish(now)
+    pub fn publish(&mut self, now: SystemTime) -> Result<()> {
+        self.fdt.publish(now)
     }
 
     /// Inform that the FDT is complete, no new object should be added after this call
     /// You must not call `add_object()`after
     /// After calling this function, a call to `publish()` to publish your modifications
-    pub fn set_complete(&self) {
-        let mut fdt = self.fdt.borrow_mut();
-        fdt.set_complete();
+    pub fn set_complete(&mut self) {
+        self.fdt.set_complete();
     }
 
     /// Read the next ALC/LCT packet
@@ -120,7 +108,7 @@ impl Sender {
         let session_index_orig = self.session_index;
         loop {
             let session = self.sessions.get_mut(self.session_index).unwrap();
-            let data = session.run(now);
+            let data = session.run(&mut self.fdt, now);
 
             self.session_index += 1;
             if self.session_index == self.sessions.len() {
@@ -200,7 +188,7 @@ mod tests {
         )
         .unwrap();
 
-        let sender = super::Sender::new(1, &oti, &Default::default());
+        let mut sender = super::Sender::new(1, &oti, &Default::default());
         let res = sender.add_object(object);
         assert!(res.is_err());
     }
