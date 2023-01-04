@@ -35,10 +35,11 @@ impl MultiReceiver {
     /// // Receive objects from Transport Session 1
     /// use flute::receiver::objectwriter::FluteWriterBuffer;
     /// use flute::receiver::MultiReceiver;
+    /// use std::rc::Rc;
     ///
     /// let tsi: u64 = 1;
     /// // Write object to a buffer
-    /// let writer = FluteWriterBuffer::new();
+    /// let writer = Rc::new(FluteWriterBuffer::new());
     /// let receiver = MultiReceiver::new(Some(&vec![1]), writer.clone(), None);
     /// ```
     pub fn new(
@@ -123,6 +124,7 @@ impl MultiReceiver {
 mod tests {
 
     use rand::RngCore;
+    use std::rc::Rc;
 
     use crate::alc::{lct, objectdesc, oti, sender};
     use crate::receiver::objectwriter::FluteWriterBuffer;
@@ -201,17 +203,17 @@ mod tests {
         let output_session = output.objects.borrow();
         assert!(output_session.len() == 1);
 
-        let output_object = &output_session[0];
-        let output_file_buffer = output_object.data();
-        let output_meta = output_object.meta().unwrap();
+        let output_object = output_session[0].as_ref().borrow();
+        let output_file_buffer: &[u8] = output_object.data.as_ref();
+        let output_meta = output_object.meta.as_ref().unwrap();
 
         log::info!(
             "Receiver buffer {} expect {}",
             output_file_buffer.len(),
             input_buffer.len()
         );
-        assert!(output_object.is_complete() == true);
-        assert!(output_object.is_error() == false);
+        assert!(output_object.complete == true);
+        assert!(output_object.error == false);
         assert!(output_file_buffer.eq(input_buffer));
         assert!(output_meta.content_location.eq(input_content_location));
         assert!(output_meta.content_length.unwrap() == input_buffer.len());
@@ -243,7 +245,7 @@ mod tests {
     ) {
         let content_type = "application/octet-stream";
         let (input_file_buffer, input_content_location) = create_file_buffer();
-        let output = FluteWriterBuffer::new();
+        let output = Rc::new(FluteWriterBuffer::new());
         let mut receiver = super::MultiReceiver::new(None, output.clone(), None);
         let mut sender = create_sender(
             &input_file_buffer,
@@ -356,7 +358,7 @@ mod tests {
         let oti: oti::Oti = Default::default();
         let (input_file_buffer, input_content_location) = create_file_buffer();
         let content_type = "application/octet-stream";
-        let output = FluteWriterBuffer::new();
+        let output = Rc::new(FluteWriterBuffer::new());
         let mut receiver = super::MultiReceiver::new(None, output.clone(), None);
         let mut sender = create_sender(
             &input_file_buffer,
@@ -386,17 +388,19 @@ mod tests {
         }
 
         let nb_complete_objects = output
+            .as_ref()
             .objects
             .borrow()
             .iter()
-            .filter(|&obj| obj.is_complete())
+            .filter(|&obj| obj.borrow().complete)
             .count();
 
         let nb_error_objects = output
+            .as_ref()
             .objects
             .borrow()
             .iter()
-            .filter(|&obj| obj.is_error())
+            .filter(|&obj| obj.borrow().error)
             .count();
 
         assert!(nb_complete_objects == 0);

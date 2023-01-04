@@ -61,13 +61,14 @@
 //! use flute::receiver::{objectwriter, MultiReceiver};
 //! use std::net::UdpSocket;
 //! use std::time::SystemTime;
+//! use std::rc::Rc;
 //!
 //! // Create UDP/IP socket to receive FLUTE pkt
 //! let udp_socket = UdpSocket::bind("224.0.0.1:3400").expect("Fail to bind");
 //!
 //! // Create a writer able to write received files to the filesystem
-//! let writer = objectwriter::FluteWriterFS::new(&std::path::Path::new("./flute_dir"))
-//!     .unwrap_or_else(|_| std::process::exit(0));
+//! let writer = Rc::new(objectwriter::FluteWriterFS::new(&std::path::Path::new("./flute_dir"))
+//!     .unwrap_or_else(|_| std::process::exit(0)));
 //!
 //! // Create a multi-receiver capable of de-multiplexing several FLUTE sessions
 //! let mut receiver = MultiReceiver::new(None, writer, None);

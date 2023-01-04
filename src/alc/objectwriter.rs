@@ -21,7 +21,7 @@ pub struct ObjectMetadata {
 ///
 pub trait FluteWriter {
     /// Return a new object writer that will be used to store the received object to its final destination
-    fn new_object_writer(&self, tsi: &u64, toi: &u128) -> Rc<dyn ObjectWriter>;
+    fn new_object_writer(&self, tsi: &u64, toi: &u128) -> Box<dyn ObjectWriter>;
 }
 
 ///
@@ -44,23 +44,28 @@ pub trait ObjectWriter {
 #[derive(Debug)]
 pub struct FluteWriterBuffer {
     /// List of all objects received
-    pub objects: RefCell<Vec<Rc<ObjectWriterBuffer>>>,
+    pub objects: RefCell<Vec<Rc<RefCell<ObjectWriterBuffer>>>>,
 }
 
 ///
 /// Write a FLUTE object to a buffer
 ///
 #[derive(Debug)]
-pub struct ObjectWriterBuffer {
-    inner: RefCell<ObjectWriterBufferInner>,
+struct ObjectWriterBufferWrapper {
+    inner: Rc<RefCell<ObjectWriterBuffer>>,
 }
 
 #[derive(Debug)]
-struct ObjectWriterBufferInner {
-    complete: bool,
-    error: bool,
-    data: Vec<u8>,
-    meta: Option<ObjectMetadata>,
+/// Object stored in a buffer
+pub struct ObjectWriterBuffer {
+    /// true when the object is fully received
+    pub complete: bool,
+    /// true when an error occured during the reception
+    pub error: bool,
+    /// buffer containing the data of the object
+    pub data: Vec<u8>,
+    /// Metadata of the object
+    pub meta: Option<ObjectMetadata>,
 }
 
 impl std::fmt::Debug for dyn FluteWriter {
@@ -77,56 +82,29 @@ impl std::fmt::Debug for dyn ObjectWriter {
 
 impl FluteWriterBuffer {
     /// Return a new `ObjectWriterBuffer`
-    pub fn new() -> Rc<FluteWriterBuffer> {
-        Rc::new(FluteWriterBuffer {
+    pub fn new() -> FluteWriterBuffer {
+        FluteWriterBuffer {
             objects: RefCell::new(Vec::new()),
-        })
+        }
     }
 }
 
 impl FluteWriter for FluteWriterBuffer {
-    fn new_object_writer(&self, _tsi: &u64, _toi: &u128) -> Rc<dyn ObjectWriter> {
-        let obj = Rc::new(ObjectWriterBuffer {
-            inner: RefCell::new(ObjectWriterBufferInner {
-                complete: false,
-                error: false,
-                data: Vec::new(),
-                meta: None,
-            }),
-        });
-        let mut sessions = self.objects.borrow_mut();
-        sessions.push(obj.clone());
-        obj
+    fn new_object_writer(&self, _tsi: &u64, _toi: &u128) -> Box<dyn ObjectWriter> {
+        let obj = Rc::new(RefCell::new(ObjectWriterBuffer {
+            complete: false,
+            error: false,
+            data: Vec::new(),
+            meta: None,
+        }));
+
+        let obj_wrapper = Box::new(ObjectWriterBufferWrapper { inner: obj.clone() });
+        self.objects.borrow_mut().push(obj);
+        obj_wrapper
     }
 }
 
-impl ObjectWriterBuffer {
-    /// Get a copy of the buffer with the content of the received object
-    pub fn data(&self) -> Vec<u8> {
-        let inner = self.inner.borrow();
-        inner.data.clone()
-    }
-
-    /// Get the Content-Location of the received object
-    pub fn meta(&self) -> Option<ObjectMetadata> {
-        let inner = self.inner.borrow();
-        inner.meta.clone()
-    }
-
-    /// true when the object has been fully received
-    pub fn is_complete(&self) -> bool {
-        let inner = self.inner.borrow();
-        inner.complete
-    }
-
-    /// true when the object has errors
-    pub fn is_error(&self) -> bool {
-        let inner = self.inner.borrow();
-        inner.error
-    }
-}
-
-impl ObjectWriter for ObjectWriterBuffer {
+impl ObjectWriter for ObjectWriterBufferWrapper {
     fn open(&self, meta: Option<&ObjectMetadata>) -> Result<()> {
         let mut inner = self.inner.borrow_mut();
         inner.meta = meta.map(|meta| meta.clone());
@@ -160,20 +138,20 @@ pub struct FluteWriterFS {
 
 impl FluteWriterFS {
     /// Return a new `ObjectWriterBuffer`
-    pub fn new(dest: &std::path::Path) -> Result<Rc<FluteWriterFS>> {
+    pub fn new(dest: &std::path::Path) -> Result<FluteWriterFS> {
         if !dest.is_dir() {
             return Err(FluteError::new(format!("{:?} is not a directory", dest)));
         }
 
-        Ok(Rc::new(FluteWriterFS {
+        Ok(FluteWriterFS {
             dest: dest.to_path_buf(),
-        }))
+        })
     }
 }
 
 impl FluteWriter for FluteWriterFS {
-    fn new_object_writer(&self, _tsi: &u64, _toi: &u128) -> Rc<dyn ObjectWriter> {
-        let obj = Rc::new(ObjectWriterFS {
+    fn new_object_writer(&self, _tsi: &u64, _toi: &u128) -> Box<dyn ObjectWriter> {
+        let obj = Box::new(ObjectWriterFS {
             dest: self.dest.clone(),
             inner: RefCell::new(ObjectWriterFSInner {
                 destination: None,

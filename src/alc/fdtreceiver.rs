@@ -20,7 +20,7 @@ pub enum State {
 pub struct FdtReceiver {
     pub fdt_id: u32,
     obj: Box<ObjectReceiver>,
-    writer: Rc<FdtWriter>,
+    inner: Rc<RefCell<FdtWriterInner>>,
     fdt_instance: Option<FdtInstance>,
     sender_current_time: Option<SystemTime>,
     receiver_current_time: SystemTime,
@@ -31,7 +31,7 @@ impl std::fmt::Debug for FdtReceiver {
         f.debug_struct("FdtReceiver")
             .field("fdt_id", &self.fdt_id)
             .field("obj", &self.obj)
-            .field("writer", &self.writer)
+            .field("inner", &self.inner)
             .field("fdt_instance", &self.fdt_instance)
             .field("sender_current_time", &self.sender_current_time)
             .field("receiver_current_time", &self.receiver_current_time)
@@ -41,7 +41,7 @@ impl std::fmt::Debug for FdtReceiver {
 
 #[derive(Debug)]
 struct FdtWriter {
-    inner: RefCell<FdtWriterInner>,
+    inner: Rc<RefCell<FdtWriterInner>>,
 }
 
 #[derive(Debug)]
@@ -54,19 +54,21 @@ struct FdtWriterInner {
 
 impl FdtReceiver {
     pub fn new(fdt_id: u32, now: SystemTime) -> FdtReceiver {
-        let writer = Rc::new(FdtWriter {
-            inner: RefCell::new(FdtWriterInner {
-                data: Vec::new(),
-                fdt: None,
-                state: State::Receiving,
-                expires: None,
-            }),
+        let inner = Rc::new(RefCell::new(FdtWriterInner {
+            data: Vec::new(),
+            fdt: None,
+            state: State::Receiving,
+            expires: None,
+        }));
+
+        let writer = Box::new(FdtWriter {
+            inner: inner.clone(),
         });
 
         FdtReceiver {
             fdt_id,
-            obj: Box::new(ObjectReceiver::new(&lct::TOI_FDT, writer.clone())),
-            writer,
+            obj: Box::new(ObjectReceiver::new(&lct::TOI_FDT, writer)),
+            inner: inner.clone(),
             fdt_instance: None,
             sender_current_time: None,
             receiver_current_time: now,
@@ -83,17 +85,17 @@ impl FdtReceiver {
 
         self.obj.push(pkt);
         if self.obj.state == objectreceiver::State::Error {
-            self.writer.inner.borrow_mut().state = State::Error;
+            self.inner.borrow_mut().state = State::Error;
         }
     }
 
     pub fn state(&self) -> State {
-        self.writer.inner.borrow().state
+        self.inner.borrow().state
     }
 
     pub fn fdt_instance(&mut self) -> Option<&FdtInstance> {
         if self.fdt_instance.is_none() {
-            let inner = self.writer.inner.borrow();
+            let inner = self.inner.borrow();
             let instance = inner.fdt.as_ref();
             self.fdt_instance = instance.map(|f| f.clone())
         }
@@ -107,13 +109,13 @@ impl FdtReceiver {
 
         if self.is_expired(now) {
             log::info!("FDT is expired");
-            let mut inner = self.writer.inner.borrow_mut();
+            let mut inner = self.inner.borrow_mut();
             inner.state = State::Expired;
         }
     }
 
     fn is_expired(&self, now: SystemTime) -> bool {
-        let inner = self.writer.inner.borrow();
+        let inner = self.inner.borrow();
         let expires = match inner.expires {
             Some(expires) => expires,
             None => return true,
