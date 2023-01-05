@@ -1,8 +1,8 @@
 # flute
 
-![Build](https://github.com/ypo/flute/actions/workflows/rust.yml/badge.svg)
+[![Build](https://github.com/ypo/flute/actions/workflows/rust.yml/badge.svg)](https://github.com/ypo/flute/actions)
 [![Docs.rs](https://docs.rs/flute/badge.svg)](https://docs.rs/crate/flute/)
-[![Crates.io](https://img.shields.io/crates/v/flute)](https://crates.io/crate/flute/)
+[![Crates.io](https://img.shields.io/crates/v/flute)](https://crates.io/crates/flute/)
 
 ## FLUTE - File Delivery over Unidirectional Transport
 
