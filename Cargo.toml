@@ -15,6 +15,7 @@ rust-version = "1.66"
 [lib]
 name = "flute"
 crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
 
 [dependencies]
 log  = "0.4"
