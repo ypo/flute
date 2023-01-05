@@ -143,6 +143,19 @@ impl Receiver {
         }
     }
 
+    /// Push data to the `Receiver`
+    ///
+    /// # Arguments
+    /// * `data`- Payload of the UDP/IP packet.
+    pub fn push_data(&mut self, data: &[u8], now: std::time::SystemTime) -> Result<()> {
+        let alc = alc::parse_alc_pkt(data)?;
+        if alc.lct.tsi != self.tsi {
+            return Ok(());
+        }
+
+        self.push(&alc, now)
+    }
+
     /// Push ALC/LCT packets to the `Receiver`
     pub fn push(&mut self, alc_pkt: &alc::AlcPkt, now: std::time::SystemTime) -> Result<()> {
         assert!(self.tsi == alc_pkt.lct.tsi);
