@@ -10,8 +10,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-
+  rust:
     runs-on: ubuntu-latest
     strategy:
       matrix:

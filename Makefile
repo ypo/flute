@@ -1,12 +1,10 @@
 SHELL := /bin/bash
 
-install_maturin:
-	python -m venv .env
-	source .env/bin/activate
+init_py:
+	python3 -m venv venv
+	source venv/bin/activate
 	pip install maturin
-
-develop_py:
+	
+test_py:
 	maturin develop --all-features
-
-test_py: develop_py
-	python -m unittest discover
+	python3 -m unittest discover
