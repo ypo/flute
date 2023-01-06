@@ -4,6 +4,7 @@
 [![Python](https://github.com/ypo/flute/actions/workflows/python.yml/badge.svg)](https://github.com/ypo/flute/actions/workflows/python.yml)
 [![Docs.rs](https://docs.rs/flute/badge.svg)](https://docs.rs/crate/flute/)
 [![Crates.io](https://img.shields.io/crates/v/flute)](https://crates.io/crates/flute/)
+[![Rust Dependency](https://deps.rs/repo/github/ypo/flute/status.svg)](https://deps.rs/repo/github/ypo/flute)
 
 ## FLUTE - File Delivery over Unidirectional Transport
 

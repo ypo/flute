@@ -8,62 +8,92 @@ def init():
     logging.getLogger().setLevel(logging.DEBUG)
 
 
-class SenderTestCase(TestCase):
-    from flute import sender
-
+class SenderReceiverTestCase(TestCase):
+    
+    
     init()
-    print("------- SenderTestCase--------")
 
-    config = sender.Config()
-    oti = sender.Oti.new_no_code(1400, 64)
-    flute_sender = sender.Sender(1, oti, config)
+    def test_create_sender(self):
+        from flute import sender
+        print("------- test_create_sender--------")
+        config = sender.Config()
+        oti = sender.Oti.new_no_code(1400, 64)
+        flute_sender = sender.Sender(1, oti, config)
 
-    buf = bytes(b'hello')
-    flute_sender.add_object_from_buffer(buf, "text", "file://hello.txt", None)
+        buf = bytes(b'hello')
+        flute_sender.add_object_from_buffer(buf, "text", "file://hello.txt", None)
 
-    while True:
-        pkt = flute_sender.read()
-        if pkt == None:
-            break
+        while True:
+            pkt = flute_sender.read()
+            if pkt == None:
+                break
 
-        print("Received pkt of " + str(len(pkt)) + " bytes")
+            print("Received pkt of " + str(len(pkt)) + " bytes")
 
-    print("File transmitted !")
+        print("File transmitted !")
+
+    def test_create_receiver(self):
+        from flute import receiver
+        print("------- test_create_receiver--------")
+        writer = receiver.FluteWriter.new_buffer()
+        config = receiver.Config()
+        flute_receiver = receiver.Receiver(1, writer, config)
+        print("Flute Receiver created !")
+
+    def test_create_multireceiver(self):
+        from flute import receiver
+        print("------- test_create_multireceiver--------")
+
+        writer = receiver.FluteWriter.new_buffer()
+        config = receiver.Config()
+        flute_receiver = receiver.MultiReceiver([1], writer, config)
+
+        print("Flute Receiver created !")
 
 
-class ReceiverTestCase(TestCase):
-    from flute import receiver
+    def test_send_receiver(self):
+        from flute import sender, receiver
 
-    init()
-    print("------- ReceiverTestCase--------")
+        print("------- test_send_receiver--------")
 
-    writer = receiver.FluteWriter.new_buffer()
-    config = receiver.Config()
-    flute_receiver = receiver.Receiver(1, writer, config)
+        tsi = 1
 
-    print("Flute Receiver created !")
+        sender_config = sender.Config()
+        oti = sender.Oti.new_no_code(1400, 64)
+        flute_sender = sender.Sender(tsi, oti, sender_config)
 
+        receiver_writer = receiver.FluteWriter.new_buffer()
+        receiver_config = receiver.Config()
+        flute_receiver = receiver.Receiver(tsi, receiver_writer, receiver_config)
 
-class SendReceiveTestCase(TestCase):
-    from flute import sender
-    from flute import receiver
+        while True:
+            pkt = flute_sender.read()
+            if pkt == None:
+                break
 
-    init()
-    print("------- SendReceiveTestCase--------")
+            flute_receiver.push(bytes(pkt))
 
-    tsi = 1
+    def test_send_multi_receiver(self):
+        from flute import sender, receiver
 
-    sender_config = sender.Config()
-    oti = sender.Oti.new_no_code(1400, 64)
-    flute_sender = sender.Sender(tsi, oti, sender_config)
+        print("------- test_send_multi_receiver--------")
 
-    receiver_writer = receiver.FluteWriter.new_buffer()
-    receiver_config = receiver.Config()
-    flute_receiver = receiver.Receiver(tsi, receiver_writer, receiver_config)
+        tsi = 1
 
-    while True:
-        pkt = flute_sender.read()
-        if pkt == None:
-            break
+        sender_config = sender.Config()
+        oti = sender.Oti.new_no_code(1400, 64)
+        flute_sender = sender.Sender(tsi, oti, sender_config)
 
-        flute_receiver.push(bytes(pkt))
+        receiver_writer = receiver.FluteWriter.new_buffer()
+        receiver_config = receiver.Config()
+        flute_receiver = receiver.MultiReceiver(None, receiver_writer, receiver_config)
+
+        while True:
+            pkt = flute_sender.read()
+            if pkt == None:
+                break
+
+            flute_receiver.push(bytes(pkt))
+
+if __name__ == '__main__':
+    unittest.main()

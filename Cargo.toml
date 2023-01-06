@@ -19,7 +19,7 @@ path = "src/lib.rs"
 
 [dependencies]
 log  = "0.4"
-chrono = "0.4"
+chrono = "0.4.23"
 serde = { version = "1.0", features = ["derive"] }
 quick-xml = { version = "0.26", features = ["serialize"] }
 base64 = "0.20"
