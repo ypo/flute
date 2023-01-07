@@ -95,5 +95,21 @@ class SenderReceiverTestCase(TestCase):
 
             flute_receiver.push(bytes(pkt))
 
+    def test_remove_object(self):
+        from flute import sender
+        print("------- test_remove_object--------")
+        config = sender.Config()
+        oti = sender.Oti.new_no_code(1400, 64)
+        flute_sender = sender.Sender(1, oti, config)
+
+        buf = bytes(b'hello')
+        toi = flute_sender.add_object_from_buffer(buf, "text", "file://hello.txt", None)
+        print("object with TOI " + str(toi) + " added")
+        assert(flute_sender.nb_objects() == 1)
+
+        success = flute_sender.remove_object(toi)
+        assert(success == True)
+        assert(flute_sender.nb_objects() == 0)
+
 if __name__ == '__main__':
     unittest.main()

@@ -82,9 +82,32 @@ impl Sender {
     }
 
     /// Add an object to the FDT
+    ///
     /// After calling this function, a call to `publish()` to publish your modifications
-    pub fn add_object(&mut self, obj: Box<objectdesc::ObjectDesc>) -> Result<()> {
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing an `u128` representing the unique identifier of the added object (TOI), if the operation was successful.
+    pub fn add_object(&mut self, obj: Box<objectdesc::ObjectDesc>) -> Result<u128> {
         self.fdt.add_object(obj)
+    }
+
+    /// Remove an object from the FDT
+    ///
+    /// After calling this function, a call to `publish()` to publish your modifications
+    ///
+    /// Warning, if the object is being transferred, the transfer is not canceled
+    ///
+    /// # Returns
+    ///
+    /// `true`if the object has been removed from the FDT
+    pub fn remove_object(&mut self, toi: u128) -> bool {
+        self.fdt.remove_object(toi)
+    }
+
+    /// Number of objects signalled in the FDT
+    pub fn nb_objects(&self) -> usize {
+        self.fdt.nb_objects()
     }
 
     /// Publish modification to the FDT
@@ -191,5 +214,34 @@ mod tests {
         let mut sender = super::Sender::new(1, &oti, &Default::default());
         let res = sender.add_object(object);
         assert!(res.is_err());
+    }
+
+    #[test]
+    pub fn test_sender_remove_object() {
+        crate::tests::init();
+        let oti = Default::default();
+        let buffer = vec![0u8; 10];
+        let object = objectdesc::ObjectDesc::create_from_buffer(
+            &buffer,
+            "text",
+            &url::Url::parse("file:///hello").unwrap(),
+            1,
+            None,
+            lct::Cenc::Null,
+            true,
+            None,
+            true,
+        )
+        .unwrap();
+
+        let mut sender = super::Sender::new(1, &oti, &Default::default());
+        assert!(sender.nb_objects() == 0);
+
+        let toi = sender.add_object(object).unwrap();
+        assert!(sender.nb_objects() == 1);
+
+        let success = sender.remove_object(toi);
+        assert!(success == true);
+        assert!(sender.nb_objects() == 0);
     }
 }

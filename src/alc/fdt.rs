@@ -77,8 +77,9 @@ impl Fdt {
         }
     }
 
-    pub fn add_object(&mut self, obj: Box<objectdesc::ObjectDesc>) -> Result<()> {
-        let filedesc = Arc::new(FileDesc::new(obj, &self.oti, &self.toi, None, None)?);
+    pub fn add_object(&mut self, obj: Box<objectdesc::ObjectDesc>) -> Result<u128> {
+        let toi = self.toi;
+        let filedesc = Arc::new(FileDesc::new(obj, &self.oti, &toi, None, None)?);
         self.toi += 1;
         if self.toi == lct::TOI_FDT {
             self.toi = 1;
@@ -87,7 +88,20 @@ impl Fdt {
         assert!(self.files.contains_key(&filedesc.toi) == false);
         self.files.insert(filedesc.toi, filedesc.clone());
         self.files_transfer_queue.push(filedesc);
-        Ok(())
+        Ok(toi)
+    }
+
+    pub fn remove_object(&mut self, toi: u128) -> bool {
+        match self.files.remove(&toi) {
+            Some(_) => {}
+            None => return false,
+        };
+        self.fdt_transfer_queue.retain(|obj| obj.toi != toi);
+        true
+    }
+
+    pub fn nb_objects(&self) -> usize {
+        self.files.len()
     }
 
     pub fn publish(&mut self, now: SystemTime) -> Result<()> {
@@ -189,6 +203,11 @@ impl Fdt {
                 self.current_fdt_transfer = None;
             }
         } else {
+            if !self.files.contains_key(&file.toi) {
+                log::debug!("Transfer is finished and file has been removed from FDT");
+                return;
+            }
+
             log::info!(
                 "Stop transmission of {}",
                 file.object.content_location.as_str()

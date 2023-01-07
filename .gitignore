@@ -83,3 +83,6 @@ docs/_build/
 
 # maturin
 .env
+
+# Act
+artifact/

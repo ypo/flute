@@ -25,7 +25,7 @@ impl Sender {
         content_type: &str,
         content_location: &str,
         oti: Option<&oti::Oti>,
-    ) -> PyResult<()> {
+    ) -> PyResult<u128> {
         let content_location =
             url::Url::parse(content_location).map_err(|e| PyTypeError::new_err(e.to_string()))?;
 
@@ -46,6 +46,14 @@ impl Sender {
         self.0
             .add_object(object)
             .map_err(|e| PyTypeError::new_err(e.0.to_string()))
+    }
+
+    fn remove_object(&mut self, toi: u128) -> bool {
+        self.0.remove_object(toi)
+    }
+
+    fn nb_objects(&self) -> usize {
+        self.0.nb_objects()
     }
 
     fn publish(&mut self) -> PyResult<()> {
