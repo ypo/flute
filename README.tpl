@@ -2,6 +2,8 @@
 
 # Python bindings
 
+[![PyPI version](https://badge.fury.io/py/flute-alc.svg)](https://badge.fury.io/py/flute-alc)
+
 ## Installation
 
 ```bash
