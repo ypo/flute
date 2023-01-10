@@ -1,0 +1,31 @@
+name: Crates.io
+
+on: workflow_dispatch
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: production
+    # if: "startsWith(github.ref, 'refs/tags/')"
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install latest stable
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - name: Login to crates.io
+        uses: actions-rs/cargo@v1
+        with:
+          command: login
+          arguments: ${{ secrets.CRATES_TOKEN }}
+      - name: Cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+      - name: Publish to crates.io
+        uses: actions-rs/cargo@v1
+        with:
+          command: publish
