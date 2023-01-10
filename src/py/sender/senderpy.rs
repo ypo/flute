@@ -48,6 +48,45 @@ impl Sender {
             .map_err(|e| PyTypeError::new_err(e.0.to_string()))
     }
 
+    fn add_file(
+        &mut self,
+        filepath: &str,
+        content_type: &str,
+        content_location: Option<&str>,
+        cenc: u8,
+        oti: Option<&oti::Oti>,
+    ) -> PyResult<u128> {
+        let cenc = cenc
+            .try_into()
+            .map_err(|_| PyTypeError::new_err("Unknown cenc"))?;
+        let content_location = content_location.map(|content_location| {
+            url::Url::parse(content_location).map_err(|e| PyTypeError::new_err(e.to_string()))
+        });
+        let content_location = match content_location {
+            Some(Err(e)) => return Err(PyTypeError::new_err(e)),
+            Some(Ok(url)) => Some(url),
+            None => None
+        };
+
+        let oti = oti.map(|o| o.0.clone());
+        let object = alc::objectdesc::ObjectDesc::create_from_file(
+            std::path::Path::new(filepath),
+            content_location.as_ref(),
+            content_type,
+            1,
+            None,
+            cenc,
+            true,
+            oti,
+            true,
+        )
+        .map_err(|e| PyTypeError::new_err(e.0.to_string()))?;
+
+        self.0
+            .add_object(object)
+            .map_err(|e| PyTypeError::new_err(e.0.to_string()))
+    }
+
     fn remove_object(&mut self, toi: u128) -> bool {
         self.0.remove_object(toi)
     }

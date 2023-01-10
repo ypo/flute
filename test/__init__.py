@@ -22,6 +22,7 @@ class SenderReceiverTestCase(TestCase):
 
         buf = bytes(b'hello')
         flute_sender.add_object_from_buffer(buf, "text", "file://hello.txt", None)
+        flute_sender.publish()
 
         while True:
             pkt = flute_sender.read()
@@ -66,6 +67,10 @@ class SenderReceiverTestCase(TestCase):
         receiver_config = receiver.Config()
         flute_receiver = receiver.Receiver(tsi, receiver_writer, receiver_config)
 
+        buf = bytes(b'hello world')
+        flute_sender.add_object_from_buffer(buf, "text", "file://hello.txt", None)
+        flute_sender.publish()
+
         while True:
             pkt = flute_sender.read()
             if pkt == None:
@@ -87,6 +92,10 @@ class SenderReceiverTestCase(TestCase):
         receiver_writer = receiver.FluteWriter.new_buffer()
         receiver_config = receiver.Config()
         flute_receiver = receiver.MultiReceiver(None, receiver_writer, receiver_config)
+
+        buf = bytes(b'hello world')
+        flute_sender.add_object_from_buffer(buf, "text", "file://hello.txt", None)
+        flute_sender.publish()
 
         while True:
             pkt = flute_sender.read()
