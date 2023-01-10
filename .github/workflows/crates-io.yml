@@ -20,7 +20,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: login
-          arguments: ${{ secrets.CRATES_TOKEN }}
+          args: ${{ secrets.CRATES_TOKEN }}
       - name: Cargo test
         uses: actions-rs/cargo@v1
         with:
