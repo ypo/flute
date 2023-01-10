@@ -1,4 +1,5 @@
 use crate::tools::error::{FluteError, Result};
+use base64::Engine;
 use quick_xml::de::from_reader;
 use serde::{Deserialize, Serialize};
 
@@ -76,7 +77,8 @@ fn reed_solomon_scheme_specific(
         return Ok(None);
     }
 
-    let info = base64::decode(fec_oti_scheme_specific_info.as_ref().unwrap())
+    let info = base64::engine::general_purpose::STANDARD
+        .decode(fec_oti_scheme_specific_info.as_ref().unwrap())
         .map_err(|_| FluteError::new("Fail to decode base64 specific scheme"))?;
 
     if info.len() != 2 {
@@ -96,7 +98,8 @@ fn _raptorq_scheme_specific(
         return Ok(None);
     }
 
-    let info = base64::decode(fec_oti_scheme_specific_info.as_ref().unwrap())
+    let info = base64::engine::general_purpose::STANDARD
+        .decode(fec_oti_scheme_specific_info.as_ref().unwrap())
         .map_err(|_| FluteError::new("Fail to decode base64 specific scheme"))?;
 
     if info.len() != 4 {

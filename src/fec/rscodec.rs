@@ -85,7 +85,6 @@ impl FecCodec for RSGalois8Codec {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::fec::FecCodec;

@@ -14,5 +14,5 @@ pub struct Pkt {
     pub inband_cenc: bool,
     pub close_object: bool,
     pub source_block_length: u32,
-    pub sender_current_time: Option<SystemTime>
+    pub sender_current_time: Option<SystemTime>,
 }

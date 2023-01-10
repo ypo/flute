@@ -1,4 +1,5 @@
 use crate::tools::error::{FluteError, Result};
+use base64::Engine;
 use serde::Serialize;
 
 ///
@@ -292,7 +293,7 @@ impl Oti {
                 None => None,
             };
 
-            return data.map(|d| base64::encode(d));
+            return data.map(|d| base64::engine::general_purpose::STANDARD.encode(d));
         }
         None
     }

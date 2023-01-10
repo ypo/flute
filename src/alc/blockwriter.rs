@@ -1,3 +1,5 @@
+use base64::Engine;
+
 use crate::{
     alc::uncompress::{DecompressDeflate, DecompressZlib},
     error::{FluteError, Result},
@@ -86,7 +88,7 @@ impl BlockWriter {
             self.bytes_left -= symbols.len();
         }
 
-        self.sbn +=  1;
+        self.sbn += 1;
 
         if self.is_completed() {
             // All blocks have been received -> flush the decoder
@@ -98,7 +100,7 @@ impl BlockWriter {
             self.md5 = self
                 .md5_context
                 .take()
-                .map(|ctx| base64::encode(ctx.compute().0));
+                .map(|ctx| base64::engine::general_purpose::STANDARD.encode(ctx.compute().0));
         }
 
         Ok(true)

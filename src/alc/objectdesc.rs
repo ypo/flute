@@ -1,3 +1,5 @@
+use base64::Engine;
+
 use super::compress;
 use super::lct;
 use super::oti;
@@ -124,7 +126,9 @@ impl ObjectDesc {
 
         let md5 = match md5 {
             // https://www.rfc-editor.org/rfc/rfc2616#section-14.15
-            true => Some(base64::encode(md5::compute(&content).0)),
+            true => {
+                Some(base64::engine::general_purpose::STANDARD.encode(md5::compute(&content).0))
+            }
             false => None,
         };
 

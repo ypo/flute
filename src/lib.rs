@@ -3,9 +3,9 @@
 //! [![Docs.rs](https://docs.rs/flute/badge.svg)](https://docs.rs/crate/flute/)
 //! [![Crates.io](https://img.shields.io/crates/v/flute)](https://crates.io/crates/flute/)
 //! [![Rust Dependency](https://deps.rs/repo/github/ypo/flute/status.svg)](https://deps.rs/repo/github/ypo/flute)
-//! 
+//!
 //! # FLUTE - File Delivery over Unidirectional Transport
-//! 
+//!
 //!
 //! Massively scalable multicast distribution solution
 //!
@@ -100,7 +100,7 @@
 //! - [ ] Reed-Solomon GF 2^m  
 //! - [ ] RaptorQ  
 //!
-//! The `Oti` module provides an implementation of the Object Transmission Information (OTI) 
+//! The `Oti` module provides an implementation of the Object Transmission Information (OTI)
 //! used to configure Forward Error Correction (FEC) encoding in the FLUTE protocol.
 //!
 //!```rust
