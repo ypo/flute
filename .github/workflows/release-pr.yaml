@@ -25,7 +25,5 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           version: ${{ inputs.version }}
-          pr-template: "Release (<%= version.actual %>)"
-          pr-title: "Release <%= crate.name %> <%= version.actual %> (was <%= version.previous %>)"
           pr-release-notes: true
           pr-merge-strategy: squash
