@@ -1,13 +1,13 @@
 use super::oti::{self, Oti};
-use crate::fec;
-use crate::fec::FecCodec;
+use crate::fec::{self, FecShard};
+use crate::fec::{DataFecShard, FecCodec};
 use crate::tools::error::{FluteError, Result};
 
 #[derive(Debug)]
 pub struct Block {
     sbn: u32,
-    esi: u32,
-    shards: Vec<Vec<u8>>,
+    read_index: u32,
+    shards: Vec<Box<dyn FecShard>>,
     pub nb_source_symbols: usize,
 }
 
@@ -27,11 +27,8 @@ impl Block {
     ) -> Result<Box<Block>> {
         let nb_source_symbols: usize =
             num_integer::div_ceil(buffer.len(), oti.encoding_symbol_length as usize);
-        let shards: Vec<Vec<u8>> = match oti.fec_encoding_id {
-            oti::FECEncodingID::NoCode => buffer
-                .chunks(oti.encoding_symbol_length as usize)
-                .map(|chunk| chunk.to_vec())
-                .collect(),
+        let shards: Vec<Box<dyn FecShard>> = match oti.fec_encoding_id {
+            oti::FECEncodingID::NoCode => Block::create_shards_no_code(oti, buffer),
             oti::FECEncodingID::ReedSolomonGF28 => Block::create_shards_reed_solomon_gf8(
                 oti,
                 nb_source_symbols,
@@ -48,30 +45,46 @@ impl Block {
                 )?
             }
             oti::FECEncodingID::ReedSolomonGF2M => return Err(FluteError::new("Not implemented")),
+            oti::FECEncodingID::RaptorQ => return Err(FluteError::new("Not implemented")),
         };
 
         Ok(Box::new(Block {
             sbn,
-            esi: 0,
+            read_index: 0,
             shards: shards,
             nb_source_symbols,
         }))
     }
 
     pub fn read(&mut self) -> Option<EncodingSymbol> {
-        if self.esi as usize == self.shards.len() {
+        if self.read_index as usize == self.shards.len() {
             return None;
         }
-        let shard = self.shards[self.esi as usize].as_slice();
-        let is_source_symbol = (self.esi as usize) < self.nb_source_symbols;
+        let shard = self.shards[self.read_index as usize].as_ref();
+        let esi = shard.esi();
+        let is_source_symbol = (esi as usize) < self.nb_source_symbols;
         let symbol = EncodingSymbol {
             sbn: self.sbn,
-            esi: self.esi,
-            symbols: shard,
+            esi: shard.esi(),
+            symbols: shard.data(),
             is_source_symbol,
         };
-        self.esi += 1;
+        self.read_index += 1;
         Some(symbol)
+    }
+
+    fn create_shards_no_code(oti: &Oti, buffer: &[u8]) -> Vec<Box<dyn FecShard>> {
+        buffer
+            .chunks(oti.encoding_symbol_length as usize)
+            .enumerate()
+            .map(|(index, chunk)| {
+                Box::new(DataFecShard::new(
+                    chunk,
+                    index as u32,
+                    fec::ShardType::SourceSymbol,
+                )) as Box<dyn FecShard>
+            })
+            .collect()
     }
 
     fn create_shards_reed_solomon_gf8(
@@ -79,7 +92,7 @@ impl Block {
         nb_source_symbols: usize,
         block_length: usize,
         buffer: &[u8],
-    ) -> Result<Vec<Vec<u8>>> {
+    ) -> Result<Vec<Box<dyn FecShard>>> {
         assert!(nb_source_symbols <= oti.maximum_source_block_length as usize);
         assert!(nb_source_symbols <= block_length as usize);
         let encoder = fec::rscodec::RSGalois8Codec::new(

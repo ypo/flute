@@ -13,6 +13,7 @@ pub struct BlockDecoder {
     nb_shards_source_symbol: usize,
     decoder: Option<Box<dyn FecCodec>>,
     source_block_length: usize,
+    sbn: u32,
 }
 
 impl BlockDecoder {
@@ -25,14 +26,16 @@ impl BlockDecoder {
             nb_shards_source_symbol: 0,
             decoder: None,
             source_block_length: 0,
+            sbn: 0
         }
     }
 
-    pub fn init(&mut self, oti: &oti::Oti, source_block_length: u32) -> Result<()> {
+    pub fn init(&mut self, oti: &oti::Oti, source_block_length: u32, sbn: u32) -> Result<()> {
         if self.initialized {
             return Ok(());
         }
 
+        self.sbn = sbn;
         let nb_shards = oti.max_number_of_parity_symbols + source_block_length;
         self.shards.resize_with(nb_shards as usize, || None);
         self.source_block_length = source_block_length as usize;
@@ -56,6 +59,9 @@ impl BlockDecoder {
                 self.decoder = Some(Box::new(codec));
             }
             oti::FECEncodingID::ReedSolomonGF2M => {
+                log::warn!("Not implemented")
+            }
+            oti::FECEncodingID::RaptorQ => {
                 log::warn!("Not implemented")
             }
         }
@@ -120,7 +126,7 @@ impl BlockDecoder {
             return;
         }
 
-        let success = self.decoder.as_ref().unwrap().decode(&mut self.shards);
+        let success = self.decoder.as_ref().unwrap().decode(self.sbn, &mut self.shards);
         let source_block_length = self.source_block_length;
         let nb_shards_source_symbol = self.nb_shards_source_symbol;
         self.nb_shards_source_symbol = self

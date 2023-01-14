@@ -25,12 +25,14 @@ impl dyn AlcCodec {
         const ALCRS2M: alcrs2m::AlcRS2m = alcrs2m::AlcRS2m {};
         const ALCRS28UNDERSPECIFIED: alcrs28underspecified::AlcRS28UnderSpecified =
             alcrs28underspecified::AlcRS28UnderSpecified {};
+        const ALCRAPTORQ: alcraptorq::AlcRaptorQ = alcraptorq::AlcRaptorQ {};
 
         match fec {
             oti::FECEncodingID::NoCode => &NOCODE,
             oti::FECEncodingID::ReedSolomonGF2M => &ALCRS2M,
             oti::FECEncodingID::ReedSolomonGF28 => &ALCRS28,
             oti::FECEncodingID::ReedSolomonGF28UnderSpecified => &ALCRS28UNDERSPECIFIED,
+            oti::FECEncodingID::RaptorQ => &ALCRAPTORQ,
         }
     }
 }

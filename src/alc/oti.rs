@@ -16,7 +16,8 @@ pub enum FECEncodingID {
     ReedSolomonGF2M = 2,
     /// Reed Solomon GF28
     ReedSolomonGF28 = 5,
-    // RaptorQ = 6,
+    /// RaptorQ
+    RaptorQ = 6,
     /// Reed Solomon GF28, under specified Small Block Systematic
     ReedSolomonGF28UnderSpecified = 129,
 }
@@ -250,6 +251,7 @@ impl Oti {
             FECEncodingID::ReedSolomonGF2M => 0xFFFFFFFFFFFF, // 48 bits max
             FECEncodingID::ReedSolomonGF28 => 0xFFFFFFFFFFFF, // 48 bits max
             FECEncodingID::ReedSolomonGF28UnderSpecified => 0xFFFFFFFFFFFF, // 48 bits max
+            FECEncodingID::RaptorQ => 0xFFFFFFFFFFF, // 40 bits max
         };
 
         let max_sbn = self.max_source_blocks_number();
@@ -269,6 +271,7 @@ impl Oti {
             FECEncodingID::ReedSolomonGF2M => todo!(),
             FECEncodingID::ReedSolomonGF28 => u8::MAX as usize,
             FECEncodingID::ReedSolomonGF28UnderSpecified => u32::MAX as usize,
+            FECEncodingID::RaptorQ => u8::MAX as usize,
         }
     }
 

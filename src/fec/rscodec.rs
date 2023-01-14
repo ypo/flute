@@ -1,6 +1,6 @@
 use crate::tools::error::{FluteError, Result};
 
-use super::FecCodec;
+use super::{DataFecShard, FecCodec, FecShard, ShardType};
 
 #[derive(Debug)]
 pub struct RSCodecParam {
@@ -63,15 +63,31 @@ impl RSGalois8Codec {
 }
 
 impl FecCodec for RSGalois8Codec {
-    fn encode(&self, data: &[u8]) -> Result<Vec<Vec<u8>>> {
+    fn encode(&self, data: &[u8]) -> Result<Vec<Box<dyn FecShard>>> {
         let mut shards = self.params.create_shards(data)?;
         self.rs
             .encode(&mut shards)
             .map_err(|_| FluteError::new("Fail to encode RS"))?;
+
+        let shards: Vec<Box<dyn FecShard>> = shards
+            .into_iter()
+            .enumerate()
+            .map(|(index, shard)| {
+                Box::new(DataFecShard {
+                    shard,
+                    index: index as u32,
+                    shard_type: match index < self.params.nb_source_symbols {
+                        true => ShardType::SourceSymbol,
+                        _ => ShardType::RepairSymbol,
+                    },
+                }) as Box<dyn FecShard>
+            })
+            .collect();
+
         Ok(shards)
     }
 
-    fn decode(&self, shards: &mut Vec<Option<Vec<u8>>>) -> bool {
+    fn decode(&self, _sbn: u32, shards: &mut Vec<Option<Vec<u8>>>) -> bool {
         match self.rs.reconstruct(shards) {
             Ok(_) => {
                 log::info!("Reconstruct with success !");
@@ -93,7 +109,6 @@ mod tests {
         crate::tests::init();
         let data = vec![1, 2, 3, 4, 5];
         let encoder = super::RSGalois8Codec::new(2, 3, 4).unwrap();
-        let shards = encoder.encode(&data).unwrap();
-        log::info!("{:?}", shards);
+        let _shards = encoder.encode(&data).unwrap();
     }
 }

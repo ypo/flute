@@ -129,7 +129,7 @@ impl ObjectReceiver {
                 }
             });
 
-            match block.init(oti, source_block_length) {
+            match block.init(oti, source_block_length, payload_id.sbn) {
                 Ok(_) => {}
                 Err(_) => {
                     self.state = State::Error;
