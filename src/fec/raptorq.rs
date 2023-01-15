@@ -1,3 +1,5 @@
+use crate::alc::oti::RaptorQSchemeSpecific;
+
 use super::{FecCodec, FecShard, ShardType};
 
 pub struct RaptorQ {
@@ -28,12 +30,16 @@ impl RaptorQ {
         nb_source_symbols: usize,
         nb_parity_symbols: usize,
         encoding_symbol_length: usize,
+        scheme: &RaptorQSchemeSpecific,
     ) -> Self {
         RaptorQ {
             nb_parity_symbols,
-            config: raptorq::ObjectTransmissionInformation::with_defaults(
+            config: raptorq::ObjectTransmissionInformation::new(
                 (nb_source_symbols * encoding_symbol_length) as u64,
                 encoding_symbol_length as u16,
+                1,
+                scheme.sub_blocks_length,
+                scheme.symbol_alignment,
             ),
         }
     }
@@ -102,7 +108,7 @@ impl FecCodec for RaptorQ {
 
 #[cfg(test)]
 mod tests {
-    use crate::fec::FecCodec;
+    use crate::{alc::oti::RaptorQSchemeSpecific, fec::FecCodec};
 
     #[test]
     pub fn test_raptorq_encode() {
@@ -114,7 +120,18 @@ mod tests {
 
         let data = vec![0xAAu8; nb_source_symbols * symbols_length];
 
-        let r = super::RaptorQ::new(nb_source_symbols, nb_parity_symbols, symbols_length);
+        let scheme = RaptorQSchemeSpecific {
+            source_block_length: 1,
+            sub_blocks_length: 1,
+            symbol_alignment: 8,
+        };
+
+        let r = super::RaptorQ::new(
+            nb_source_symbols,
+            nb_parity_symbols,
+            symbols_length,
+            &scheme,
+        );
         let encoded_data = r.encode(data.as_ref()).unwrap();
         log::info!("NB source symbols={}", encoded_data.len());
     }
