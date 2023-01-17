@@ -28,20 +28,17 @@ impl AlcCodec for AlcRaptorQ {
         */
         let ext_header: u16 = (lct::Ext::Fti as u16) << 8 | 4u16;
         let transfer_header: u64 = (transfer_length << 24) | oti.encoding_symbol_length as u64;
-        let z = oti.maximum_source_block_length as u8;
-        let n = oti.max_number_of_parity_symbols as u16;
-        let al = oti
-            .raptorq_scheme_specific
-            .as_ref()
-            .map(|r| r.symbol_alignment)
-            .unwrap_or(1);
+
+        assert!(oti.raptorq_scheme_specific.is_some());
+        let raptorq = oti.raptorq_scheme_specific.as_ref().unwrap();
+
         let padding: u16 = 0;
 
         data.extend(ext_header.to_be_bytes());
         data.extend(transfer_header.to_be_bytes());
-        data.push(z);
-        data.extend(n.to_be_bytes());
-        data.push(al);
+        data.push(raptorq.source_block_length);
+        data.extend(raptorq.sub_blocks_length.to_be_bytes());
+        data.push(raptorq.symbol_alignment);
         data.extend(padding.to_be_bytes());
         lct::inc_hdr_len(data, 4);
     }

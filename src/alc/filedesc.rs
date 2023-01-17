@@ -4,7 +4,7 @@ use std::time::SystemTime;
 use crate::error::{FluteError, Result};
 
 use super::objectdesc::ObjectDesc;
-use super::{fdtinstance, oti};
+use super::{fdtinstance, oti, partition};
 
 #[derive(Debug)]
 struct TransferInfo {
@@ -31,7 +31,7 @@ impl FileDesc {
         fdt_id: Option<u32>,
         sender_current_time: Option<SystemTime>,
     ) -> Result<FileDesc> {
-        let oti = match &object.oti {
+        let mut oti = match &object.oti {
             Some(res) => res.clone(),
             None => default_oti.clone(),
         };
@@ -42,6 +42,34 @@ impl FileDesc {
                 "Object transfer length of {} is bigger than {}, so is incompatible with the parameters of your OTI",
                 object.transfer_length, max_transfer_length
             )));
+        }
+
+        if oti.fec_encoding_id == oti::FECEncodingID::RaptorQ {
+            // Calculate the source block length of RaptorQ
+
+            if oti.raptorq_scheme_specific.is_none() {
+                return Err(FluteError::new(
+                    "FEC RaptorQ is select, however scheme parameters are not defined",
+                ));
+            }
+
+            log::info!("Num blocks {:?} {}", oti, object.transfer_length);
+            let (_, _, _, nb_blocks) = partition::block_partitioning(
+                oti.maximum_source_block_length as u64,
+                object.transfer_length as u64,
+                oti.encoding_symbol_length as u64,
+            );
+
+            let nb_blocks:u8 = nb_blocks.try_into().map_err(|_| {
+                FluteError::new(format!(
+                    "Object transfer length of {} requires the transmission of {} source blocks, the maximum is {}, your object is incompatible with the FEC parameters of your OTI",
+                    object.transfer_length,
+                    nb_blocks, u8::MAX
+                ))
+            })?;
+
+            let scheme = oti.raptorq_scheme_specific.as_mut().unwrap();
+            scheme.source_block_length = nb_blocks;
         }
 
         Ok(FileDesc {
@@ -106,7 +134,10 @@ impl FileDesc {
     }
 
     pub fn to_file_xml(&self) -> fdtinstance::File {
-        let oti_attributes = self.object.oti.as_ref().map(|oti| oti.get_attributes());
+        let oti_attributes = match self.oti.fec_encoding_id {
+            oti::FECEncodingID::RaptorQ => Some(self.oti.get_attributes()), // for RaptorQ we need to add OTI for each object
+            _ => self.object.oti.as_ref().map(|oti| oti.get_attributes()),
+        };
 
         fdtinstance::File {
             content_location: self.object.content_location.to_string(),

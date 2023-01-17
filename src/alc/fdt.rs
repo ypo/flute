@@ -53,7 +53,11 @@ impl Fdt {
         let ntp = tools::system_time_to_ntp(now).unwrap_or(0);
         let expires_ntp = (ntp >> 32) + self.duration.as_secs();
 
-        let oti_attributes = self.oti.get_attributes();
+        let oti_attributes = match self.oti.fec_encoding_id {
+            oti::FECEncodingID::RaptorQ => None, // RaptorA scheme parameters is object dependent
+            _ => Some(self.oti.get_attributes()),
+        };
+
         FdtInstance {
             xmlns_xsi: "http://www.w3.org/2001/XMLSchema-instance".into(),
             xsi_schema_location: "urn:ietf:params:xml:ns:fdt ietf-flute-fdt.xsd".into(),
@@ -61,13 +65,31 @@ impl Fdt {
             complete: self.complete,
             content_type: None,
             content_encoding: None,
-            fec_oti_fec_encoding_id: oti_attributes.fec_oti_fec_encoding_id,
-            fec_oti_encoding_symbol_length: oti_attributes.fec_oti_encoding_symbol_length,
-            fec_oti_fec_instance_id: oti_attributes.fec_oti_fec_instance_id,
-            fec_oti_max_number_of_encoding_symbols: oti_attributes
-                .fec_oti_max_number_of_encoding_symbols,
-            fec_oti_maximum_source_block_length: oti_attributes.fec_oti_maximum_source_block_length,
-            fec_oti_scheme_specific_info: oti_attributes.fec_oti_scheme_specific_info,
+            fec_oti_fec_encoding_id: match &oti_attributes {
+                None => None,
+                Some(attr) => attr.fec_oti_fec_encoding_id,
+            },
+            fec_oti_encoding_symbol_length: match &oti_attributes {
+                None => None,
+                Some(attr) => attr.fec_oti_encoding_symbol_length,
+            },
+            fec_oti_fec_instance_id: match &oti_attributes {
+                None => None,
+                Some(attr) => attr.fec_oti_fec_instance_id,
+            },
+            fec_oti_max_number_of_encoding_symbols: match &oti_attributes {
+                None => None,
+                Some(attr) => attr.fec_oti_max_number_of_encoding_symbols,
+            },
+            fec_oti_maximum_source_block_length: match &oti_attributes {
+                None => None,
+                Some(attr) => attr.fec_oti_maximum_source_block_length,
+            },
+            fec_oti_scheme_specific_info: match &oti_attributes {
+                None => None,
+                Some(attr) => attr.fec_oti_scheme_specific_info.clone(),
+            },
+
             file: Some(
                 self.files
                     .iter()

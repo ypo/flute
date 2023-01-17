@@ -47,8 +47,18 @@ impl RaptorQ {
 
 impl FecCodec for RaptorQ {
     fn encode(&self, data: &[u8]) -> crate::error::Result<Vec<Box<dyn FecShard>>> {
-        log::info!("OTI={:?}", self.config);
-        let encoder = raptorq::SourceBlockEncoder::new2(0, &self.config.clone(), data);
+        let symbol_aligned = data.len() % self.config.symbol_size() as usize;
+        let encoder = match data.len() % self.config.symbol_size() as usize {
+            0 => raptorq::SourceBlockEncoder::new2(0, &self.config.clone(), data),
+            _ => {
+                let mut data = data.to_vec();
+                data.resize(
+                    data.len() + (self.config.symbol_size() as usize - symbol_aligned),
+                    0,
+                );
+                raptorq::SourceBlockEncoder::new2(0, &self.config.clone(), &data)
+            }
+        };
 
         let src_pkt = encoder.source_packets();
         let repair_pkt = encoder.repair_packets(0, self.nb_parity_symbols as u32);

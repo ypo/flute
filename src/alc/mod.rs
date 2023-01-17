@@ -13,6 +13,7 @@ mod objectreceiver;
 mod pkt;
 mod sendersession;
 mod uncompress;
+mod partition;
 
 pub mod lct;
 pub mod multireceiver;

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use super::filedesc;
+use super::partition;
 use super::pkt;
 use crate::tools::error::Result;
 
@@ -86,23 +87,13 @@ impl BlockEncoder {
     }
 
     fn block_partitioning(&mut self) {
-        // https://tools.ietf.org/html/rfc5052
-        // Block Partitioning Algorithm
         let oti = &self.file.oti;
-        let b = oti.maximum_source_block_length as u64;
-        let l = self.file.object.transfer_length;
-        let e = oti.encoding_symbol_length as u64;
-
-        let t = num_integer::div_ceil(l, e);
-        let mut n = num_integer::div_ceil(t, b);
-        if n == 0 {
-            n = 1
-        }
-
-        self.a_large = num_integer::div_ceil(t, n);
-        self.a_small = num_integer::div_floor(t, n);
-        self.nb_a_large = t - (self.a_small * n);
-        self.nb_blocks = n;
+        (self.a_large, self.a_small, self.nb_a_large, self.nb_blocks) =
+            partition::block_partitioning(
+                oti.maximum_source_block_length as u64,
+                self.file.object.transfer_length,
+                oti.encoding_symbol_length as u64,
+            );
     }
 
     fn read_block(&mut self) -> Result<()> {

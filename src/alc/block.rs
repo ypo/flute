@@ -35,7 +35,6 @@ impl Block {
                 block_length as usize,
                 buffer,
             )?,
-
             oti::FECEncodingID::ReedSolomonGF28UnderSpecified => {
                 Block::create_shards_reed_solomon_gf8(
                     oti,
@@ -45,7 +44,9 @@ impl Block {
                 )?
             }
             oti::FECEncodingID::ReedSolomonGF2M => return Err(FluteError::new("Not implemented")),
-            oti::FECEncodingID::RaptorQ => return Err(FluteError::new("Not implemented")),
+            oti::FECEncodingID::RaptorQ => {
+                Block::create_shards_raptorq(oti, nb_source_symbols, block_length as usize, buffer)?
+            }
         };
 
         Ok(Box::new(Block {
@@ -100,6 +101,25 @@ impl Block {
             oti.max_number_of_parity_symbols as usize,
             oti.encoding_symbol_length as usize,
         )?;
+        let shards = encoder.encode(&buffer)?;
+        Ok(shards)
+    }
+
+    fn create_shards_raptorq(
+        oti: &Oti,
+        nb_source_symbols: usize,
+        block_length: usize,
+        buffer: &[u8],
+    ) -> Result<Vec<Box<dyn FecShard>>> {
+        assert!(nb_source_symbols <= oti.maximum_source_block_length as usize);
+        assert!(nb_source_symbols <= block_length as usize);
+        assert!(oti.raptorq_scheme_specific.is_some());
+        let encoder = fec::raptorq::RaptorQ::new(
+            nb_source_symbols,
+            oti.max_number_of_parity_symbols as usize,
+            oti.encoding_symbol_length as usize,
+            oti.raptorq_scheme_specific.as_ref().unwrap(),
+        );
         let shards = encoder.encode(&buffer)?;
         Ok(shards)
     }
