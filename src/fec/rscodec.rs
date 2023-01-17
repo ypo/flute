@@ -99,6 +99,10 @@ impl FecCodec for RSGalois8Codec {
             }
         }
     }
+
+    fn is_fountain(&self) -> bool {
+        false
+    }
 }
 
 #[cfg(test)]

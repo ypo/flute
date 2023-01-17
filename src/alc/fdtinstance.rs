@@ -107,7 +107,7 @@ fn _raptorq_scheme_specific(
     }
 
     Ok(Some(RaptorQSchemeSpecific {
-        source_block_length: info[0],
+        source_blocks_length: info[0],
         sub_blocks_length: u16::from_be_bytes(info[1..3].as_ref().try_into().unwrap()),
         symbol_alignment: info[3],
     }))

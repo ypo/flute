@@ -69,7 +69,7 @@ impl FileDesc {
             })?;
 
             let scheme = oti.raptorq_scheme_specific.as_mut().unwrap();
-            scheme.source_block_length = nb_blocks;
+            scheme.source_blocks_length = nb_blocks;
         }
 
         Ok(FileDesc {

@@ -49,6 +49,8 @@ impl DataFecShard {
 pub trait FecCodec {
     fn encode(&self, data: &[u8]) -> Result<Vec<Box<dyn FecShard>>>;
     fn decode(&self, sbn: u32, shards: &mut Vec<Option<Vec<u8>>>) -> bool;
+    // , fountain codes ,potentially limitless sequence of encoding symbols
+    fn is_fountain(&self) -> bool;
 }
 
 impl std::fmt::Debug for dyn FecCodec {

@@ -1,5 +1,7 @@
 use super::alc;
 use super::oti;
+use crate::error::FluteError;
+use crate::fec;
 use crate::fec::rscodec;
 use crate::fec::FecCodec;
 use crate::tools::error::Result;
@@ -26,7 +28,7 @@ impl BlockDecoder {
             nb_shards_source_symbol: 0,
             decoder: None,
             source_block_length: 0,
-            sbn: 0
+            sbn: 0,
         }
     }
 
@@ -62,7 +64,17 @@ impl BlockDecoder {
                 log::warn!("Not implemented")
             }
             oti::FECEncodingID::RaptorQ => {
-                log::warn!("Not implemented")
+                if oti.raptorq_scheme_specific.is_none() {
+                    return Err(FluteError::new("RaptorQ Scheme not found"));
+                }
+
+                let codec = fec::raptorq::RaptorQ::new(
+                    source_block_length as usize,
+                    oti.max_number_of_parity_symbols as usize,
+                    oti.encoding_symbol_length as usize,
+                    oti.raptorq_scheme_specific.as_ref().unwrap(),
+                );
+                self.decoder = Some(Box::new(codec));
             }
         }
 
@@ -81,13 +93,18 @@ impl BlockDecoder {
     pub fn push(&mut self, pkt: &alc::AlcPkt, payload_id: &alc::PayloadID) {
         assert!(self.initialized);
         if payload_id.esi as usize >= self.shards.len() {
-            log::error!(
-                "esi {} is outside sbn {} of max length {}",
-                payload_id.esi,
-                payload_id.sbn,
-                self.shards.len()
-            );
-            return;
+            if self.decoder.is_none() || !self.decoder.as_ref().unwrap().is_fountain() {
+                log::error!(
+                    "esi {} is outside sbn {} of max length {}",
+                    payload_id.esi,
+                    payload_id.sbn,
+                    self.shards.len()
+                );
+
+                return;
+            }
+            log::info!("Resize shards for fountain decoder");
+            self.shards.resize(payload_id.esi as usize + 1, None);
         }
 
         let shard = &mut self.shards[payload_id.esi as usize];
@@ -126,7 +143,11 @@ impl BlockDecoder {
             return;
         }
 
-        let success = self.decoder.as_ref().unwrap().decode(self.sbn, &mut self.shards);
+        let success = self
+            .decoder
+            .as_ref()
+            .unwrap()
+            .decode(self.sbn, &mut self.shards);
         let source_block_length = self.source_block_length;
         let nb_shards_source_symbol = self.nb_shards_source_symbol;
         self.nb_shards_source_symbol = self

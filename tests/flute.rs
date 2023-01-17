@@ -154,7 +154,13 @@ mod tests {
     #[test]
     pub fn test_receiver_no_code() {
         init();
-        test_receiver_with_oti(&Default::default(), false, sender::Cenc::Null, true, None);
+        test_receiver_with_oti(
+            &sender::Oti::new_no_code(1400, 64),
+            false,
+            sender::Cenc::Null,
+            true,
+            None,
+        );
     }
 
     #[test]
@@ -200,18 +206,22 @@ mod tests {
     #[test]
     pub fn test_receiver_reed_solomon_gf28_under_specified() {
         crate::tests::init();
-        let mut oti: sender::Oti = Default::default();
-        oti.fec_encoding_id = sender::FECEncodingID::ReedSolomonGF28UnderSpecified;
-        oti.max_number_of_parity_symbols = 3;
+        let oti: sender::Oti =
+            sender::Oti::new_reed_solomon_rs28_under_specified(1400, 64, 3).unwrap();
         test_receiver_with_oti(&oti, true, sender::Cenc::Null, true, None);
     }
 
     #[test]
     pub fn test_receiver_reed_solomon_gf28() {
         crate::tests::init();
-        let mut oti: sender::Oti = Default::default();
-        oti.fec_encoding_id = sender::FECEncodingID::ReedSolomonGF28;
-        oti.max_number_of_parity_symbols = 3;
+        let oti: sender::Oti = sender::Oti::new_reed_solomon_rs28(1400, 64, 3).unwrap();
+        test_receiver_with_oti(&oti, true, sender::Cenc::Null, true, None);
+    }
+
+    #[test]
+    pub fn test_receiver_raptorq() {
+        crate::tests::init();
+        let oti: sender::Oti = sender::Oti::new_raptorq(1400, 64, 3, 1, 4).unwrap();
         test_receiver_with_oti(&oti, true, sender::Cenc::Null, true, None);
     }
 

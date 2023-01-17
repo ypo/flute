@@ -5,6 +5,7 @@ use super::{FecCodec, FecShard, ShardType};
 pub struct RaptorQ {
     config: raptorq::ObjectTransmissionInformation,
     nb_parity_symbols: usize,
+    nb_source_symbols: usize,
 }
 
 #[derive(Debug)]
@@ -34,6 +35,7 @@ impl RaptorQ {
     ) -> Self {
         RaptorQ {
             nb_parity_symbols,
+            nb_source_symbols,
             config: raptorq::ObjectTransmissionInformation::new(
                 (nb_source_symbols * encoding_symbol_length) as u64,
                 encoding_symbol_length as u16,
@@ -83,8 +85,17 @@ impl FecCodec for RaptorQ {
 
     fn decode(&self, sbn: u32, shards: &mut Vec<Option<Vec<u8>>>) -> bool {
         let block_length = shards.len() * self.config.symbol_size() as usize;
-        let mut decoder =
-            raptorq::SourceBlockDecoder::new2(sbn as u8, &self.config, block_length as u64);
+        log::debug!(
+            "Create raptorq decoder for sbn {} block_length {} config {:?}",
+            sbn,
+            block_length,
+            self.config
+        );
+        let mut decoder = raptorq::SourceBlockDecoder::new2(
+            sbn as u8,
+            &self.config,
+            self.nb_source_symbols as u64,
+        );
 
         let packets = shards
             .iter()
@@ -102,6 +113,7 @@ impl FecCodec for RaptorQ {
             log::error!("Fail to decode");
             return false;
         }
+        log::info!("RaptorQ decoded with success !");
         result
             .unwrap()
             .chunks(self.config.symbol_size() as usize)
@@ -112,6 +124,10 @@ impl FecCodec for RaptorQ {
                     s.replace(shard.to_vec());
                 }
             });
+        true
+    }
+
+    fn is_fountain(&self) -> bool {
         true
     }
 }
@@ -131,7 +147,7 @@ mod tests {
         let data = vec![0xAAu8; nb_source_symbols * symbols_length];
 
         let scheme = RaptorQSchemeSpecific {
-            source_block_length: 1,
+            source_blocks_length: 1,
             sub_blocks_length: 1,
             symbol_alignment: 8,
         };

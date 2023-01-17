@@ -26,8 +26,11 @@ impl AlcCodec for AlcRaptorQ {
         The number of sub-blocks (N): 16-bit unsigned integer.
         A symbol alignment parameter (Al): 8-bit unsigned integer.
         */
-        let ext_header: u16 = (lct::Ext::Fti as u16) << 8 | 4u16;
-        let transfer_header: u64 = (transfer_length << 24) | oti.encoding_symbol_length as u64;
+        let len: u8 = 4;
+        let ext_header: u16 = (lct::Ext::Fti as u16) << 8 | len as u16;
+        log::info!("Add {}", transfer_length);
+        let transfer_header: u64 =
+            (transfer_length << 24) | (oti.encoding_symbol_length as u64 & 0xFFFF);
 
         assert!(oti.raptorq_scheme_specific.is_some());
         let raptorq = oti.raptorq_scheme_specific.as_ref().unwrap();
@@ -36,11 +39,11 @@ impl AlcCodec for AlcRaptorQ {
 
         data.extend(ext_header.to_be_bytes());
         data.extend(transfer_header.to_be_bytes());
-        data.push(raptorq.source_block_length);
+        data.push(raptorq.source_blocks_length);
         data.extend(raptorq.sub_blocks_length.to_be_bytes());
         data.push(raptorq.symbol_alignment);
         data.extend(padding.to_be_bytes());
-        lct::inc_hdr_len(data, 4);
+        lct::inc_hdr_len(data, len);
     }
 
     fn get_fti(
@@ -57,22 +60,86 @@ impl AlcCodec for AlcRaptorQ {
             return Err(FluteError::new("Wrong extension size"));
         }
 
-        todo!()
+        let transfer_length = u64::from_be_bytes(fti[2..10].as_ref().try_into().unwrap()) >> 24;
+        let symbol_size = u16::from_be_bytes(fti[8..10].as_ref().try_into().unwrap());
+        let z = fti[10];
+        let n = u16::from_be_bytes(fti[11..13].as_ref().try_into().unwrap());
+        let al = fti[13];
+        log::debug!(
+            "length={} sym={} z={} n={} al={}",
+            transfer_length,
+            symbol_size,
+            z,
+            n,
+            al
+        );
+
+        if z == 0 {
+            return Err(FluteError::new("Z is null"));
+        }
+
+        if al == 0 {
+            return Err(FluteError::new("AL must be at least 1"));
+        }
+
+        if symbol_size % al as u16 != 0 {
+            return Err(FluteError::new("Symbol size is not properly aligned"));
+        }
+
+        let maximum_source_block_length = num_integer::div_ceil(transfer_length, z as u64);
+
+        let oti = oti::Oti {
+            fec_encoding_id: oti::FECEncodingID::RaptorQ,
+            fec_instance_id: 0,
+            maximum_source_block_length: maximum_source_block_length as u32,
+            encoding_symbol_length: symbol_size,
+            max_number_of_parity_symbols: 0, // Unknown for RaptorQ
+            reed_solomon_scheme_specific: None,
+            raptorq_scheme_specific: Some(oti::RaptorQSchemeSpecific {
+                source_blocks_length: z,
+                sub_blocks_length: n,
+                symbol_alignment: al,
+            }),
+            inband_oti: true,
+        };
+
+        Ok(Some((oti, transfer_length)))
     }
 
-    fn add_fec_payload_id(&self, _data: &mut Vec<u8>, _oti: &oti::Oti, _pkt: &pkt::Pkt) {
-        todo!()
+    fn add_fec_payload_id(&self, data: &mut Vec<u8>, _oti: &oti::Oti, pkt: &pkt::Pkt) {
+        /*
+         0                   1                   2                   3
+         0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |     SBN       |               Encoding Symbol ID              |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        */
+
+        let payload_id = (pkt.sbn & 0xFFu32) << 24 | pkt.esi & 0xFFFFFFu32;
+        data.extend(payload_id.to_be_bytes());
     }
 
     fn get_fec_payload_id(
         &self,
-        _pkt: &alc::AlcPkt,
+        pkt: &alc::AlcPkt,
         _oti: &oti::Oti,
     ) -> crate::error::Result<alc::PayloadID> {
-        todo!()
+        let data = &pkt.data[pkt.data_alc_header_offset..pkt.data_payload_offset];
+        let arr: [u8; 4] = match data.try_into() {
+            Ok(arr) => arr,
+            Err(e) => return Err(FluteError::new(e.to_string())),
+        };
+        let payload_id_header = u32::from_be_bytes(arr);
+        let sbn = payload_id_header >> 24;
+        let esi = payload_id_header & 0xFFFFFF;
+        Ok(alc::PayloadID {
+            esi,
+            sbn,
+            source_block_length: None,
+        })
     }
 
     fn fec_payload_id_block_length(&self) -> usize {
-        todo!()
+        4
     }
 }

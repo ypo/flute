@@ -33,6 +33,7 @@ impl TryFrom<u8> for FECEncodingID {
             }
             x if x == FECEncodingID::ReedSolomonGF2M as u8 => Ok(FECEncodingID::ReedSolomonGF2M),
             x if x == FECEncodingID::ReedSolomonGF28 as u8 => Ok(FECEncodingID::ReedSolomonGF28),
+            x if x == FECEncodingID::RaptorQ as u8 => Ok(FECEncodingID::RaptorQ),
             _ => Err(()),
         }
     }
@@ -56,7 +57,7 @@ pub struct ReedSolomonGF2MSchemeSpecific {
 pub struct RaptorQSchemeSpecific {
     /// The number of source blocks (Z): 8-bit unsigned integer.  
     /// None: Let the sender calculate it for each object.  
-    pub source_block_length: u8,
+    pub source_blocks_length: u8,
     /// The number of sub-blocks (N): 16-bit unsigned integer.
     pub sub_blocks_length: u16,
     /// A symbol alignment parameter (Al): 8-bit unsigned integer.
@@ -103,7 +104,7 @@ impl Default for ReedSolomonGF2MSchemeSpecific {
 impl Default for RaptorQSchemeSpecific {
     fn default() -> Self {
         RaptorQSchemeSpecific {
-            source_block_length: 0,
+            source_blocks_length: 0,
             sub_blocks_length: 0,
             symbol_alignment: 0,
         }
@@ -295,7 +296,7 @@ impl Oti {
             max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
             reed_solomon_scheme_specific: None,
             raptorq_scheme_specific: Some(RaptorQSchemeSpecific {
-                source_block_length: 0,
+                source_blocks_length: 0,
                 sub_blocks_length: sub_blocks_length,
                 symbol_alignment: symbol_alignment,
             }),
