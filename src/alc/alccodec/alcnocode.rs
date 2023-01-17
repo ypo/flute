@@ -65,7 +65,7 @@ impl AlcCodec for AlcNoCode {
             max_number_of_parity_symbols: 0,
             reed_solomon_scheme_specific: None,
             raptorq_scheme_specific: None,
-            inband_oti: true,
+            inband_fti: true,
         };
 
         Ok(Some((oti, transfer_length)))

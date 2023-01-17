@@ -64,6 +64,54 @@ pub struct RaptorQSchemeSpecific {
     pub symbol_alignment: u8,
 }
 
+impl ReedSolomonGF2MSchemeSpecific {
+    pub fn scheme_specific(&self) -> String {
+        let data = vec![self.m, self.g];
+        base64::engine::general_purpose::STANDARD.encode(data)
+    }
+
+    pub fn decode(fec_oti_scheme_specific_info: &str) -> Result<ReedSolomonGF2MSchemeSpecific> {
+        let info = base64::engine::general_purpose::STANDARD
+            .decode(fec_oti_scheme_specific_info)
+            .map_err(|_| FluteError::new("Fail to decode base64 specific scheme"))?;
+
+        if info.len() != 2 {
+            return Err(FluteError::new("Wrong size of Scheme-Specific-Info"));
+        }
+
+        Ok(ReedSolomonGF2MSchemeSpecific {
+            m: info[0],
+            g: info[1],
+        })
+    }
+}
+
+impl RaptorQSchemeSpecific {
+    pub fn scheme_specific(&self) -> String {
+        let mut data: Vec<u8> = Vec::new();
+        data.push(self.source_blocks_length);
+        data.extend(self.sub_blocks_length.to_be_bytes());
+        data.push(self.symbol_alignment);
+        base64::engine::general_purpose::STANDARD.encode(data)
+    }
+
+    pub fn decode(fec_oti_scheme_specific_info: &str) -> Result<RaptorQSchemeSpecific> {
+        let info = base64::engine::general_purpose::STANDARD
+            .decode(fec_oti_scheme_specific_info)
+            .map_err(|_| FluteError::new("Fail to decode base64 specific scheme"))?;
+
+        if info.len() != 4 {
+            return Err(FluteError::new("Wrong size of Scheme-Specific-Info"));
+        }
+
+        Ok(RaptorQSchemeSpecific {
+            source_blocks_length: info[0],
+            sub_blocks_length: u16::from_be_bytes(info[1..3].try_into().unwrap()),
+            symbol_alignment: info[3],
+        })
+    }
+}
+
 ///
 /// FEC Object Transmission Information
 /// Contains the parameters using the build the blocks and FEC for the objects transmission
@@ -84,9 +132,9 @@ pub struct Oti {
     pub reed_solomon_scheme_specific: Option<ReedSolomonGF2MSchemeSpecific>,
     /// Optional, only if `fec_encoding_id` is `FECEncodingID::RaptorQ`
     pub raptorq_scheme_specific: Option<RaptorQSchemeSpecific>,
-    /// If `true`, OTI is added to every ALC/LCT packets
-    /// If `false`, OTI is only available inside the FDT
-    pub inband_oti: bool,
+    /// If `true`, FTI is added to every ALC/LCT packets
+    /// If `false`, FTI is only available inside the FDT
+    pub inband_fti: bool,
 }
 
 impl Default for Oti {
@@ -132,7 +180,7 @@ impl Oti {
             max_number_of_parity_symbols: 0,
             reed_solomon_scheme_specific: None,
             raptorq_scheme_specific: None,
-            inband_oti: true,
+            inband_fti: true,
         }
     }
 
@@ -184,7 +232,7 @@ impl Oti {
             max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
             reed_solomon_scheme_specific: None,
             raptorq_scheme_specific: None,
-            inband_oti: true,
+            inband_fti: true,
         })
     }
 
@@ -236,7 +284,7 @@ impl Oti {
             max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
             reed_solomon_scheme_specific: None,
             raptorq_scheme_specific: None,
-            inband_oti: true,
+            inband_fti: true,
         })
     }
 
@@ -300,7 +348,7 @@ impl Oti {
                 sub_blocks_length: sub_blocks_length,
                 symbol_alignment: symbol_alignment,
             }),
-            inband_oti: true,
+            inband_fti: true,
         })
     }
 
@@ -356,15 +404,19 @@ impl Oti {
     }
 
     fn scheme_specific_info(&self) -> Option<String> {
-        if self.fec_encoding_id == FECEncodingID::ReedSolomonGF2M {
-            let data = match self.reed_solomon_scheme_specific.as_ref() {
-                Some(info) => Some(vec![info.m, info.g]),
+        match self.fec_encoding_id {
+            FECEncodingID::NoCode => None,
+            FECEncodingID::ReedSolomonGF2M => match self.reed_solomon_scheme_specific.as_ref() {
+                Some(scheme) => Some(scheme.scheme_specific()),
                 None => None,
-            };
-
-            return data.map(|d| base64::engine::general_purpose::STANDARD.encode(d));
+            },
+            FECEncodingID::ReedSolomonGF28 => None,
+            FECEncodingID::RaptorQ => match self.raptorq_scheme_specific.as_ref() {
+                Some(scheme) => Some(scheme.scheme_specific()),
+                None => None,
+            },
+            FECEncodingID::ReedSolomonGF28UnderSpecified => None,
         }
-        None
     }
 }
 

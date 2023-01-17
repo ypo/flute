@@ -118,6 +118,7 @@ impl ObjectWriter for ObjectWriterBufferWrapper {
 
     fn complete(&self) {
         let mut inner = self.inner.borrow_mut();
+        log::info!("Object complete !");
         inner.complete = true;
     }
 
@@ -240,7 +241,7 @@ impl ObjectWriter for ObjectWriterFS {
     }
 
     fn error(&self) {
-        let mut inner = self.inner.borrow_mut();
+        let mut inner = self.inner.borrow_mut();        
         inner.writer = None;
         if inner.destination.is_some() {
             log::error!("Remove file {:?}", inner.destination);

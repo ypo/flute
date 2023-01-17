@@ -118,13 +118,13 @@ impl Oti {
     }
 
     #[getter]
-    fn get_inband_oti(&self) -> PyResult<bool> {
-        Ok(self.0.inband_oti)
+    fn get_inband_fti(&self) -> PyResult<bool> {
+        Ok(self.0.inband_fti)
     }
 
     #[setter]
-    fn set_inband_oti(&mut self, value: bool) -> PyResult<()> {
-        self.0.inband_oti = value;
+    fn set_inband_fti(&mut self, value: bool) -> PyResult<()> {
+        self.0.inband_fti = value;
         Ok(())
     }
 

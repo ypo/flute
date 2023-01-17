@@ -69,7 +69,7 @@ impl AlcCodec for AlcRS28UnderSpecified {
                 - maximum_source_block_length as u32,
             reed_solomon_scheme_specific: None,
             raptorq_scheme_specific: None,
-            inband_oti: true,
+            inband_fti: true,
         };
 
         Ok(Some((oti, transfer_length)))

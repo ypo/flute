@@ -4,7 +4,7 @@ use super::blockwriter::BlockWriter;
 use super::fdtinstance::FdtInstance;
 use super::objectwriter::{self, ObjectWriter};
 use super::oti;
-use crate::alc::lct;
+use crate::alc::{lct, partition};
 use crate::tools::error::{FluteError, Result};
 use std::time::Duration;
 use std::time::Instant;
@@ -102,7 +102,12 @@ impl ObjectReceiver {
         assert!(self.oti.is_some());
         let oti = self.oti.as_ref().unwrap();
         let payload_id = alc::parse_payload_id(pkt, self.oti.as_ref().unwrap())?;
-        log::debug!("Receive sbn {} esi {}", payload_id.sbn, payload_id.esi);
+        log::debug!(
+            "Receive sbn={} esi={} toi={}",
+            payload_id.sbn,
+            payload_id.esi,
+            self.toi
+        );
 
         if payload_id.sbn as usize >= self.blocks.len() {
             if self.blocks_variable_size == false {
@@ -364,28 +369,29 @@ impl ObjectReceiver {
         assert!(self.blocks.is_empty());
         let oti = self.oti.as_ref().unwrap();
 
-        let b = oti.maximum_source_block_length as u64;
-        let e = oti.encoding_symbol_length as u64;
-        let l = self.transfer_length.unwrap_or_default();
-        let t = num_integer::div_ceil(l, e);
-        let mut n = num_integer::div_ceil(t, b);
-        if n == 0 {
-            n = 1;
-        }
-
-        self.a_large = num_integer::div_ceil(t, n);
-        self.a_small = num_integer::div_floor(t, n);
-        self.nb_a_large = t - (self.a_small * n);
+        let (a_large, a_small, nb_a_large, nb_blocks) = partition::block_partitioning(
+            oti.maximum_source_block_length as u64,
+            self.transfer_length.unwrap_or_default(),
+            oti.encoding_symbol_length as u64,
+        );
+        log::debug!("oti={:?}", oti);
+        self.a_large = a_large;
+        self.a_small = a_small;
+        self.nb_a_large = nb_a_large;
 
         self.blocks_variable_size =
             oti.fec_encoding_id == oti::FECEncodingID::ReedSolomonGF28UnderSpecified;
+        // || oti.fec_encoding_id == oti::FECEncodingID::RaptorQ;
         log::debug!(
-            "Preallocate {} blocks of {} or {} symbols",
-            n,
+            "Preallocate {} blocks of {} or {} symbols to decode a file of {:?} bytes with toi {}",
+            nb_blocks,
             self.a_large,
-            self.a_small
+            self.a_small,
+            self.transfer_length,
+            self.toi
         );
-        self.blocks.resize_with(n as usize, || BlockDecoder::new());
+        self.blocks
+            .resize_with(nb_blocks as usize, || BlockDecoder::new());
     }
 }
 

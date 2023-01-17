@@ -105,10 +105,10 @@ mod tests {
             .eq(input_content_type));
     }
 
-    fn create_file_buffer() -> (Vec<u8>, url::Url) {
+    fn create_file_buffer(file_size: usize) -> (Vec<u8>, url::Url) {
         let input_content_location = url::Url::parse("file:///hello").unwrap();
         let mut input_file_buffer: Vec<u8> = Vec::new();
-        input_file_buffer.extend(vec![0; 4048]);
+        input_file_buffer.extend(vec![0; file_size]);
 
         // Random buffer
         let mut rng = rand::thread_rng();
@@ -123,9 +123,10 @@ mod tests {
         cenc: sender::Cenc,
         inband_cenc: bool,
         sender_config: Option<sender::Config>,
+        transfer_file_size: usize,
     ) {
         let content_type = "application/octet-stream";
-        let (input_file_buffer, input_content_location) = create_file_buffer();
+        let (input_file_buffer, input_content_location) = create_file_buffer(transfer_file_size);
         let output = Rc::new(receiver::objectwriter::FluteWriterBuffer::new());
         let mut receiver = receiver::MultiReceiver::new(None, output.clone(), None);
         let mut sender = create_sender(
@@ -160,6 +161,7 @@ mod tests {
             sender::Cenc::Null,
             true,
             None,
+            100000,
         );
     }
 
@@ -176,13 +178,21 @@ mod tests {
                 multiplex_files: 0,
                 ..Default::default()
             }),
+            100000,
         );
     }
 
     #[test]
     pub fn test_receiver_cenc_gzip() {
         crate::tests::init();
-        test_receiver_with_oti(&Default::default(), false, sender::Cenc::Gzip, true, None);
+        test_receiver_with_oti(
+            &Default::default(),
+            false,
+            sender::Cenc::Gzip,
+            true,
+            None,
+            100000,
+        );
     }
 
     #[test]
@@ -194,58 +204,82 @@ mod tests {
             sender::Cenc::Deflate,
             true,
             None,
+            100000,
         );
     }
 
     #[test]
     pub fn test_receiver_cenc_zlib() {
         crate::tests::init();
-        test_receiver_with_oti(&Default::default(), false, sender::Cenc::Zlib, true, None);
+        test_receiver_with_oti(
+            &Default::default(),
+            false,
+            sender::Cenc::Zlib,
+            true,
+            None,
+            100000,
+        );
     }
 
     #[test]
     pub fn test_receiver_reed_solomon_gf28_under_specified() {
         crate::tests::init();
         let oti: sender::Oti =
-            sender::Oti::new_reed_solomon_rs28_under_specified(1400, 64, 3).unwrap();
-        test_receiver_with_oti(&oti, true, sender::Cenc::Null, true, None);
+            sender::Oti::new_reed_solomon_rs28_under_specified(1400, 64, 20).unwrap();
+        test_receiver_with_oti(&oti, true, sender::Cenc::Null, true, None, 100000);
     }
 
     #[test]
     pub fn test_receiver_reed_solomon_gf28() {
         crate::tests::init();
-        let oti: sender::Oti = sender::Oti::new_reed_solomon_rs28(1400, 64, 3).unwrap();
-        test_receiver_with_oti(&oti, true, sender::Cenc::Null, true, None);
+        let oti: sender::Oti = sender::Oti::new_reed_solomon_rs28(1400, 64, 20).unwrap();
+        test_receiver_with_oti(&oti, true, sender::Cenc::Null, true, None, 100000);
+    }
+
+    #[test]
+    pub fn test_receiver_reed_solomon_gf28_outband_fti() {
+        crate::tests::init();
+        let mut oti: sender::Oti = sender::Oti::new_reed_solomon_rs28(1400, 64, 20).unwrap();
+        oti.inband_fti = false;
+        test_receiver_with_oti(&oti, true, sender::Cenc::Null, true, None, 100000);
     }
 
     #[test]
     pub fn test_receiver_raptorq() {
         crate::tests::init();
-        let oti: sender::Oti = sender::Oti::new_raptorq(1400, 64, 3, 1, 4).unwrap();
-        test_receiver_with_oti(&oti, true, sender::Cenc::Null, true, None);
+        let oti: sender::Oti = sender::Oti::new_raptorq(1400, 64, 20, 1, 4).unwrap();
+        test_receiver_with_oti(&oti, true, sender::Cenc::Null, true, None, 100000);
     }
 
     #[test]
-    pub fn test_receiver_outband_oti() {
+    pub fn test_receiver_raptorq_outband_fti() {
+        crate::tests::init();
+        let mut oti: sender::Oti = sender::Oti::new_raptorq(1400, 64, 20, 1, 4).unwrap();
+        oti.inband_fti = false;
+        test_receiver_with_oti(&oti, true, sender::Cenc::Null, true, None, 100000);
+    }
+
+    #[test]
+    pub fn test_receiver_outband_fti() {
         crate::tests::init();
         let mut oti: sender::Oti = Default::default();
-        oti.inband_oti = false;
-        test_receiver_with_oti(&oti, false, sender::Cenc::Null, true, None);
+        oti.inband_fti = false;
+        test_receiver_with_oti(&oti, false, sender::Cenc::Null, true, None, 100000);
     }
 
     #[test]
     pub fn test_receiver_outband_cenc() {
         crate::tests::init();
         let oti: sender::Oti = Default::default();
-        test_receiver_with_oti(&oti, false, sender::Cenc::Null, false, None);
+        test_receiver_with_oti(&oti, false, sender::Cenc::Null, false, None, 100000);
     }
 
     #[test]
-    pub fn test_receiver_outband_cenc_and_oti() {
+    pub fn test_receiver_outband_cenc_and_fti() {
         crate::tests::init();
         let mut oti: sender::Oti = Default::default();
-        oti.inband_oti = false;
-        test_receiver_with_oti(&oti, false, sender::Cenc::Null, false, None);
+        oti.inband_fti = false;
+        test_receiver_with_oti(&oti, false, sender::Cenc::Null, false, None, 100000);
     }
 
     #[test]
@@ -253,7 +287,7 @@ mod tests {
         crate::tests::init();
 
         let oti: sender::Oti = Default::default();
-        let (input_file_buffer, input_content_location) = create_file_buffer();
+        let (input_file_buffer, input_content_location) = create_file_buffer(100000);
         let content_type = "application/octet-stream";
         let output = Rc::new(receiver::objectwriter::FluteWriterBuffer::new());
         let mut receiver = receiver::MultiReceiver::new(None, output.clone(), None);

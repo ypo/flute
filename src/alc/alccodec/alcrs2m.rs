@@ -82,7 +82,7 @@ impl AlcCodec for AlcRS2m {
                 },
             }),
             raptorq_scheme_specific: None,
-            inband_oti: true,
+            inband_fti: true,
         };
 
         Ok(Some((oti, transfer_length)))

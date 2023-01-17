@@ -137,19 +137,32 @@ impl BlockDecoder {
             return;
         }
 
+        log::debug!(
+            "Will repair ? sbn {} {}/{}",
+            self.sbn,
+            self.nb_shards,
+            self.source_block_length
+        );
         if self.nb_shards_source_symbol == self.source_block_length
             || self.nb_shards < self.source_block_length
         {
             return;
         }
 
+        log::debug!("repair...",);
+
         let success = self
             .decoder
             .as_ref()
             .unwrap()
             .decode(self.sbn, &mut self.shards);
+
         let source_block_length = self.source_block_length;
         let nb_shards_source_symbol = self.nb_shards_source_symbol;
+
+        let nb_shards = self.nb_shards;
+        self.nb_shards = self.shards.iter().filter(|item| item.is_some()).count();
+
         self.nb_shards_source_symbol = self
             .shards
             .iter()
@@ -157,13 +170,22 @@ impl BlockDecoder {
             .filter(|(index, item)| *index < source_block_length && item.is_some())
             .count();
         assert!(self.nb_shards_source_symbol >= nb_shards_source_symbol);
+
+        if self.nb_shards_source_symbol == self.source_block_length {
+            log::debug!("Block completed !");
+            self.completed = true;
+        } else {
+            log::error!("Block not completed after repair");
+        }
+
         log::info!(
-            "Run FEC Repair success={} {} symbols {} / {} nb shards = {}",
+            "Run FEC Repair success={} {} symbols {} / {} nb shards = {}/{}",
             success,
             self.nb_shards_source_symbol - nb_shards_source_symbol,
             self.nb_shards_source_symbol,
             self.source_block_length,
             self.nb_shards,
+            nb_shards
         );
     }
 }

@@ -53,7 +53,6 @@ impl FileDesc {
                 ));
             }
 
-            log::info!("Num blocks {:?} {}", oti, object.transfer_length);
             let (_, _, _, nb_blocks) = partition::block_partitioning(
                 oti.maximum_source_block_length as u64,
                 object.transfer_length as u64,

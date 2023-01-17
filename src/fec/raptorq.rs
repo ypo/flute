@@ -84,18 +84,14 @@ impl FecCodec for RaptorQ {
     }
 
     fn decode(&self, sbn: u32, shards: &mut Vec<Option<Vec<u8>>>) -> bool {
-        let block_length = shards.len() * self.config.symbol_size() as usize;
+        let block_length = self.nb_source_symbols as u64 * self.config.symbol_size() as u64;
         log::debug!(
             "Create raptorq decoder for sbn {} block_length {} config {:?}",
             sbn,
             block_length,
             self.config
         );
-        let mut decoder = raptorq::SourceBlockDecoder::new2(
-            sbn as u8,
-            &self.config,
-            self.nb_source_symbols as u64,
-        );
+        let mut decoder = raptorq::SourceBlockDecoder::new2(sbn as u8, &self.config, block_length);
 
         let packets = shards
             .iter()
@@ -113,13 +109,15 @@ impl FecCodec for RaptorQ {
             log::error!("Fail to decode");
             return false;
         }
-        log::info!("RaptorQ decoded with success !");
+        log::info!("RaptorQ decoded with success",);
         result
             .unwrap()
             .chunks(self.config.symbol_size() as usize)
             .enumerate()
             .for_each(|(esi, shard)| {
+                log::info!("Check esi {}", esi);
                 if shards[esi].is_none() {
+                    log::info!("Replace shard with decoded");
                     let s = &mut shards[esi];
                     s.replace(shard.to_vec());
                 }

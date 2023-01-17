@@ -74,6 +74,7 @@ impl<'a> AlcPktCache {
 
 pub fn new_alc_pkt(oti: &oti::Oti, cci: &u128, tsi: u64, pkt: &Pkt) -> Vec<u8> {
     let mut data = Vec::new();
+    log::debug!("Send ALC sbn={} esi={} toi={}", pkt.sbn, pkt.esi, pkt.toi);
     lct::push_lct_header(
         &mut data,
         0,
@@ -99,7 +100,7 @@ pub fn new_alc_pkt(oti: &oti::Oti, cci: &u128, tsi: u64, pkt: &Pkt) -> Vec<u8> {
     }
 
     let codec = <dyn AlcCodec>::instance(oti.fec_encoding_id);
-    if pkt.toi == lct::TOI_FDT || oti.inband_oti {
+    if pkt.toi == lct::TOI_FDT || oti.inband_fti {
         codec.add_fti(&mut data, oti, pkt.transfer_length);
     }
     codec.add_fec_payload_id(&mut data, oti, pkt);

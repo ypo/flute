@@ -28,7 +28,6 @@ impl AlcCodec for AlcRaptorQ {
         */
         let len: u8 = 4;
         let ext_header: u16 = (lct::Ext::Fti as u16) << 8 | len as u16;
-        log::info!("Add {}", transfer_length);
         let transfer_header: u64 =
             (transfer_length << 24) | (oti.encoding_symbol_length as u64 & 0xFFFF);
 
@@ -86,7 +85,8 @@ impl AlcCodec for AlcRaptorQ {
             return Err(FluteError::new("Symbol size is not properly aligned"));
         }
 
-        let maximum_source_block_length = num_integer::div_ceil(transfer_length, z as u64);
+        let block_size = num_integer::div_ceil(transfer_length, z as u64);
+        let maximum_source_block_length = num_integer::div_ceil(block_size, symbol_size as u64);
 
         let oti = oti::Oti {
             fec_encoding_id: oti::FECEncodingID::RaptorQ,
@@ -100,7 +100,7 @@ impl AlcCodec for AlcRaptorQ {
                 sub_blocks_length: n,
                 symbol_alignment: al,
             }),
-            inband_oti: true,
+            inband_fti: true,
         };
 
         Ok(Some((oti, transfer_length)))
