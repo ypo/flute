@@ -93,12 +93,12 @@ loop {
 
 The following error recovery algorithms are supported
 
-- [x] No-code
-- [x] Reed-Solomon GF 2^8
-- [x] Reed-Solomon GF 2^8 Under Specified
+- [X] No-code
+- [X] Reed-Solomon GF 2^8
+- [X] Reed-Solomon GF 2^8 Under Specified
 - [ ] Reed-Solomon GF 2^16
 - [ ] Reed-Solomon GF 2^m
-- [ ] RaptorQ
+- [X] RaptorQ
 
 The `Oti` module provides an implementation of the Object Transmission Information (OTI)
 used to configure Forward Error Correction (FEC) encoding in the FLUTE protocol.
