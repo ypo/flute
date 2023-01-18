@@ -3,6 +3,7 @@
 [![Docs.rs](https://docs.rs/flute/badge.svg)](https://docs.rs/crate/flute/)
 [![Crates.io](https://img.shields.io/crates/v/flute)](https://crates.io/crates/flute/)
 [![Rust Dependency](https://deps.rs/repo/github/ypo/flute/status.svg)](https://deps.rs/repo/github/ypo/flute)
+[![codecov](https://codecov.io/gh/ypo/flute/branch/main/graph/badge.svg?token=P4KE639YU8)](https://codecov.io/gh/ypo/flute)
 
 ## FLUTE - File Delivery over Unidirectional Transport
 
