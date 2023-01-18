@@ -64,7 +64,7 @@ impl std::io::Read for RingBuffer {
         }
 
         let end_size = self.buffer.len() - self.consumer;
-        if end_size > max_size {
+        if end_size >= max_size {
             buf[..max_size]
                 .copy_from_slice(&self.buffer[self.consumer..(self.consumer + max_size)]);
             self.consumer += max_size;
@@ -103,8 +103,9 @@ impl std::io::Write for RingBuffer {
         if self.consumer > self.producer {
             self.buffer[self.producer..(self.producer + max_size)]
                 .copy_from_slice(&buf[..max_size]);
+
             self.producer += max_size;
-            assert!(self.consumer < self.producer);
+            assert!(self.consumer > self.producer);
             assert!(self.producer != self.buffer.len());
             return Ok(max_size);
         }
@@ -133,5 +134,88 @@ impl std::io::Write for RingBuffer {
 
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use std::io::Read;
+    use std::io::Write;
+
+    #[test]
+    pub fn ringbuffer() {
+        crate::tests::init();
+        const RING_SIZE: usize = 1024;
+        let mut ring = super::RingBuffer::new(RING_SIZE);
+
+        let mut buffer: Vec<u8> = vec![0; RING_SIZE / 3];
+
+        assert!(ring.write_size() < RING_SIZE);
+
+        let wsize = ring.write(buffer.as_ref()).unwrap();
+        assert!(wsize == buffer.len());
+
+        let rsize = ring.read_size();
+        assert!(rsize == buffer.len());
+
+        let rsize = ring.read(buffer.as_mut()).unwrap();
+        assert!(rsize == buffer.len());
+        assert!(ring.read_size() == 0);
+
+        ring.write(&buffer[0..buffer.len()]).unwrap();
+        ring.write(&buffer[0..buffer.len() / 2]).unwrap();
+
+        let rsize = ring.read(buffer.as_mut()).unwrap();
+        assert!(rsize == buffer.len());
+
+        let wsize = ring.write(buffer.as_ref()).unwrap();
+        assert!(wsize == buffer.len());
+    }
+
+    #[test]
+    pub fn ringbuffer_2() {
+        crate::tests::init();
+        const RING_SIZE: usize = 3;
+        let mut buffer: Vec<u8> = vec![0; 1024];
+        let mut ring = super::RingBuffer::new(RING_SIZE);
+
+        for _ in 0..10 {
+            let wsize = ring.write(buffer.as_ref()).unwrap();
+            assert!(wsize == RING_SIZE - 1);
+
+            let rsize = ring.read_size();
+            assert!(rsize == RING_SIZE - 1);
+
+            let rsize = ring.read(buffer.as_mut()).unwrap();
+            assert!(rsize == RING_SIZE - 1);
+
+            let wouldblock = ring.read(buffer.as_mut());
+            assert!(wouldblock.is_err());
+            assert!(wouldblock.err().unwrap().kind() == std::io::ErrorKind::WouldBlock);
+        }
+    }
+
+    #[test]
+    pub fn ringbuffer_3() {
+        crate::tests::init();
+        const RING_SIZE: usize = 11;
+        let wbuffer: Vec<u8> = vec![0; 9];
+        let mut rbuffer: Vec<u8> = vec![0; 1];
+
+        let mut ring = super::RingBuffer::new(RING_SIZE);
+
+        for _ in 0..25 {
+            ring.write(wbuffer.as_ref()).unwrap();
+            loop {
+                match ring.read(rbuffer.as_mut()) {
+                    Ok(res) => assert!(res == 1),
+                    Err(e) => {
+                        assert!(e.kind() == std::io::ErrorKind::WouldBlock);
+                        break;
+                    }
+                }
+            }
+        }
     }
 }
