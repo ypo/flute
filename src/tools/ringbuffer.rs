@@ -169,8 +169,12 @@ mod tests {
         let rsize = ring.read(buffer.as_mut()).unwrap();
         assert!(rsize == buffer.len());
 
-        let wsize = ring.write(buffer.as_ref()).unwrap();
-        assert!(wsize == buffer.len());
+        loop {
+            let wsize = ring.write(buffer.as_ref()).unwrap();
+            if wsize == 0 {
+                break;
+            }
+        }
     }
 
     #[test]
@@ -200,22 +204,33 @@ mod tests {
     pub fn ringbuffer_3() {
         crate::tests::init();
         const RING_SIZE: usize = 11;
-        let wbuffer: Vec<u8> = vec![0; 9];
+        let mut wbuffer: Vec<u8> = vec![0xAA; 9];
         let mut rbuffer: Vec<u8> = vec![0; 1];
 
         let mut ring = super::RingBuffer::new(RING_SIZE);
 
+        ring.write(wbuffer.as_ref()).unwrap();
+        ring.read(wbuffer.as_mut()).unwrap();
+        assert!(ring.read_size() == 0);
+
+        ring.write(wbuffer.as_ref()).unwrap();
+
         for _ in 0..25 {
             ring.write(wbuffer.as_ref()).unwrap();
+            ring.flush().unwrap();
             loop {
                 match ring.read(rbuffer.as_mut()) {
-                    Ok(res) => assert!(res == 1),
+                    Ok(res) => {
+                        assert!(res == 1);
+                        assert!(rbuffer[0] == 0xAA);
+                    }
                     Err(e) => {
                         assert!(e.kind() == std::io::ErrorKind::WouldBlock);
                         break;
                     }
                 }
             }
+            rbuffer.fill(0);
         }
     }
 }
