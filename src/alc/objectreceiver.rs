@@ -100,7 +100,6 @@ impl ObjectReceiver {
 
     fn push_to_block(&mut self, pkt: &alc::AlcPkt) -> Result<()> {
         assert!(self.oti.is_some());
-        let oti = self.oti.as_ref().unwrap();
         let payload_id = alc::parse_payload_id(pkt, self.oti.as_ref().unwrap())?;
         log::debug!(
             "Receive sbn={} esi={} toi={}",
@@ -108,6 +107,12 @@ impl ObjectReceiver {
             payload_id.esi,
             self.toi
         );
+
+        if self.transfer_length.unwrap() == 0 {
+            assert!(self.block_writer.is_none());
+            self.complete();
+            return Ok(());
+        }
 
         if payload_id.sbn as usize >= self.blocks.len() {
             if self.blocks_variable_size == false {
@@ -134,6 +139,7 @@ impl ObjectReceiver {
                 }
             });
 
+            let oti = self.oti.as_ref().unwrap();
             match block.init(oti, source_block_length, payload_id.sbn) {
                 Ok(_) => {}
                 Err(_) => {
@@ -205,7 +211,7 @@ impl ObjectReceiver {
             return;
         }
 
-        if self.fdt_instance_id.is_none() || self.cenc.is_none() {
+        if self.fdt_instance_id.is_none() || self.cenc.is_none() || self.transfer_length.is_none() {
             return;
         }
 
@@ -219,18 +225,24 @@ impl ObjectReceiver {
             }
             _ => {}
         };
-
-        self.block_writer = Some(BlockWriter::new(
-            self.transfer_length.unwrap() as usize,
-            self.cenc.unwrap(),
-            self.content_md5.is_some(),
-        ));
+        let transfer_length = self.transfer_length.unwrap();
+        if transfer_length != 0 {
+            self.block_writer = Some(BlockWriter::new(
+                transfer_length as usize,
+                self.cenc.unwrap(),
+                self.content_md5.is_some(),
+            ));
+        }
 
         self.writer_session_state = ObjectWriterSessionState::Opened;
     }
 
     fn write_blocks(&mut self, sbn_start: u32) -> Result<()> {
         if self.writer_session_state != ObjectWriterSessionState::Opened {
+            return Ok(());
+        }
+
+        if self.block_writer.is_none() {
             return Ok(());
         }
 

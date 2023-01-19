@@ -337,4 +337,17 @@ mod tests {
         assert!(nb_complete_objects == 0);
         assert!(nb_error_objects == 0);
     }
+
+    #[test]
+    pub fn test_receiver_empty_file() {
+        init();
+        test_receiver_with_oti(
+            &sender::Oti::new_no_code(1400, 64),
+            false,
+            sender::Cenc::Null,
+            true,
+            None,
+            0,
+        );
+    }
 }

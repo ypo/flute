@@ -19,6 +19,7 @@ pub struct BlockEncoder {
     block_multiplex_index: usize,
     read_end: bool,
     source_size_transferred: usize,
+    nb_pkt_sent: usize,
 }
 
 use super::block::Block;
@@ -38,6 +39,7 @@ impl BlockEncoder {
             block_multiplex_index: 0,
             read_end: false,
             source_size_transferred: 0,
+            nb_pkt_sent: 0,
         };
         block.block_partitioning();
         block
@@ -48,6 +50,26 @@ impl BlockEncoder {
             self.read_window();
 
             if self.blocks.is_empty() {
+                if self.nb_pkt_sent == 0 {
+                    log::debug!("Empty file ? Send a pkt containing close object flag");
+                    self.nb_pkt_sent += 1;
+
+                    assert!(self.file.object.transfer_length == 0);
+                    return Some(pkt::Pkt {
+                        payload: Vec::new(),
+                        transfer_length: self.file.object.transfer_length,
+                        esi: 0,
+                        sbn: 0,
+                        toi: self.file.toi,
+                        fdt_id: self.file.fdt_id,
+                        cenc: self.file.object.cenc,
+                        inband_cenc: self.file.object.inband_cenc,
+                        close_object: true,
+                        source_block_length: 0,
+                        sender_current_time: self.file.sender_current_time.clone(),
+                    });
+                }
+
                 return None;
             }
 
@@ -68,6 +90,8 @@ impl BlockEncoder {
             if symbol.is_source_symbol {
                 self.source_size_transferred += symbol.symbols.len();
             }
+
+            self.nb_pkt_sent += 1;
 
             return Some(pkt::Pkt {
                 payload: symbol.symbols.to_vec(),

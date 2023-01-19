@@ -100,6 +100,12 @@ impl Fdt {
     }
 
     pub fn add_object(&mut self, obj: Box<objectdesc::ObjectDesc>) -> Result<u128> {
+        if self.complete == Some(true) {
+            return Err(FluteError::new(
+                "FDT is complete, no new object should be added",
+            ));
+        }
+
         let toi = self.toi;
         let filedesc = Arc::new(FileDesc::new(obj, &self.oti, &toi, None, None)?);
         self.toi += 1;

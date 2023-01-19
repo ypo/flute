@@ -1,9 +1,9 @@
 ///
 /// Block Partitioning Algorithm  
 /// See <https://www.rfc-editor.org/rfc/rfc5052#section-9.1>
-/// 
-/// 
-/// This function implements the block partitioning algorithm as defined in RFC 5052. 
+///
+///
+/// This function implements the block partitioning algorithm as defined in RFC 5052.
 /// The algorithm is used to partition a large amount of data into smaller blocks that can be transmitted or encoded more efficiently.
 ///
 /// # Arguments
@@ -24,9 +24,9 @@
 ///
 pub fn block_partitioning(b: u64, l: u64, e: u64) -> (u64, u64, u64, u64) {
     let t = num_integer::div_ceil(l, e);
-    let mut n = num_integer::div_ceil(t, b);
+    let n = num_integer::div_ceil(t, b);
     if n == 0 {
-        n = 1
+        return (0, 0, 0, 0);
     }
 
     let a_large = num_integer::div_ceil(t, n);
@@ -35,4 +35,22 @@ pub fn block_partitioning(b: u64, l: u64, e: u64) -> (u64, u64, u64, u64) {
     let nb_blocks = n;
 
     (a_large, a_small, nb_a_large, nb_blocks)
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    pub fn partition_empty_file() {
+        crate::tests::init();
+        let (a_large, a_small, nb_a_large, nb_blocks) = super::block_partitioning(64, 0, 1024);
+        log::info!(
+            "a_large={} a_small={} nb_a_large={} nb_blocks={}",
+            a_large,
+            a_small,
+            nb_a_large,
+            nb_blocks
+        );
+        assert!(nb_blocks == 0);
+    }
 }

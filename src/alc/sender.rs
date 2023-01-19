@@ -158,31 +158,32 @@ mod tests {
     use super::objectdesc;
     use super::oti;
 
+    fn create_obj(length: usize) -> Box<objectdesc::ObjectDesc> {
+        let buffer = vec![0u8; length];
+        objectdesc::ObjectDesc::create_from_buffer(
+            &buffer,
+            "text",
+            &url::Url::parse("file:///hello").unwrap(),
+            1,
+            None,
+            lct::Cenc::Null,
+            true,
+            None,
+            true,
+        )
+        .unwrap()
+    }
+
     #[test]
     pub fn test_sender() {
         crate::tests::init();
 
         let oti: oti::Oti = Default::default();
         let mut sender = super::Sender::new(1, &oti, &Default::default());
-        let mut buffer: Vec<u8> = Vec::new();
+
         let nb_pkt = oti.encoding_symbol_length as usize * 3;
-        buffer.extend(vec![0xAA; nb_pkt]);
-        sender
-            .add_object(
-                objectdesc::ObjectDesc::create_from_buffer(
-                    &buffer,
-                    "text",
-                    &url::Url::parse("file:///hello").unwrap(),
-                    1,
-                    None,
-                    lct::Cenc::Null,
-                    true,
-                    None,
-                    true,
-                )
-                .unwrap(),
-            )
-            .unwrap();
+
+        sender.add_object(create_obj(nb_pkt)).unwrap();
         sender.publish(std::time::SystemTime::now()).unwrap();
         loop {
             let data = sender.read(std::time::SystemTime::now());
@@ -197,20 +198,7 @@ mod tests {
         crate::tests::init();
         let oti = oti::Oti::new_no_code(4, 2);
         // Create a buffer larger that the max transfer length
-        let buffer = vec![0u8; oti.max_transfer_length() + 1];
-        let object = objectdesc::ObjectDesc::create_from_buffer(
-            &buffer,
-            "text",
-            &url::Url::parse("file:///hello").unwrap(),
-            1,
-            None,
-            lct::Cenc::Null,
-            true,
-            None,
-            true,
-        )
-        .unwrap();
-
+        let object = create_obj(oti.max_transfer_length() + 1);
         let mut sender = super::Sender::new(1, &oti, &Default::default());
         let res = sender.add_object(object);
         assert!(res.is_err());
@@ -220,19 +208,8 @@ mod tests {
     pub fn test_sender_remove_object() {
         crate::tests::init();
         let oti = Default::default();
-        let buffer = vec![0u8; 10];
-        let object = objectdesc::ObjectDesc::create_from_buffer(
-            &buffer,
-            "text",
-            &url::Url::parse("file:///hello").unwrap(),
-            1,
-            None,
-            lct::Cenc::Null,
-            true,
-            None,
-            true,
-        )
-        .unwrap();
+
+        let object = create_obj(1024);
 
         let mut sender = super::Sender::new(1, &oti, &Default::default());
         assert!(sender.nb_objects() == 0);
@@ -243,5 +220,23 @@ mod tests {
         let success = sender.remove_object(toi);
         assert!(success == true);
         assert!(sender.nb_objects() == 0);
+    }
+
+    #[test]
+    pub fn sender_complete() {
+        crate::tests::init();
+
+        let oti = Default::default();
+        let mut sender = super::Sender::new(1, &oti, &Default::default());
+
+        let object1 = create_obj(1024);
+        let object2 = create_obj(1024);
+
+        let result = sender.add_object(object1);
+        assert!(result.is_ok());
+
+        sender.set_complete();
+        let result = sender.add_object(object2);
+        assert!(result.is_err());
     }
 }

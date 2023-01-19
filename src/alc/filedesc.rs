@@ -141,14 +141,8 @@ impl FileDesc {
         fdtinstance::File {
             content_location: self.object.content_location.to_string(),
             toi: self.toi.to_string(),
-            content_length: match self.object.content_length {
-                value if value > 0 => Some(value),
-                _ => None,
-            },
-            transfer_length: match self.object.transfer_length {
-                value if value > 0 => Some(value),
-                _ => None,
-            },
+            content_length: Some(self.object.content_length),
+            transfer_length: Some(self.object.transfer_length),
             content_type: Some(self.object.content_type.clone()),
             content_encoding: Some(self.object.cenc.to_str().to_string()),
             content_md5: self.object.md5.clone(),
