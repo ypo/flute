@@ -15,6 +15,7 @@ mod tests {
         content_location: &url::Url,
         content_type: &str,
         oti: &sender::Oti,
+        object_oti: Option<&sender::Oti>,
         cenc: sender::Cenc,
         inband_cenc: bool,
         sender_config: Option<sender::Config>,
@@ -34,7 +35,7 @@ mod tests {
                     None,
                     cenc,
                     inband_cenc,
-                    None,
+                    object_oti.map(|e| e.clone()),
                     true,
                 )
                 .unwrap(),
@@ -119,6 +120,7 @@ mod tests {
 
     fn test_receiver_with_oti(
         oti: &sender::Oti,
+        object_oti: Option<&sender::Oti>,
         with_loss: bool,
         cenc: sender::Cenc,
         inband_cenc: bool,
@@ -134,6 +136,7 @@ mod tests {
             &input_content_location,
             content_type,
             &oti,
+            object_oti,
             cenc,
             inband_cenc,
             sender_config,
@@ -157,6 +160,7 @@ mod tests {
         init();
         test_receiver_with_oti(
             &sender::Oti::new_no_code(1400, 64),
+            None,
             false,
             sender::Cenc::Null,
             true,
@@ -170,6 +174,7 @@ mod tests {
         crate::tests::init();
         test_receiver_with_oti(
             &Default::default(),
+            None,
             false,
             sender::Cenc::Null,
             true,
@@ -187,6 +192,7 @@ mod tests {
         crate::tests::init();
         test_receiver_with_oti(
             &Default::default(),
+            None,
             false,
             sender::Cenc::Gzip,
             true,
@@ -200,6 +206,7 @@ mod tests {
         crate::tests::init();
         test_receiver_with_oti(
             &Default::default(),
+            None,
             false,
             sender::Cenc::Deflate,
             true,
@@ -213,6 +220,7 @@ mod tests {
         crate::tests::init();
         test_receiver_with_oti(
             &Default::default(),
+            None,
             false,
             sender::Cenc::Zlib,
             true,
@@ -226,14 +234,30 @@ mod tests {
         crate::tests::init();
         let oti: sender::Oti =
             sender::Oti::new_reed_solomon_rs28_under_specified(1400, 64, 20).unwrap();
-        test_receiver_with_oti(&oti, true, sender::Cenc::Null, true, None, 100000);
+        test_receiver_with_oti(&oti, None, true, sender::Cenc::Null, true, None, 100000);
     }
 
     #[test]
     pub fn test_receiver_reed_solomon_gf28() {
         crate::tests::init();
         let oti: sender::Oti = sender::Oti::new_reed_solomon_rs28(1400, 64, 20).unwrap();
-        test_receiver_with_oti(&oti, true, sender::Cenc::Null, true, None, 100000);
+        test_receiver_with_oti(&oti, None, true, sender::Cenc::Null, true, None, 100000);
+    }
+
+    #[test]
+    pub fn test_receiver_fdt_raptorq_object_reed_solomon_gf28() {
+        crate::tests::init();
+        let oti: sender::Oti = sender::Oti::new_raptorq(1400, 64, 20, 1, 4).unwrap();
+        let oti_object: sender::Oti = sender::Oti::new_reed_solomon_rs28(1400, 64, 20).unwrap();
+        test_receiver_with_oti(
+            &oti,
+            Some(&oti_object),
+            true,
+            sender::Cenc::Null,
+            true,
+            None,
+            100000,
+        );
     }
 
     #[test]
@@ -241,14 +265,14 @@ mod tests {
         crate::tests::init();
         let mut oti: sender::Oti = sender::Oti::new_reed_solomon_rs28(1400, 64, 20).unwrap();
         oti.inband_fti = false;
-        test_receiver_with_oti(&oti, true, sender::Cenc::Null, true, None, 100000);
+        test_receiver_with_oti(&oti, None, true, sender::Cenc::Null, true, None, 100000);
     }
 
     #[test]
     pub fn test_receiver_raptorq() {
         crate::tests::init();
         let oti: sender::Oti = sender::Oti::new_raptorq(1400, 64, 20, 1, 4).unwrap();
-        test_receiver_with_oti(&oti, true, sender::Cenc::Null, true, None, 100000);
+        test_receiver_with_oti(&oti, None, true, sender::Cenc::Null, true, None, 100000);
     }
 
     #[test]
@@ -256,7 +280,7 @@ mod tests {
         crate::tests::init();
         let mut oti: sender::Oti = sender::Oti::new_raptorq(1400, 64, 20, 1, 4).unwrap();
         oti.inband_fti = false;
-        test_receiver_with_oti(&oti, true, sender::Cenc::Null, true, None, 100000);
+        test_receiver_with_oti(&oti, None, true, sender::Cenc::Null, true, None, 100000);
     }
 
     #[test]
@@ -264,14 +288,14 @@ mod tests {
         crate::tests::init();
         let mut oti: sender::Oti = Default::default();
         oti.inband_fti = false;
-        test_receiver_with_oti(&oti, false, sender::Cenc::Null, true, None, 100000);
+        test_receiver_with_oti(&oti, None, false, sender::Cenc::Null, true, None, 100000);
     }
 
     #[test]
     pub fn test_receiver_outband_cenc() {
         crate::tests::init();
         let oti: sender::Oti = Default::default();
-        test_receiver_with_oti(&oti, false, sender::Cenc::Null, false, None, 100000);
+        test_receiver_with_oti(&oti, None, false, sender::Cenc::Null, false, None, 100000);
     }
 
     #[test]
@@ -279,7 +303,7 @@ mod tests {
         crate::tests::init();
         let mut oti: sender::Oti = Default::default();
         oti.inband_fti = false;
-        test_receiver_with_oti(&oti, false, sender::Cenc::Null, false, None, 100000);
+        test_receiver_with_oti(&oti, None, false, sender::Cenc::Null, false, None, 100000);
     }
 
     #[test]
@@ -296,6 +320,7 @@ mod tests {
             &input_content_location,
             content_type,
             &oti,
+            None,
             sender::Cenc::Null,
             true,
             Some(sender::Config {
@@ -343,6 +368,7 @@ mod tests {
         init();
         test_receiver_with_oti(
             &sender::Oti::new_no_code(1400, 64),
+            None,
             false,
             sender::Cenc::Null,
             true,
