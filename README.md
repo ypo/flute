@@ -66,7 +66,7 @@ while let Some(pkt) = sender.read(SystemTime::now()) {
 Receive files from a UDP/IP network
 
 ```rust
-use flute::receiver::{objectwriter, MultiReceiver};
+use flute::receiver::{writer, MultiReceiver};
 use std::net::UdpSocket;
 use std::time::SystemTime;
 use std::rc::Rc;
@@ -75,7 +75,7 @@ use std::rc::Rc;
 let udp_socket = UdpSocket::bind("224.0.0.1:3400").expect("Fail to bind");
 
 // Create a writer able to write received files to the filesystem
-let writer = Rc::new(objectwriter::FluteWriterFS::new(&std::path::Path::new("./flute_dir"))
+let writer = Rc::new(writer::ObjectWriterFSBuilder::new(&std::path::Path::new("./flute_dir"))
     .unwrap_or_else(|_| std::process::exit(0)));
 
 // Create a multi-receiver capable of de-multiplexing several FLUTE sessions
