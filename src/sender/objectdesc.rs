@@ -1,8 +1,7 @@
 use base64::Engine;
 
 use super::compress;
-use super::lct;
-use super::oti;
+use crate::common::{lct, oti};
 use crate::tools::error::Result;
 use std::ffi::OsStr;
 

@@ -1,5 +1,4 @@
-use super::alc;
-use super::oti;
+use crate::common::{alc,oti};
 use crate::error::FluteError;
 use crate::fec;
 use crate::fec::rscodec;

@@ -1,16 +1,15 @@
-use crate::alc;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
 #[pyclass]
 #[derive(Debug)]
-pub struct Config(pub alc::sender::Config);
+pub struct Config(pub crate::sender::Config);
 
 #[pymethods]
 impl Config {
     #[new]
     pub fn new() -> Self {
         Self {
-            0: alc::sender::Config {
+            0: crate::sender::Config {
                 ..Default::default()
             },
         }
@@ -45,7 +44,7 @@ impl Config {
 
     #[setter]
     pub fn set_fdt_cenc(&mut self, value: u8) -> PyResult<()> {
-        let cenc = match alc::lct::Cenc::try_from(value) {
+        let cenc = match crate::sender::Cenc::try_from(value) {
             Ok(res) => res,
             Err(_) => return Err(PyTypeError::new_err("Wrong CENC parameter")),
         };

@@ -292,9 +292,9 @@ fn push_payload(data: &mut Vec<u8>, pkt: &Pkt) {
 
 #[cfg(test)]
 mod tests {
-    use crate::alc::lct;
-    use crate::alc::oti;
-    use crate::alc::pkt;
+    use crate::common::lct;
+    use crate::common::oti;
+    use crate::common::pkt;
 
     #[test]
     pub fn test_alc_create() {

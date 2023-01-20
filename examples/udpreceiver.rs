@@ -1,4 +1,4 @@
-use flute::receiver::{objectwriter, MultiReceiver};
+use flute::receiver::{writer, MultiReceiver};
 use std::{net::UdpSocket, rc::Rc};
 
 fn main() {
@@ -26,7 +26,7 @@ fn main() {
     let udp_socket = UdpSocket::bind(multicast_addr).expect("Fail to bind");
 
     log::info!("Create FLUTE, write objects to {:?}", dest_dir);
-    let writer = Rc::new(objectwriter::FluteWriterFS::new(dest_dir).unwrap());
+    let writer = Rc::new(writer::ObjectWriterFSBuilder::new(dest_dir).unwrap());
     let mut receiver = MultiReceiver::new(None, writer, None);
 
     let mut buf = [0; 2048];

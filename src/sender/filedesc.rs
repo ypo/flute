@@ -1,10 +1,8 @@
+use super::objectdesc::ObjectDesc;
+use crate::common::{fdtinstance, oti, partition};
+use crate::error::{FluteError, Result};
 use std::sync::RwLock;
 use std::time::SystemTime;
-
-use crate::error::{FluteError, Result};
-
-use super::objectdesc::ObjectDesc;
-use super::{fdtinstance, oti, partition};
 
 #[derive(Debug)]
 struct TransferInfo {

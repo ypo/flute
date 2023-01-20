@@ -80,7 +80,7 @@ mod tests {
         input_buffer: &[u8],
         input_content_location: &url::Url,
         input_content_type: &str,
-        output: &receiver::objectwriter::FluteWriterBuffer,
+        output: &receiver::writer::ObjectWriterBufferBuilder,
     ) {
         let output_session = output.objects.borrow();
         assert!(output_session.len() == 1);
@@ -129,7 +129,7 @@ mod tests {
     ) {
         let content_type = "application/octet-stream";
         let (input_file_buffer, input_content_location) = create_file_buffer(transfer_file_size);
-        let output = Rc::new(receiver::objectwriter::FluteWriterBuffer::new());
+        let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new());
         let mut receiver = receiver::MultiReceiver::new(None, output.clone(), None);
         let mut sender = create_sender(
             &input_file_buffer,
@@ -313,7 +313,7 @@ mod tests {
         let oti: sender::Oti = Default::default();
         let (input_file_buffer, input_content_location) = create_file_buffer(100000);
         let content_type = "application/octet-stream";
-        let output = Rc::new(receiver::objectwriter::FluteWriterBuffer::new());
+        let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new());
         let mut receiver = receiver::MultiReceiver::new(None, output.clone(), None);
         let mut sender = create_sender(
             &input_file_buffer,

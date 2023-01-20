@@ -1,6 +1,6 @@
 use super::AlcCodec;
 use crate::{
-    alc::{
+    common::{
         alc, lct,
         oti::{self, ReedSolomonGF2MSchemeSpecific},
         pkt,

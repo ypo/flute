@@ -1,10 +1,9 @@
-use super::alc;
 use super::fdtreceiver;
 use super::fdtreceiver::FdtReceiver;
-use super::lct;
 use super::objectreceiver;
 use super::objectreceiver::ObjectReceiver;
-use super::objectwriter::FluteWriter;
+use super::writer::ObjectWriterBuilder;
+use crate::common::{alc, lct};
 use crate::tools::error::FluteError;
 use crate::tools::error::Result;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -59,7 +58,7 @@ pub struct Receiver {
     objects_error: BTreeSet<u128>,
     fdt_receivers: BTreeMap<u32, Box<FdtReceiver>>,
     fdt_current: Option<Box<FdtReceiver>>,
-    writer: Rc<dyn FluteWriter>,
+    writer: Rc<dyn ObjectWriterBuilder>,
     config: Config,
     last_activity: Instant,
     closed_is_imminent: bool,
@@ -68,7 +67,7 @@ pub struct Receiver {
 impl Receiver {
     /// Return a new `Receiver`
     ///
-    pub fn new(tsi: u64, writer: Rc<dyn FluteWriter>, config: Option<Config>) -> Self {
+    pub fn new(tsi: u64, writer: Rc<dyn ObjectWriterBuilder>, config: Option<Config>) -> Self {
         Self {
             tsi,
             objects: HashMap::new(),

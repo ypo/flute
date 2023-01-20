@@ -1,4 +1,3 @@
-use crate::alc;
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use std::time::SystemTime;
@@ -8,14 +7,14 @@ use super::oti;
 
 #[pyclass]
 #[derive(Debug)]
-pub struct Sender(alc::sender::Sender);
+pub struct Sender(crate::sender::Sender);
 
 #[pymethods]
 impl Sender {
     #[new]
     pub fn new(tsi: u64, oti: &oti::Oti, config: &config::Config) -> Self {
         Self {
-            0: alc::sender::Sender::new(tsi, &oti.0, &config.0),
+            0: crate::sender::Sender::new(tsi, &oti.0, &config.0),
         }
     }
 
@@ -30,13 +29,13 @@ impl Sender {
             url::Url::parse(content_location).map_err(|e| PyTypeError::new_err(e.to_string()))?;
 
         let oti = oti.map(|o| o.0.clone());
-        let object = alc::objectdesc::ObjectDesc::create_from_buffer(
+        let object = crate::sender::ObjectDesc::create_from_buffer(
             content,
             content_type,
             &content_location,
             1,
             None,
-            alc::lct::Cenc::Null,
+            crate::sender::Cenc::Null,
             true,
             oti,
             true,
@@ -65,11 +64,11 @@ impl Sender {
         let content_location = match content_location {
             Some(Err(e)) => return Err(PyTypeError::new_err(e)),
             Some(Ok(url)) => Some(url),
-            None => None
+            None => None,
         };
 
         let oti = oti.map(|o| o.0.clone());
-        let object = alc::objectdesc::ObjectDesc::create_from_file(
+        let object = crate::sender::ObjectDesc::create_from_file(
             std::path::Path::new(filepath),
             content_location.as_ref(),
             content_type,

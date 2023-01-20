@@ -1,6 +1,7 @@
 use super::fdt::Fdt;
+use super::objectdesc;
 use super::sendersession::SenderSession;
-use super::{lct, objectdesc, oti};
+use crate::common::{lct, oti};
 use crate::tools::error::Result;
 use std::time::SystemTime;
 
@@ -153,7 +154,7 @@ impl Sender {
 #[cfg(test)]
 mod tests {
 
-    use crate::alc::lct;
+    use crate::common::lct;
 
     use super::objectdesc;
     use super::oti;

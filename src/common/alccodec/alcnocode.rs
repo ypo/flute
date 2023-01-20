@@ -1,6 +1,6 @@
 use super::AlcCodec;
 use crate::{
-    alc::{alc, lct, oti, pkt},
+    common::{alc, lct, oti, pkt},
     error::FluteError,
 };
 

@@ -1,4 +1,4 @@
-use super::oti::{self, Oti};
+use crate::common::oti::{self, Oti};
 use crate::fec::{self, FecShard};
 use crate::fec::{DataFecShard, FecCodec};
 use crate::tools::error::{FluteError, Result};

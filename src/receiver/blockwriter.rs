@@ -1,15 +1,14 @@
 use base64::Engine;
 
-use crate::{
-    alc::uncompress::{DecompressDeflate, DecompressZlib},
-    error::{FluteError, Result},
-};
+use crate::error::{FluteError, Result};
+
+use crate::common::lct;
 
 use super::{
     blockdecoder::BlockDecoder,
-    lct,
-    objectwriter::ObjectWriter,
     uncompress::{Decompress, DecompressGzip},
+    uncompress::{DecompressDeflate, DecompressZlib},
+    writer::ObjectWriter,
 };
 
 pub struct BlockWriter {

@@ -1,12 +1,7 @@
-use super::{
-    alc,
-    fdtinstance::FdtInstance,
-    lct,
-    objectreceiver::{self, ObjectReceiver},
-    objectwriter::{self, ObjectWriter},
-};
-use crate::tools;
-use crate::tools::error::Result;
+use super::objectreceiver;
+use crate::common::{alc, fdtinstance::FdtInstance, lct};
+use crate::{receiver::writer::ObjectMetadata, tools};
+use crate::{receiver::writer::ObjectWriter, tools::error::Result};
 use std::{cell::RefCell, rc::Rc, time::SystemTime};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -19,7 +14,7 @@ pub enum State {
 
 pub struct FdtReceiver {
     pub fdt_id: u32,
-    obj: Box<ObjectReceiver>,
+    obj: Box<objectreceiver::ObjectReceiver>,
     inner: Rc<RefCell<FdtWriterInner>>,
     fdt_instance: Option<FdtInstance>,
     sender_current_time: Option<SystemTime>,
@@ -67,7 +62,7 @@ impl FdtReceiver {
 
         FdtReceiver {
             fdt_id,
-            obj: Box::new(ObjectReceiver::new(&lct::TOI_FDT, writer)),
+            obj: Box::new(objectreceiver::ObjectReceiver::new(&lct::TOI_FDT, writer)),
             inner: inner.clone(),
             fdt_instance: None,
             sender_current_time: None,
@@ -138,7 +133,7 @@ impl FdtReceiver {
 }
 
 impl ObjectWriter for FdtWriter {
-    fn open(&self, _meta: Option<&objectwriter::ObjectMetadata>) -> Result<()> {
+    fn open(&self, _meta: Option<&ObjectMetadata>) -> Result<()> {
         Ok(())
     }
 

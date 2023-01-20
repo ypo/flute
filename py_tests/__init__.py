@@ -36,7 +36,7 @@ class SenderReceiverTestCase(TestCase):
     def test_create_receiver(self):
         from flute import receiver
         print("------- test_create_receiver--------")
-        writer = receiver.FluteWriter.new_buffer()
+        writer = receiver.ObjectWriterBuilder.new_buffer()
         config = receiver.Config()
         flute_receiver = receiver.Receiver(1, writer, config)
         print("Flute Receiver created !")
@@ -45,7 +45,7 @@ class SenderReceiverTestCase(TestCase):
         from flute import receiver
         print("------- test_create_multireceiver--------")
 
-        writer = receiver.FluteWriter.new_buffer()
+        writer = receiver.ObjectWriterBuilder.new_buffer()
         config = receiver.Config()
         flute_receiver = receiver.MultiReceiver([1], writer, config)
 
@@ -63,7 +63,7 @@ class SenderReceiverTestCase(TestCase):
         oti = sender.Oti.new_no_code(1400, 64)
         flute_sender = sender.Sender(tsi, oti, sender_config)
 
-        receiver_writer = receiver.FluteWriter.new_buffer()
+        receiver_writer = receiver.ObjectWriterBuilder.new_buffer()
         receiver_config = receiver.Config()
         flute_receiver = receiver.Receiver(tsi, receiver_writer, receiver_config)
 
@@ -89,7 +89,7 @@ class SenderReceiverTestCase(TestCase):
         oti = sender.Oti.new_no_code(1400, 64)
         flute_sender = sender.Sender(tsi, oti, sender_config)
 
-        receiver_writer = receiver.FluteWriter.new_buffer()
+        receiver_writer = receiver.ObjectWriterBuilder.new_buffer()
         receiver_config = receiver.Config()
         flute_receiver = receiver.MultiReceiver(None, receiver_writer, receiver_config)
 

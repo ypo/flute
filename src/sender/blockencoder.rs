@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use super::filedesc;
-use super::partition;
-use super::pkt;
+use crate::common::{partition, pkt};
 use crate::tools::error::Result;
 
 #[derive(Debug)]

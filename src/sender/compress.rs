@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use super::lct;
+use crate::common::lct;
 use crate::tools::error::{FluteError, Result};
 use flate2::write::{DeflateEncoder, GzEncoder, ZlibEncoder};
 

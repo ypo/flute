@@ -1,8 +1,6 @@
-use super::fdtinstance::FdtInstance;
 use super::filedesc::FileDesc;
-use super::lct;
 use super::objectdesc;
-use super::oti;
+use crate::common::{fdtinstance::FdtInstance, lct, oti};
 use crate::tools;
 use crate::tools::error::{FluteError, Result};
 use serde::Serialize;
@@ -280,7 +278,7 @@ mod tests {
 
     use std::time::SystemTime;
 
-    use crate::alc::lct;
+    use crate::common::lct;
 
     use super::objectdesc;
     use super::oti;

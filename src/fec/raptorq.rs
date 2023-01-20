@@ -1,4 +1,4 @@
-use crate::alc::oti::RaptorQSchemeSpecific;
+use crate::common::oti::RaptorQSchemeSpecific;
 
 use super::{FecCodec, FecShard, ShardType};
 
@@ -132,7 +132,7 @@ impl FecCodec for RaptorQ {
 
 #[cfg(test)]
 mod tests {
-    use crate::{alc::oti::RaptorQSchemeSpecific, fec::FecCodec};
+    use crate::{common::oti::RaptorQSchemeSpecific, fec::FecCodec};
 
     #[test]
     pub fn test_raptorq_encode() {

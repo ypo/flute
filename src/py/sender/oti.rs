@@ -1,9 +1,8 @@
-use crate::alc;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
 #[pyclass]
 #[derive(Debug)]
-pub struct Oti(pub alc::oti::Oti);
+pub struct Oti(pub crate::sender::Oti);
 
 #[pymethods]
 impl Oti {
@@ -20,7 +19,7 @@ impl Oti {
         maximum_source_block_length: u16,
     ) -> PyResult<Self> {
         Ok(Self {
-            0: alc::oti::Oti::new_no_code(encoding_symbol_length, maximum_source_block_length),
+            0: crate::sender::Oti::new_no_code(encoding_symbol_length, maximum_source_block_length),
         })
     }
 
@@ -30,7 +29,7 @@ impl Oti {
         maximum_source_block_length: u8,
         max_number_of_parity_symbols: u8,
     ) -> PyResult<Self> {
-        let oti = alc::oti::Oti::new_reed_solomon_rs28(
+        let oti = crate::sender::Oti::new_reed_solomon_rs28(
             encoding_symbol_length,
             maximum_source_block_length,
             max_number_of_parity_symbols,
@@ -45,7 +44,7 @@ impl Oti {
         maximum_source_block_length: u16,
         max_number_of_parity_symbols: u16,
     ) -> PyResult<Self> {
-        let oti = alc::oti::Oti::new_reed_solomon_rs28_under_specified(
+        let oti = crate::sender::Oti::new_reed_solomon_rs28_under_specified(
             encoding_symbol_length,
             maximum_source_block_length,
             max_number_of_parity_symbols,
@@ -66,7 +65,7 @@ impl Oti {
 
     #[setter]
     fn set_fec_encoding_id(&mut self, value: u8) -> PyResult<()> {
-        let encoding_id: alc::oti::FECEncodingID = value
+        let encoding_id: crate::sender::FECEncodingID = value
             .try_into()
             .map_err(|_| PyTypeError::new_err("Invalid FEC Encoding ID"))?;
         self.0.fec_encoding_id = encoding_id;

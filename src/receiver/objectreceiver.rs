@@ -1,10 +1,7 @@
-use super::alc;
 use super::blockdecoder::BlockDecoder;
 use super::blockwriter::BlockWriter;
-use super::fdtinstance::FdtInstance;
-use super::objectwriter::{self, ObjectWriter};
-use super::oti;
-use crate::alc::{lct, partition};
+use crate::common::{alc, fdtinstance::FdtInstance, lct, oti, partition};
+use crate::receiver::writer::{ObjectMetadata, ObjectWriter};
 use crate::tools::error::{FluteError, Result};
 use std::time::Duration;
 use std::time::Instant;
@@ -42,7 +39,7 @@ pub struct ObjectReceiver {
     writer_session_state: ObjectWriterSessionState,
     block_writer: Option<BlockWriter>,
     fdt_instance_id: Option<u32>,
-    meta: Option<objectwriter::ObjectMetadata>,
+    meta: Option<ObjectMetadata>,
     last_activity: Instant,
 }
 
@@ -193,7 +190,7 @@ impl ObjectReceiver {
 
         self.content_md5 = file.content_md5.clone();
         self.fdt_instance_id = Some(fdt_instance_id);
-        self.meta = Some(objectwriter::ObjectMetadata {
+        self.meta = Some(ObjectMetadata {
             content_location: content_location,
             content_length: file.content_length.map(|s| s as usize),
             content_type: file.content_type.clone(),

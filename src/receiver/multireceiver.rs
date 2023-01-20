@@ -1,6 +1,6 @@
-use super::objectwriter::FluteWriter;
 use super::receiver::{Config, Receiver};
-use super::{alc, receiver};
+use super::writer::ObjectWriterBuilder;
+use crate::common::alc;
 use crate::tools::error::Result;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -14,7 +14,7 @@ use std::time::SystemTime;
 pub struct MultiReceiver {
     alc_receiver: HashMap<u64, Box<Receiver>>,
     tsi: Option<Vec<u64>>,
-    writer: Rc<dyn FluteWriter>,
+    writer: Rc<dyn ObjectWriterBuilder>,
     config: Option<Config>,
 }
 
@@ -33,19 +33,19 @@ impl MultiReceiver {
     /// # Example
     /// ```
     /// // Receive objects from Transport Session 1
-    /// use flute::receiver::objectwriter::FluteWriterBuffer;
+    /// use flute::receiver::writer::ObjectWriterBufferBuilder;
     /// use flute::receiver::MultiReceiver;
     /// use std::rc::Rc;
     ///
     /// let tsi: u64 = 1;
     /// // Write object to a buffer
-    /// let writer = Rc::new(FluteWriterBuffer::new());
+    /// let writer = Rc::new(ObjectWriterBufferBuilder::new());
     /// let receiver = MultiReceiver::new(Some(&vec![1]), writer.clone(), None);
     /// ```
     pub fn new(
         tsi: Option<&[u64]>,
-        writer: Rc<dyn FluteWriter>,
-        config: Option<receiver::Config>,
+        writer: Rc<dyn ObjectWriterBuilder>,
+        config: Option<Config>,
     ) -> MultiReceiver {
         MultiReceiver {
             alc_receiver: HashMap::new(),

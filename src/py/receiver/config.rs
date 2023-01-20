@@ -1,16 +1,15 @@
-use crate::alc;
 use pyo3::prelude::*;
 
 #[pyclass]
 #[derive(Debug)]
-pub struct Config(pub alc::receiver::Config);
+pub struct Config(pub crate::receiver::Config);
 
 #[pymethods]
 impl Config {
     #[new]
     fn new() -> Self {
         Self {
-            0: alc::receiver::Config {
+            0: crate::receiver::Config {
                 ..Default::default()
             },
         }

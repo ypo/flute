@@ -66,7 +66,7 @@
 //! Receive files from a UDP/IP network
 //!
 //!```
-//! use flute::receiver::{objectwriter, MultiReceiver};
+//! use flute::receiver::{writer, MultiReceiver};
 //! use std::net::UdpSocket;
 //! use std::time::SystemTime;
 //! use std::rc::Rc;
@@ -75,7 +75,7 @@
 //! let udp_socket = UdpSocket::bind("224.0.0.1:3400").expect("Fail to bind");
 //!
 //! // Create a writer able to write received files to the filesystem
-//! let writer = Rc::new(objectwriter::FluteWriterFS::new(&std::path::Path::new("./flute_dir"))
+//! let writer = Rc::new(writer::ObjectWriterFSBuilder::new(&std::path::Path::new("./flute_dir"))
 //!     .unwrap_or_else(|_| std::process::exit(0)));
 //!
 //! // Create a multi-receiver capable of de-multiplexing several FLUTE sessions
@@ -156,34 +156,16 @@
 #![deny(missing_debug_implementations)]
 #![cfg_attr(test, deny(warnings))]
 
-mod alc;
+mod common;
 mod fec;
 mod tools;
 
+pub mod receiver;
+pub mod sender;
+pub use crate::tools::error;
+
 #[cfg(feature = "python")]
 mod py;
-
-///
-/// FLUTE Receivers to re-construct ALC/LCT packets to Objects (files)
-///
-pub mod receiver {
-    pub use crate::alc::multireceiver::MultiReceiver;
-    pub use crate::alc::objectwriter;
-    pub use crate::alc::receiver::Config;
-    pub use crate::alc::receiver::Receiver;
-}
-
-/// FLUTE Sender to convert Objects (files) to ALC/LCT packets
-pub mod sender {
-    pub use crate::alc::lct::Cenc;
-    pub use crate::alc::objectdesc::ObjectDesc;
-    pub use crate::alc::oti::FECEncodingID;
-    pub use crate::alc::oti::Oti;
-    pub use crate::alc::sender::Config;
-    pub use crate::alc::sender::Sender;
-}
-
-pub use crate::tools::error;
 
 #[cfg(test)]
 mod tests {
