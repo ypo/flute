@@ -42,14 +42,10 @@ impl FileDesc {
             )));
         }
 
-        if oti.fec_encoding_id == oti::FECEncodingID::RaptorQ {
-            // Calculate the source block length of RaptorQ
-
-            if oti.raptor_scheme_specific.is_none() {
-                return Err(FluteError::new(
-                    "FEC RaptorQ is select, however scheme parameters are not defined",
-                ));
-            }
+        if oti.fec_encoding_id == oti::FECEncodingID::RaptorQ
+            || oti.fec_encoding_id == oti::FECEncodingID::Raptor
+        {
+            // Calculate the source block length of Raptor / RaptorQ
 
             let (_, _, _, nb_blocks) = partition::block_partitioning(
                 oti.maximum_source_block_length as u64,
@@ -57,16 +53,41 @@ impl FileDesc {
                 oti.encoding_symbol_length as u64,
             );
 
-            let nb_blocks:u8 = nb_blocks.try_into().map_err(|_| {
-                FluteError::new(format!(
-                    "Object transfer length of {} requires the transmission of {} source blocks, the maximum is {}, your object is incompatible with the FEC parameters of your OTI",
-                    object.transfer_length,
-                    nb_blocks, u8::MAX
-                ))
-            })?;
+            if oti.fec_encoding_id == oti::FECEncodingID::RaptorQ {
+                if oti.raptorq_scheme_specific.is_none() {
+                    return Err(FluteError::new(
+                        "FEC RaptorQ is selected, however scheme parameters are not defined",
+                    ));
+                }
 
-            let scheme = oti.raptor_scheme_specific.as_mut().unwrap();
-            scheme.source_blocks_length = nb_blocks;
+                let nb_blocks:u8 = nb_blocks.try_into().map_err(|_| {
+                    FluteError::new(format!(
+                        "Object transfer length of {} requires the transmission of {} source blocks, the maximum is {}, your object is incompatible with the FEC parameters of your OTI",
+                        object.transfer_length,
+                        nb_blocks, u8::MAX
+                    ))
+                })?;
+
+                let scheme = oti.raptorq_scheme_specific.as_mut().unwrap();
+                scheme.source_blocks_length = nb_blocks;
+            } else if oti.fec_encoding_id == oti::FECEncodingID::Raptor {
+                if oti.raptor_scheme_specific.is_none() {
+                    return Err(FluteError::new(
+                        "FEC Raptor is selected, however scheme parameters are not defined",
+                    ));
+                }
+
+                let nb_blocks:u16 = nb_blocks.try_into().map_err(|_| {
+                    FluteError::new(format!(
+                        "Object transfer length of {} requires the transmission of {} source blocks, the maximum is {}, your object is incompatible with the FEC parameters of your OTI",
+                        object.transfer_length,
+                        nb_blocks, u8::MAX
+                    ))
+                })?;
+
+                let scheme = oti.raptor_scheme_specific.as_mut().unwrap();
+                scheme.source_blocks_length = nb_blocks;
+            }
         }
 
         Ok(FileDesc {

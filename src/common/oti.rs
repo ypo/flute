@@ -12,6 +12,8 @@ use serde::Serialize;
 pub enum FECEncodingID {
     /// No FEC
     NoCode = 0,
+    /// Raptor
+    Raptor = 1,
     /// Reed Solomon GF2M
     ReedSolomonGF2M = 2,
     /// Reed Solomon GF28
@@ -28,6 +30,7 @@ impl TryFrom<u8> for FECEncodingID {
     fn try_from(v: u8) -> std::result::Result<Self, Self::Error> {
         match v {
             x if x == FECEncodingID::NoCode as u8 => Ok(FECEncodingID::NoCode),
+            x if x == FECEncodingID::Raptor as u8 => Ok(FECEncodingID::Raptor),
             x if x == FECEncodingID::ReedSolomonGF28UnderSpecified as u8 => {
                 Ok(FECEncodingID::ReedSolomonGF28UnderSpecified)
             }
@@ -54,12 +57,29 @@ pub struct ReedSolomonGF2MSchemeSpecific {
 /// RaptorQ Scheme Specific parameters
 /// <https://www.rfc-editor.org/rfc/rfc6330.html#section-3.3.3>
 #[derive(Clone, Debug)]
-pub struct RaptorSchemeSpecific {
+pub struct RaptorQSchemeSpecific {
     /// The number of source blocks (Z): 8-bit unsigned integer.  
-    /// None: Let the sender calculate it for each object.  
     pub source_blocks_length: u8,
-    /// The number of sub-blocks (N): 16-bit unsigned integer.
+    /// The number of sub-blocks (N): 16-bit unsigned integer for Raptor.
     pub sub_blocks_length: u16,
+    /// A symbol alignment parameter (Al): 8-bit unsigned integer.
+    pub symbol_alignment: u8,
+}
+
+///
+/// Raptor Scheme Specific parameters
+/// <https://www.rfc-editor.org/rfc/rfc5053.html#section-3.2.3>
+///         0                   1                   2                   3
+///0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+///+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+///|             Z                 |      N        |       Al      |
+///+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+#[derive(Clone, Debug)]
+pub struct RaptorSchemeSpecific {
+    /// The number of source blocks (Z): 16-bit unsigned integer.  
+    pub source_blocks_length: u16,
+    /// The number of sub-blocks (N): 8-bit unsigned integer for Raptor.
+    pub sub_blocks_length: u8,
     /// A symbol alignment parameter (Al): 8-bit unsigned integer.
     pub symbol_alignment: u8,
 }
@@ -86,11 +106,37 @@ impl ReedSolomonGF2MSchemeSpecific {
     }
 }
 
-impl RaptorSchemeSpecific {
+impl RaptorQSchemeSpecific {
     pub fn scheme_specific(&self) -> String {
         let mut data: Vec<u8> = Vec::new();
         data.push(self.source_blocks_length);
         data.extend(self.sub_blocks_length.to_be_bytes());
+        data.push(self.symbol_alignment);
+        base64::engine::general_purpose::STANDARD.encode(data)
+    }
+
+    pub fn decode(fec_oti_scheme_specific_info: &str) -> Result<RaptorQSchemeSpecific> {
+        let info = base64::engine::general_purpose::STANDARD
+            .decode(fec_oti_scheme_specific_info)
+            .map_err(|_| FluteError::new("Fail to decode base64 specific scheme"))?;
+
+        if info.len() != 4 {
+            return Err(FluteError::new("Wrong size of Scheme-Specific-Info"));
+        }
+
+        Ok(RaptorQSchemeSpecific {
+            source_blocks_length: info[0],
+            sub_blocks_length: u16::from_be_bytes(info[1..3].try_into().unwrap()),
+            symbol_alignment: info[3],
+        })
+    }
+}
+
+impl RaptorSchemeSpecific {
+    pub fn scheme_specific(&self) -> String {
+        let mut data: Vec<u8> = Vec::new();
+        data.extend(self.source_blocks_length.to_be_bytes());
+        data.push(self.sub_blocks_length);
         data.push(self.symbol_alignment);
         base64::engine::general_purpose::STANDARD.encode(data)
     }
@@ -105,8 +151,8 @@ impl RaptorSchemeSpecific {
         }
 
         Ok(RaptorSchemeSpecific {
-            source_blocks_length: info[0],
-            sub_blocks_length: u16::from_be_bytes(info[1..3].try_into().unwrap()),
+            source_blocks_length: u16::from_be_bytes(info[0..2].try_into().unwrap()),
+            sub_blocks_length: info[2],
             symbol_alignment: info[3],
         })
     }
@@ -130,7 +176,9 @@ pub struct Oti {
     pub max_number_of_parity_symbols: u32,
     /// Optional, only if `fec_encoding_id` is `FECEncodingID::ReedSolomonGF2M`
     pub reed_solomon_scheme_specific: Option<ReedSolomonGF2MSchemeSpecific>,
-    /// Optional, only if `fec_encoding_id` is `FECEncodingID::RaptorQ` or `FECEncodingID::Raptor`
+    /// Optional, only if `fec_encoding_id` is `FECEncodingID::RaptorQ`
+    pub raptorq_scheme_specific: Option<RaptorQSchemeSpecific>,
+    /// Optional, only if `fec_encoding_id` is `FECEncodingID::Raptor`
     pub raptor_scheme_specific: Option<RaptorSchemeSpecific>,
     /// If `true`, FTI is added to every ALC/LCT packets
     /// If `false`, FTI is only available inside the FDT
@@ -149,9 +197,9 @@ impl Default for ReedSolomonGF2MSchemeSpecific {
     }
 }
 
-impl Default for RaptorSchemeSpecific {
+impl Default for RaptorQSchemeSpecific {
     fn default() -> Self {
-        RaptorSchemeSpecific {
+        RaptorQSchemeSpecific {
             source_blocks_length: 0,
             sub_blocks_length: 0,
             symbol_alignment: 0,
@@ -179,6 +227,7 @@ impl Oti {
             encoding_symbol_length: encoding_symbol_length,
             max_number_of_parity_symbols: 0,
             reed_solomon_scheme_specific: None,
+            raptorq_scheme_specific: None,
             raptor_scheme_specific: None,
             inband_fti: true,
         }
@@ -231,6 +280,7 @@ impl Oti {
             encoding_symbol_length: encoding_symbol_length,
             max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
             reed_solomon_scheme_specific: None,
+            raptorq_scheme_specific: None,
             raptor_scheme_specific: None,
             inband_fti: true,
         })
@@ -283,6 +333,7 @@ impl Oti {
             encoding_symbol_length: encoding_symbol_length,
             max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
             reed_solomon_scheme_specific: None,
+            raptorq_scheme_specific: None,
             raptor_scheme_specific: None,
             inband_fti: true,
         })
@@ -342,6 +393,71 @@ impl Oti {
             encoding_symbol_length: encoding_symbol_length,
             max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
             reed_solomon_scheme_specific: None,
+            raptorq_scheme_specific: Some(RaptorQSchemeSpecific {
+                source_blocks_length: 0,
+                sub_blocks_length: sub_blocks_length,
+                symbol_alignment: symbol_alignment,
+            }),
+            raptor_scheme_specific: None,
+            inband_fti: true,
+        })
+    }
+
+    /// Creates and returns an instance of the `Oti` using the FEC Scheme `Raptor`.
+    ///
+    /// # Parameters
+    ///
+    ///   * `encoding_symbol_length`: A `u16` value representing the length of an encoding symbol in bytes.
+    ///   An encoding symbol is a piece of data that is generated by the FEC Scheme and added to the source block to create a coded block.
+    ///   It is the payload of an ALC/LCT packet. The ALC/LCT header plus the encoding symbol length should be less than the maximum transmission unit (MTU).
+    ///
+    ///   * `maximum_source_block_length`: A `u16` value representing the maximum length of a source block in bytes.
+    ///   A source block is a contiguous portion of the original data that is encoded using the FEC Scheme.
+    ///
+    ///   * `max_number_of_parity_symbols`: A `u16` value representing the maximum number of parity (repair)
+    ///   symbols that can be generated by the FEC Scheme for a given block of data.
+    ///
+    ///   * `sub_blocks_length`: A `u16` value representing the number of sub-block inside a block.   
+    ///      N parameter from <https://www.rfc-editor.org/rfc/rfc6330.html#section-3.3.3>.
+    ///
+    ///   * `symbol_alignment`: symbol alignment parameter (Al) <https://www.rfc-editor.org/rfc/rfc6330.html#section-3.3.3>.   
+    ///      Recommended value is 4.
+    ///
+    ///  # Returns
+    ///
+    /// An instance of the `Oti` struct
+    ///     
+    /// # Errors
+    /// Returns an error if the encoding symbols length is not a multiple of al parameter
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use flute::sender::Oti;
+    /// let oti = Oti::new_raptor(1400, 60, 4, 1, 4).unwrap();
+    /// ```
+    ///
+    pub fn new_raptor(
+        encoding_symbol_length: u16,
+        maximum_source_block_length: u16,
+        max_number_of_parity_symbols: u16,
+        sub_blocks_length: u8,
+        symbol_alignment: u8,
+    ) -> Result<Oti> {
+        if (encoding_symbol_length % symbol_alignment as u16) != 0 {
+            return Err(FluteError::new(
+                "Encoding symbols length must be a multiple of Al",
+            ));
+        }
+
+        Ok(Oti {
+            fec_encoding_id: FECEncodingID::Raptor,
+            fec_instance_id: 0,
+            maximum_source_block_length: maximum_source_block_length as u32,
+            encoding_symbol_length: encoding_symbol_length,
+            max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
+            reed_solomon_scheme_specific: None,
+            raptorq_scheme_specific: None,
             raptor_scheme_specific: Some(RaptorSchemeSpecific {
                 source_blocks_length: 0,
                 sub_blocks_length: sub_blocks_length,
@@ -365,6 +481,7 @@ impl Oti {
             FECEncodingID::ReedSolomonGF28 => 0xFFFFFFFFFFFF, // 48 bits max
             FECEncodingID::ReedSolomonGF28UnderSpecified => 0xFFFFFFFFFFFF, // 48 bits max
             FECEncodingID::RaptorQ => 0xFFFFFFFFFFF, // 40 bits max
+            FECEncodingID::Raptor => 0xFFFFFFFFFFFF, // 48 bits max
         };
 
         let max_sbn = self.max_source_blocks_number();
@@ -385,6 +502,7 @@ impl Oti {
             FECEncodingID::ReedSolomonGF28 => u8::MAX as usize,
             FECEncodingID::ReedSolomonGF28UnderSpecified => u32::MAX as usize,
             FECEncodingID::RaptorQ => u8::MAX as usize,
+            FECEncodingID::Raptor => u16::MAX as usize,
         }
     }
 
@@ -410,7 +528,11 @@ impl Oti {
                 None => None,
             },
             FECEncodingID::ReedSolomonGF28 => None,
-            FECEncodingID::RaptorQ => match self.raptor_scheme_specific.as_ref() {
+            FECEncodingID::RaptorQ => match self.raptorq_scheme_specific.as_ref() {
+                Some(scheme) => Some(scheme.scheme_specific()),
+                None => None,
+            },
+            FECEncodingID::Raptor => match self.raptor_scheme_specific.as_ref() {
                 Some(scheme) => Some(scheme.scheme_specific()),
                 None => None,
             },

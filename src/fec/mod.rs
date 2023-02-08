@@ -1,6 +1,7 @@
 pub mod nocode;
 pub mod raptorq;
 pub mod rscodec;
+pub mod raptor;
 
 use crate::tools::error::Result;
 

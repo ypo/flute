@@ -68,6 +68,7 @@ impl AlcCodec for AlcRS28UnderSpecified {
             max_number_of_parity_symbols: num_encoding_symbols as u32
                 - maximum_source_block_length as u32,
             reed_solomon_scheme_specific: None,
+            raptorq_scheme_specific: None,
             raptor_scheme_specific: None,
             inband_fti: true,
         };

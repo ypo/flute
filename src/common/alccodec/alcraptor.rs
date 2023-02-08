@@ -4,9 +4,9 @@ use crate::{
     error::FluteError,
 };
 
-pub struct AlcRaptorQ {}
+pub struct AlcRaptor {}
 
-impl AlcCodec for AlcRaptorQ {
+impl AlcCodec for AlcRaptor {
     fn add_fti(&self, data: &mut Vec<u8>, oti: &oti::Oti, transfer_length: u64) {
         /*
          +-
@@ -16,14 +16,14 @@ impl AlcCodec for AlcRaptorQ {
         +               +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         |               |    Reserved   |           Symbol Size (T)     |
         +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        |       Z       |              N                |       Al      |
+        |             Z                 |      N        |       Al      |
         +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         | PADDING (16 bits)   ??        |
 
         Transfer Length (F): 40-bit unsigned integer
         Symbol Size (T): 16-bit unsigned integer.
-        The number of source blocks (Z): 8-bit unsigned integer.
-        The number of sub-blocks (N): 16-bit unsigned integer.
+        The number of source blocks (Z): 16-bit unsigned integer.
+        The number of sub-blocks (N): 8-bit unsigned integer.
         A symbol alignment parameter (Al): 8-bit unsigned integer.
         */
         let len: u8 = 4;
@@ -32,15 +32,15 @@ impl AlcCodec for AlcRaptorQ {
             (transfer_length << 24) | (oti.encoding_symbol_length as u64 & 0xFFFF);
 
         assert!(oti.raptorq_scheme_specific.is_some());
-        let raptorq = oti.raptorq_scheme_specific.as_ref().unwrap();
+        let raptor = oti.raptor_scheme_specific.as_ref().unwrap();
 
         let padding: u16 = 0;
 
         data.extend(ext_header.to_be_bytes());
         data.extend(transfer_header.to_be_bytes());
-        data.push(raptorq.source_blocks_length);
-        data.extend(raptorq.sub_blocks_length.to_be_bytes());
-        data.push(raptorq.symbol_alignment);
+        data.extend(raptor.source_blocks_length.to_be_bytes());
+        data.extend(raptor.sub_blocks_length.to_be_bytes());
+        data.extend(raptor.symbol_alignment.to_be_bytes());
         data.extend(padding.to_be_bytes());
         lct::inc_hdr_len(data, len);
     }
@@ -61,17 +61,9 @@ impl AlcCodec for AlcRaptorQ {
 
         let transfer_length = u64::from_be_bytes(fti[2..10].as_ref().try_into().unwrap()) >> 24;
         let symbol_size = u16::from_be_bytes(fti[8..10].as_ref().try_into().unwrap());
-        let z = fti[10];
-        let n = u16::from_be_bytes(fti[11..13].as_ref().try_into().unwrap());
+        let z = u16::from_be_bytes(fti[10..12].as_ref().try_into().unwrap());
+        let n = fti[12];
         let al = fti[13];
-        log::debug!(
-            "length={} sym={} z={} n={} al={}",
-            transfer_length,
-            symbol_size,
-            z,
-            n,
-            al
-        );
 
         if z == 0 {
             return Err(FluteError::new("Z is null"));
@@ -95,12 +87,12 @@ impl AlcCodec for AlcRaptorQ {
             encoding_symbol_length: symbol_size,
             max_number_of_parity_symbols: 0, // Unknown for RaptorQ
             reed_solomon_scheme_specific: None,
-            raptorq_scheme_specific: Some(oti::RaptorQSchemeSpecific {
+            raptorq_scheme_specific: None,
+            raptor_scheme_specific: Some(oti::RaptorSchemeSpecific {
                 source_blocks_length: z,
                 sub_blocks_length: n,
                 symbol_alignment: al,
             }),
-            raptor_scheme_specific: None,
             inband_fti: true,
         };
 
@@ -109,14 +101,12 @@ impl AlcCodec for AlcRaptorQ {
 
     fn add_fec_payload_id(&self, data: &mut Vec<u8>, _oti: &oti::Oti, pkt: &pkt::Pkt) {
         /*
-         0                   1                   2                   3
-         0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+         +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |     Source Block Number       |      Encoding Symbol ID       |
         +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        |     SBN       |               Encoding Symbol ID              |
-        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        */
+         */
 
-        let payload_id = (pkt.sbn & 0xFFu32) << 24 | pkt.esi & 0xFFFFFFu32;
+        let payload_id = (pkt.sbn & 0xFFFFu32) << 16 | pkt.esi & 0xFFFFu32;
         data.extend(payload_id.to_be_bytes());
     }
 
@@ -131,8 +121,8 @@ impl AlcCodec for AlcRaptorQ {
             Err(e) => return Err(FluteError::new(e.to_string())),
         };
         let payload_id_header = u32::from_be_bytes(arr);
-        let sbn = payload_id_header >> 24;
-        let esi = payload_id_header & 0xFFFFFF;
+        let sbn = payload_id_header >> 16;
+        let esi = payload_id_header & 0xFFFF;
         Ok(alc::PayloadID {
             esi,
             sbn,

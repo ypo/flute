@@ -47,6 +47,9 @@ impl Block {
             oti::FECEncodingID::RaptorQ => {
                 Block::create_shards_raptorq(oti, nb_source_symbols, block_length as usize, buffer)?
             }
+            oti::FECEncodingID::Raptor => {
+                Block::create_shards_raptor(oti, nb_source_symbols, block_length as usize, buffer)?
+            }
         };
 
         Ok(Box::new(Block {
@@ -113,12 +116,29 @@ impl Block {
     ) -> Result<Vec<Box<dyn FecShard>>> {
         assert!(nb_source_symbols <= oti.maximum_source_block_length as usize);
         assert!(nb_source_symbols <= block_length as usize);
-        assert!(oti.raptor_scheme_specific.is_some());
+        assert!(oti.raptorq_scheme_specific.is_some());
         let encoder = fec::raptorq::RaptorQEncoder::new(
             nb_source_symbols,
             oti.max_number_of_parity_symbols as usize,
             oti.encoding_symbol_length as usize,
-            oti.raptor_scheme_specific.as_ref().unwrap(),
+            oti.raptorq_scheme_specific.as_ref().unwrap(),
+        );
+        let shards = encoder.encode(&buffer)?;
+        Ok(shards)
+    }
+
+    fn create_shards_raptor(
+        oti: &Oti,
+        nb_source_symbols: usize,
+        block_length: usize,
+        buffer: &[u8],
+    ) -> Result<Vec<Box<dyn FecShard>>> {
+        assert!(nb_source_symbols <= oti.maximum_source_block_length as usize);
+        assert!(nb_source_symbols <= block_length as usize);
+        assert!(oti.raptor_scheme_specific.is_some());
+        let encoder = fec::raptor::RaptorEncoder::new(
+            nb_source_symbols,
+            oti.max_number_of_parity_symbols as usize,
         );
         let shards = encoder.encode(&buffer)?;
         Ok(shards)

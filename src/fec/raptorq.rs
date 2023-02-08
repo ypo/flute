@@ -1,4 +1,4 @@
-use crate::common::oti::RaptorSchemeSpecific;
+use crate::common::oti::RaptorQSchemeSpecific;
 use crate::error::{FluteError, Result};
 
 use super::{FecDecoder, FecEncoder, FecShard, ShardType};
@@ -31,7 +31,7 @@ impl RaptorQEncoder {
         nb_source_symbols: usize,
         nb_parity_symbols: usize,
         encoding_symbol_length: usize,
-        scheme: &RaptorSchemeSpecific,
+        scheme: &RaptorQSchemeSpecific,
     ) -> Self {
         RaptorQEncoder {
             nb_parity_symbols,
@@ -94,7 +94,7 @@ impl RaptorQDecoder {
         sbn: u32,
         nb_source_symbols: usize,
         encoding_symbol_length: usize,
-        scheme: &RaptorSchemeSpecific,
+        scheme: &RaptorQSchemeSpecific,
     ) -> RaptorQDecoder {
         let config = raptorq::ObjectTransmissionInformation::new(
             (nb_source_symbols * encoding_symbol_length) as u64,
@@ -147,7 +147,7 @@ impl FecDecoder for RaptorQDecoder {
 
 #[cfg(test)]
 mod tests {
-    use crate::{common::oti::RaptorSchemeSpecific, fec::FecEncoder};
+    use crate::{common::oti::RaptorQSchemeSpecific, fec::FecEncoder};
 
     #[test]
     pub fn test_raptorq_encode() {
@@ -159,7 +159,7 @@ mod tests {
 
         let data = vec![0xAAu8; nb_source_symbols * symbols_length];
 
-        let scheme = RaptorSchemeSpecific {
+        let scheme = RaptorQSchemeSpecific {
             source_blocks_length: 1,
             sub_blocks_length: 1,
             symbol_alignment: 8,
