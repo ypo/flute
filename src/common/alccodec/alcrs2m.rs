@@ -81,7 +81,7 @@ impl AlcCodec for AlcRS2m {
                     m => m,
                 },
             }),
-            raptorq_scheme_specific: None,
+            raptor_scheme_specific: None,
             inband_fti: true,
         };
 

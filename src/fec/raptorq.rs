@@ -1,11 +1,11 @@
-use crate::common::oti::RaptorQSchemeSpecific;
+use crate::common::oti::RaptorSchemeSpecific;
+use crate::error::{FluteError, Result};
 
-use super::{FecCodec, FecShard, ShardType};
+use super::{FecDecoder, FecEncoder, FecShard, ShardType};
 
-pub struct RaptorQ {
+pub struct RaptorQEncoder {
     config: raptorq::ObjectTransmissionInformation,
     nb_parity_symbols: usize,
-    nb_source_symbols: usize,
 }
 
 #[derive(Debug)]
@@ -26,16 +26,15 @@ impl FecShard for RaptorFecShard {
     }
 }
 
-impl RaptorQ {
+impl RaptorQEncoder {
     pub fn new(
         nb_source_symbols: usize,
         nb_parity_symbols: usize,
         encoding_symbol_length: usize,
-        scheme: &RaptorQSchemeSpecific,
+        scheme: &RaptorSchemeSpecific,
     ) -> Self {
-        RaptorQ {
+        RaptorQEncoder {
             nb_parity_symbols,
-            nb_source_symbols,
             config: raptorq::ObjectTransmissionInformation::new(
                 (nb_source_symbols * encoding_symbol_length) as u64,
                 encoding_symbol_length as u16,
@@ -47,7 +46,7 @@ impl RaptorQ {
     }
 }
 
-impl FecCodec for RaptorQ {
+impl FecEncoder for RaptorQEncoder {
     fn encode(&self, data: &[u8]) -> crate::error::Result<Vec<Box<dyn FecShard>>> {
         let symbol_aligned = data.len() % self.config.symbol_size() as usize;
         let encoder = match data.len() % self.config.symbol_size() as usize {
@@ -82,57 +81,73 @@ impl FecCodec for RaptorQ {
 
         Ok(output)
     }
+}
 
-    fn decode(&self, sbn: u32, shards: &mut Vec<Option<Vec<u8>>>) -> bool {
-        let block_length = self.nb_source_symbols as u64 * self.config.symbol_size() as u64;
-        log::debug!(
-            "Create raptorq decoder for sbn {} block_length {} config {:?}",
-            sbn,
-            block_length,
-            self.config
+pub struct RaptorQDecoder {
+    decoder: raptorq::SourceBlockDecoder,
+    data: Option<Vec<u8>>,
+    sbn: u32,
+}
+
+impl RaptorQDecoder {
+    pub fn new(
+        sbn: u32,
+        nb_source_symbols: usize,
+        encoding_symbol_length: usize,
+        scheme: &RaptorSchemeSpecific,
+    ) -> RaptorQDecoder {
+        let config = raptorq::ObjectTransmissionInformation::new(
+            (nb_source_symbols * encoding_symbol_length) as u64,
+            encoding_symbol_length as u16,
+            1,
+            scheme.sub_blocks_length,
+            scheme.symbol_alignment,
         );
-        let mut decoder = raptorq::SourceBlockDecoder::new2(sbn as u8, &self.config, block_length);
 
-        let packets = shards
-            .iter()
-            .enumerate()
-            .filter(|(_, shard)| shard.is_some())
-            .map(|(esi, shard)| {
-                raptorq::EncodingPacket::new(
-                    raptorq::PayloadId::new(sbn as u8, esi as u32),
-                    shard.as_ref().unwrap().clone(),
-                )
-            });
-
-        let result = decoder.decode(packets);
-        if result.is_none() {
-            log::error!("Fail to decode");
-            return false;
+        let block_length = nb_source_symbols as u64 * encoding_symbol_length as u64;
+        let decoder = raptorq::SourceBlockDecoder::new2(sbn as u8, &config, block_length);
+        RaptorQDecoder {
+            decoder,
+            data: None,
+            sbn,
         }
-        log::info!("RaptorQ decoded with success",);
-        result
-            .unwrap()
-            .chunks(self.config.symbol_size() as usize)
-            .enumerate()
-            .for_each(|(esi, shard)| {
-                log::info!("Check esi {}", esi);
-                if shards[esi].is_none() {
-                    log::info!("Replace shard with decoded");
-                    let s = &mut shards[esi];
-                    s.replace(shard.to_vec());
-                }
-            });
-        true
+    }
+}
+
+impl FecDecoder for RaptorQDecoder {
+    fn push_symbol(&mut self, encoding_symbol: &[u8], esi: u32) {
+        if self.data.is_some() {
+            return;
+        }
+
+        let pkt = raptorq::EncodingPacket::new(
+            raptorq::PayloadId::new(self.sbn as u8, esi as u32),
+            encoding_symbol.to_vec(),
+        );
+
+        self.data = self.decoder.decode(vec![pkt]);
     }
 
-    fn is_fountain(&self) -> bool {
-        true
+    fn can_decode(&self) -> bool {
+        self.data.is_some()
+    }
+
+    fn decode(&mut self) -> bool {
+        self.data.is_some()
+    }
+
+    fn source_block(&self) -> Result<&[u8]> {
+        if self.data.is_none() {
+            return Err(FluteError::new("Source block not decoded"));
+        }
+
+        Ok(self.data.as_ref().unwrap())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{common::oti::RaptorQSchemeSpecific, fec::FecCodec};
+    use crate::{common::oti::RaptorSchemeSpecific, fec::FecEncoder};
 
     #[test]
     pub fn test_raptorq_encode() {
@@ -144,13 +159,13 @@ mod tests {
 
         let data = vec![0xAAu8; nb_source_symbols * symbols_length];
 
-        let scheme = RaptorQSchemeSpecific {
+        let scheme = RaptorSchemeSpecific {
             source_blocks_length: 1,
             sub_blocks_length: 1,
             symbol_alignment: 8,
         };
 
-        let r = super::RaptorQ::new(
+        let r = super::RaptorQEncoder::new(
             nb_source_symbols,
             nb_parity_symbols,
             symbols_length,

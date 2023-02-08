@@ -45,7 +45,7 @@ impl FileDesc {
         if oti.fec_encoding_id == oti::FECEncodingID::RaptorQ {
             // Calculate the source block length of RaptorQ
 
-            if oti.raptorq_scheme_specific.is_none() {
+            if oti.raptor_scheme_specific.is_none() {
                 return Err(FluteError::new(
                     "FEC RaptorQ is select, however scheme parameters are not defined",
                 ));
@@ -65,7 +65,7 @@ impl FileDesc {
                 ))
             })?;
 
-            let scheme = oti.raptorq_scheme_specific.as_mut().unwrap();
+            let scheme = oti.raptor_scheme_specific.as_mut().unwrap();
             scheme.source_blocks_length = nb_blocks;
         }
 

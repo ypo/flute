@@ -1,6 +1,6 @@
 use crate::common::oti::{self, Oti};
 use crate::fec::{self, FecShard};
-use crate::fec::{DataFecShard, FecCodec};
+use crate::fec::{DataFecShard, FecEncoder};
 use crate::tools::error::{FluteError, Result};
 
 #[derive(Debug)]
@@ -113,12 +113,12 @@ impl Block {
     ) -> Result<Vec<Box<dyn FecShard>>> {
         assert!(nb_source_symbols <= oti.maximum_source_block_length as usize);
         assert!(nb_source_symbols <= block_length as usize);
-        assert!(oti.raptorq_scheme_specific.is_some());
-        let encoder = fec::raptorq::RaptorQ::new(
+        assert!(oti.raptor_scheme_specific.is_some());
+        let encoder = fec::raptorq::RaptorQEncoder::new(
             nb_source_symbols,
             oti.max_number_of_parity_symbols as usize,
             oti.encoding_symbol_length as usize,
-            oti.raptorq_scheme_specific.as_ref().unwrap(),
+            oti.raptor_scheme_specific.as_ref().unwrap(),
         );
         let shards = encoder.encode(&buffer)?;
         Ok(shards)

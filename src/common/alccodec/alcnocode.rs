@@ -64,7 +64,7 @@ impl AlcCodec for AlcNoCode {
             encoding_symbol_length,
             max_number_of_parity_symbols: 0,
             reed_solomon_scheme_specific: None,
-            raptorq_scheme_specific: None,
+            raptor_scheme_specific: None,
             inband_fti: true,
         };
 

@@ -1,6 +1,6 @@
 use crate::tools::error::{FluteError, Result};
 
-use super::{DataFecShard, FecCodec, FecShard, ShardType};
+use super::{DataFecShard, FecDecoder, FecEncoder, FecShard, ShardType};
 
 #[derive(Debug)]
 pub struct RSCodecParam {
@@ -13,6 +13,10 @@ pub struct RSCodecParam {
 pub struct RSGalois8Codec {
     params: RSCodecParam,
     rs: reed_solomon_erasure::galois_8::ReedSolomon,
+    decode_shards: Vec<Option<Vec<u8>>>,
+    decode_block: Option<Vec<u8>>,
+    nb_source_symbols_received: usize,
+    nb_encoding_symbols_received: usize,
 }
 
 impl RSCodecParam {
@@ -58,11 +62,79 @@ impl RSGalois8Codec {
                 encoding_symbol_length,
             },
             rs,
+            decode_shards: vec![None; nb_source_symbols + nb_parity_symbols],
+            decode_block: None,
+            nb_source_symbols_received: 0,
+            nb_encoding_symbols_received: 0,
         })
     }
 }
 
-impl FecCodec for RSGalois8Codec {
+impl FecDecoder for RSGalois8Codec {
+    fn push_symbol(&mut self, encoding_symbol: &[u8], esi: u32) {
+        if self.decode_block.is_some() {
+            return;
+        }
+
+        log::info!("Receive ESI {}", esi);
+        if self.decode_shards.len() <= esi as usize {
+            return;
+        }
+
+        if self.decode_shards[esi as usize].is_some() {
+            return;
+        }
+
+        self.decode_shards[esi as usize] = Some(encoding_symbol.to_vec());
+        if esi < self.params.nb_source_symbols as u32 {
+            self.nb_source_symbols_received += 1;
+        }
+        self.nb_encoding_symbols_received += 1;
+    }
+
+    fn can_decode(&self) -> bool {
+        self.nb_encoding_symbols_received >= self.params.nb_source_symbols
+    }
+
+    fn decode(&mut self) -> bool {
+        if self.decode_block.is_some() {
+            return true;
+        }
+
+        if self.nb_source_symbols_received < self.params.nb_source_symbols {
+            match self.rs.reconstruct(&mut self.decode_shards) {
+                Ok(_) => {
+                    log::info!("Reconstruct with success !");
+                }
+                Err(e) => {
+                    log::error!("{:?}", e);
+                    return false;
+                }
+            };
+        }
+
+        let mut output = Vec::new();
+        for i in 0..self.params.nb_source_symbols {
+            if self.decode_shards[i].is_none() {
+                log::error!("BUG? a shard is missing");
+                return false;
+            }
+            output.extend(self.decode_shards[i].as_ref().unwrap());
+        }
+
+        self.decode_block = Some(output);
+        true
+    }
+
+    fn source_block(&self) -> Result<&[u8]> {
+        match self.decode_block.as_ref() {
+            Some(e) => Ok(e),
+            None => Err(FluteError::new("Block not decoded")),
+        }
+    }
+}
+
+impl FecEncoder for RSGalois8Codec {
     fn encode(&self, data: &[u8]) -> Result<Vec<Box<dyn FecShard>>> {
         let mut shards = self.params.create_shards(data)?;
         self.rs
@@ -86,28 +158,11 @@ impl FecCodec for RSGalois8Codec {
 
         Ok(shards)
     }
-
-    fn decode(&self, _sbn: u32, shards: &mut Vec<Option<Vec<u8>>>) -> bool {
-        match self.rs.reconstruct(shards) {
-            Ok(_) => {
-                log::info!("Reconstruct with success !");
-                true
-            }
-            Err(e) => {
-                log::error!("{:?}", e);
-                false
-            }
-        }
-    }
-
-    fn is_fountain(&self) -> bool {
-        false
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::fec::FecCodec;
+    use crate::fec::FecEncoder;
     #[test]
     pub fn test_encoder() {
         crate::tests::init();

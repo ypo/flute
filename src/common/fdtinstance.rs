@@ -2,7 +2,7 @@ use crate::tools::error::{FluteError, Result};
 use quick_xml::de::from_reader;
 use serde::{Deserialize, Serialize};
 
-use super::oti::{self, RaptorQSchemeSpecific, ReedSolomonGF2MSchemeSpecific};
+use super::oti::{self, RaptorSchemeSpecific, ReedSolomonGF2MSchemeSpecific};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct FdtInstance {
@@ -81,14 +81,14 @@ fn reed_solomon_scheme_specific(
     Ok(Some(scheme))
 }
 
-fn raptorq_scheme_specific(
+fn raptor_scheme_specific(
     fec_oti_scheme_specific_info: &Option<String>,
-) -> Result<Option<RaptorQSchemeSpecific>> {
+) -> Result<Option<RaptorSchemeSpecific>> {
     if fec_oti_scheme_specific_info.is_none() {
         return Ok(None);
     }
 
-    let scheme = RaptorQSchemeSpecific::decode(fec_oti_scheme_specific_info.as_ref().unwrap())?;
+    let scheme = RaptorSchemeSpecific::decode(fec_oti_scheme_specific_info.as_ref().unwrap())?;
     Ok(Some(scheme))
 }
 
@@ -134,9 +134,9 @@ impl FdtInstance {
             _ => None,
         };
 
-        let raptorq_scheme_specific = match fec_encoding_id {
+        let raptor_scheme_specific = match fec_encoding_id {
             oti::FECEncodingID::RaptorQ => {
-                raptorq_scheme_specific(&self.fec_oti_scheme_specific_info).unwrap_or(None)
+                raptor_scheme_specific(&self.fec_oti_scheme_specific_info).unwrap_or(None)
             }
             _ => None,
         };
@@ -150,7 +150,7 @@ impl FdtInstance {
                 - self.fec_oti_maximum_source_block_length.unwrap())
                 as u32,
             reed_solomon_scheme_specific: reed_solomon_scheme_specific,
-            raptorq_scheme_specific: raptorq_scheme_specific,
+            raptor_scheme_specific: raptor_scheme_specific,
             inband_fti: false,
         })
     }
@@ -178,7 +178,7 @@ impl File {
 
         let raptorq_scheme_specific = match fec_encoding_id {
             oti::FECEncodingID::RaptorQ => {
-                raptorq_scheme_specific(&self.fec_oti_scheme_specific_info).unwrap_or(None)
+                raptor_scheme_specific(&self.fec_oti_scheme_specific_info).unwrap_or(None)
             }
             _ => None,
         };
@@ -192,7 +192,7 @@ impl File {
                 - self.fec_oti_maximum_source_block_length.unwrap())
                 as u32,
             reed_solomon_scheme_specific: reed_solomon_scheme_specific,
-            raptorq_scheme_specific: raptorq_scheme_specific,
+            raptor_scheme_specific: raptorq_scheme_specific,
             inband_fti: false,
         })
     }

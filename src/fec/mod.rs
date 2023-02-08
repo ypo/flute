@@ -1,3 +1,4 @@
+pub mod nocode;
 pub mod raptorq;
 pub mod rscodec;
 
@@ -46,15 +47,25 @@ impl DataFecShard {
     }
 }
 
-pub trait FecCodec {
+pub trait FecEncoder {
     fn encode(&self, data: &[u8]) -> Result<Vec<Box<dyn FecShard>>>;
-    fn decode(&self, sbn: u32, shards: &mut Vec<Option<Vec<u8>>>) -> bool;
-    // , fountain codes ,potentially limitless sequence of encoding symbols
-    fn is_fountain(&self) -> bool;
 }
 
-impl std::fmt::Debug for dyn FecCodec {
+pub trait FecDecoder {
+    fn push_symbol(&mut self, encoding_symbol: &[u8], esi: u32);
+    fn can_decode(&self) -> bool;
+    fn decode(&mut self) -> bool;
+    fn source_block(&self) -> Result<&[u8]>;
+}
+
+impl std::fmt::Debug for dyn FecEncoder {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "FecCodec {{  }}")
+        write!(f, "FecEncoder {{  }}")
+    }
+}
+
+impl std::fmt::Debug for dyn FecDecoder {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "FecDecoder {{  }}")
     }
 }

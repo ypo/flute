@@ -31,8 +31,8 @@ impl AlcCodec for AlcRaptorQ {
         let transfer_header: u64 =
             (transfer_length << 24) | (oti.encoding_symbol_length as u64 & 0xFFFF);
 
-        assert!(oti.raptorq_scheme_specific.is_some());
-        let raptorq = oti.raptorq_scheme_specific.as_ref().unwrap();
+        assert!(oti.raptor_scheme_specific.is_some());
+        let raptorq = oti.raptor_scheme_specific.as_ref().unwrap();
 
         let padding: u16 = 0;
 
@@ -95,7 +95,7 @@ impl AlcCodec for AlcRaptorQ {
             encoding_symbol_length: symbol_size,
             max_number_of_parity_symbols: 0, // Unknown for RaptorQ
             reed_solomon_scheme_specific: None,
-            raptorq_scheme_specific: Some(oti::RaptorQSchemeSpecific {
+            raptor_scheme_specific: Some(oti::RaptorSchemeSpecific {
                 source_blocks_length: z,
                 sub_blocks_length: n,
                 symbol_alignment: al,

@@ -1,7 +1,7 @@
 use super::fdt::Fdt;
 use super::objectdesc;
 use super::sendersession::SenderSession;
-use crate::common::{lct, oti};
+use crate::common::{lct, oti, Profile};
 use crate::tools::error::Result;
 use std::time::SystemTime;
 
@@ -27,6 +27,8 @@ pub struct Config {
     /// Blocks interleave permits to spread out errors that may occur during transmission.
     /// Combined with error recovery, it can improve resilience to burst error, but can increase the complexity of the reception.
     pub interleave_blocks: u8,
+    /// Select FLUTE sender profile used during the transmission
+    pub profile: Profile,
 }
 
 impl Default for Config {
@@ -38,6 +40,7 @@ impl Default for Config {
             fdt_inband_sct: true,
             multiplex_files: 3,
             interleave_blocks: 4,
+            profile: Profile::RFC6726,
         }
     }
 }
@@ -72,7 +75,14 @@ impl Sender {
         };
 
         let sessions = (0..multiplex_files)
-            .map(|index| SenderSession::new(tsi, config.interleave_blocks as usize, index == 0))
+            .map(|index| {
+                SenderSession::new(
+                    tsi,
+                    config.interleave_blocks as usize,
+                    index == 0,
+                    config.profile,
+                )
+            })
             .collect();
 
         Sender {

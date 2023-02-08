@@ -54,7 +54,7 @@ pub struct ReedSolomonGF2MSchemeSpecific {
 /// RaptorQ Scheme Specific parameters
 /// <https://www.rfc-editor.org/rfc/rfc6330.html#section-3.3.3>
 #[derive(Clone, Debug)]
-pub struct RaptorQSchemeSpecific {
+pub struct RaptorSchemeSpecific {
     /// The number of source blocks (Z): 8-bit unsigned integer.  
     /// None: Let the sender calculate it for each object.  
     pub source_blocks_length: u8,
@@ -86,7 +86,7 @@ impl ReedSolomonGF2MSchemeSpecific {
     }
 }
 
-impl RaptorQSchemeSpecific {
+impl RaptorSchemeSpecific {
     pub fn scheme_specific(&self) -> String {
         let mut data: Vec<u8> = Vec::new();
         data.push(self.source_blocks_length);
@@ -95,7 +95,7 @@ impl RaptorQSchemeSpecific {
         base64::engine::general_purpose::STANDARD.encode(data)
     }
 
-    pub fn decode(fec_oti_scheme_specific_info: &str) -> Result<RaptorQSchemeSpecific> {
+    pub fn decode(fec_oti_scheme_specific_info: &str) -> Result<RaptorSchemeSpecific> {
         let info = base64::engine::general_purpose::STANDARD
             .decode(fec_oti_scheme_specific_info)
             .map_err(|_| FluteError::new("Fail to decode base64 specific scheme"))?;
@@ -104,7 +104,7 @@ impl RaptorQSchemeSpecific {
             return Err(FluteError::new("Wrong size of Scheme-Specific-Info"));
         }
 
-        Ok(RaptorQSchemeSpecific {
+        Ok(RaptorSchemeSpecific {
             source_blocks_length: info[0],
             sub_blocks_length: u16::from_be_bytes(info[1..3].try_into().unwrap()),
             symbol_alignment: info[3],
@@ -130,8 +130,8 @@ pub struct Oti {
     pub max_number_of_parity_symbols: u32,
     /// Optional, only if `fec_encoding_id` is `FECEncodingID::ReedSolomonGF2M`
     pub reed_solomon_scheme_specific: Option<ReedSolomonGF2MSchemeSpecific>,
-    /// Optional, only if `fec_encoding_id` is `FECEncodingID::RaptorQ`
-    pub raptorq_scheme_specific: Option<RaptorQSchemeSpecific>,
+    /// Optional, only if `fec_encoding_id` is `FECEncodingID::RaptorQ` or `FECEncodingID::Raptor`
+    pub raptor_scheme_specific: Option<RaptorSchemeSpecific>,
     /// If `true`, FTI is added to every ALC/LCT packets
     /// If `false`, FTI is only available inside the FDT
     pub inband_fti: bool,
@@ -149,9 +149,9 @@ impl Default for ReedSolomonGF2MSchemeSpecific {
     }
 }
 
-impl Default for RaptorQSchemeSpecific {
+impl Default for RaptorSchemeSpecific {
     fn default() -> Self {
-        RaptorQSchemeSpecific {
+        RaptorSchemeSpecific {
             source_blocks_length: 0,
             sub_blocks_length: 0,
             symbol_alignment: 0,
@@ -179,7 +179,7 @@ impl Oti {
             encoding_symbol_length: encoding_symbol_length,
             max_number_of_parity_symbols: 0,
             reed_solomon_scheme_specific: None,
-            raptorq_scheme_specific: None,
+            raptor_scheme_specific: None,
             inband_fti: true,
         }
     }
@@ -231,7 +231,7 @@ impl Oti {
             encoding_symbol_length: encoding_symbol_length,
             max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
             reed_solomon_scheme_specific: None,
-            raptorq_scheme_specific: None,
+            raptor_scheme_specific: None,
             inband_fti: true,
         })
     }
@@ -283,7 +283,7 @@ impl Oti {
             encoding_symbol_length: encoding_symbol_length,
             max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
             reed_solomon_scheme_specific: None,
-            raptorq_scheme_specific: None,
+            raptor_scheme_specific: None,
             inband_fti: true,
         })
     }
@@ -319,8 +319,7 @@ impl Oti {
     ///
     /// ```
     /// use flute::sender::Oti;
-    /// // Files are cut in blocks of 60 source symbols and 4 parity (repair) symbols of 1400 bytes each
-    /// let oti = Oti::new_reed_solomon_rs28_under_specified(1400, 60, 4).unwrap();
+    /// let oti = Oti::new_raptorq(1400, 60, 4, 1, 4).unwrap();
     /// ```
     ///
     pub fn new_raptorq(
@@ -343,7 +342,7 @@ impl Oti {
             encoding_symbol_length: encoding_symbol_length,
             max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
             reed_solomon_scheme_specific: None,
-            raptorq_scheme_specific: Some(RaptorQSchemeSpecific {
+            raptor_scheme_specific: Some(RaptorSchemeSpecific {
                 source_blocks_length: 0,
                 sub_blocks_length: sub_blocks_length,
                 symbol_alignment: symbol_alignment,
@@ -411,7 +410,7 @@ impl Oti {
                 None => None,
             },
             FECEncodingID::ReedSolomonGF28 => None,
-            FECEncodingID::RaptorQ => match self.raptorq_scheme_specific.as_ref() {
+            FECEncodingID::RaptorQ => match self.raptor_scheme_specific.as_ref() {
                 Some(scheme) => Some(scheme.scheme_specific()),
                 None => None,
             },

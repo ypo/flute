@@ -1,6 +1,7 @@
 use super::blockencoder::BlockEncoder;
 use super::fdt::Fdt;
 use super::filedesc::FileDesc;
+use super::Profile;
 use crate::common::alc;
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -12,16 +13,23 @@ pub struct SenderSession {
     encoder: Option<BlockEncoder>,
     interleave_blocks: usize,
     transfer_fdt_only: bool,
+    profile: Profile,
 }
 
 impl SenderSession {
-    pub fn new(tsi: u64, interleave_blocks: usize, transfer_fdt_only: bool) -> SenderSession {
+    pub fn new(
+        tsi: u64,
+        interleave_blocks: usize,
+        transfer_fdt_only: bool,
+        profile: Profile,
+    ) -> SenderSession {
         SenderSession {
             tsi,
             file: None,
             encoder: None,
             interleave_blocks,
             transfer_fdt_only,
+            profile,
         }
     }
 
@@ -44,7 +52,13 @@ impl SenderSession {
                 continue;
             }
             let pkt = pkt.as_ref().unwrap();
-            return Some(alc::new_alc_pkt(&file.oti, &0u128, self.tsi, pkt));
+            return Some(alc::new_alc_pkt(
+                &file.oti,
+                &0u128,
+                self.tsi,
+                pkt,
+                self.profile,
+            ));
         }
     }
 

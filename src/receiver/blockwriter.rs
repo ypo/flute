@@ -66,26 +66,22 @@ impl BlockWriter {
             return Ok(false);
         }
         assert!(block.completed);
-        let data = block.source_encoding_symbols();
-        for encoding_symbol in data {
-            // Block is completed , source symbol must not be None
-            let symbols = encoding_symbol.as_ref().unwrap();
+        let data = block.source_block()?;
 
-            // Detect the size of the last symbol
-            let symbols = match self.bytes_left > symbols.len() {
-                true => symbols.as_ref(),
-                false => &symbols[..self.bytes_left],
-            };
+        // Detect the size of the last symbol
+        let data = match self.bytes_left > data.len() {
+            true => data,
+            false => &data[..self.bytes_left],
+        };
 
-            if self.cenc == lct::Cenc::Null {
-                self.write_pkt_cenc_null(symbols, writer);
-            } else {
-                self.decode_write_pkt(symbols, writer)?;
-            }
-
-            assert!(symbols.len() <= self.bytes_left);
-            self.bytes_left -= symbols.len();
+        if self.cenc == lct::Cenc::Null {
+            self.write_pkt_cenc_null(data, writer);
+        } else {
+            self.decode_write_pkt(data, writer)?;
         }
+
+        assert!(data.len() <= self.bytes_left);
+        self.bytes_left -= data.len();
 
         self.sbn += 1;
 

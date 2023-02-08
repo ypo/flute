@@ -14,6 +14,7 @@ mod sendersession;
 pub use crate::common::lct::Cenc;
 pub use crate::common::oti::FECEncodingID;
 pub use crate::common::oti::Oti;
+pub use crate::common::Profile;
 pub use objectdesc::ObjectDesc;
 pub use sender::Config;
 pub use sender::Sender;

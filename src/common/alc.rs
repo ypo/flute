@@ -1,4 +1,4 @@
-use super::{alccodec::AlcCodec, lct, oti, pkt::Pkt};
+use super::{alccodec::AlcCodec, lct, oti, pkt::Pkt, Profile};
 use crate::tools::{self, error::FluteError, error::Result};
 use std::time::SystemTime;
 
@@ -72,7 +72,7 @@ impl<'a> AlcPktCache {
     }
 }
 
-pub fn new_alc_pkt(oti: &oti::Oti, cci: &u128, tsi: u64, pkt: &Pkt) -> Vec<u8> {
+pub fn new_alc_pkt(oti: &oti::Oti, cci: &u128, tsi: u64, pkt: &Pkt, profile: Profile) -> Vec<u8> {
     let mut data = Vec::new();
     log::debug!("Send ALC sbn={} esi={} toi={}", pkt.sbn, pkt.esi, pkt.toi);
     lct::push_lct_header(
@@ -87,7 +87,13 @@ pub fn new_alc_pkt(oti: &oti::Oti, cci: &u128, tsi: u64, pkt: &Pkt) -> Vec<u8> {
 
     if pkt.toi == lct::TOI_FDT {
         assert!(pkt.fdt_id.is_some());
-        push_fdt(&mut data, 2, pkt.fdt_id.unwrap())
+
+        let version = match profile {
+            Profile::RFC6726 => 2,
+            Profile::RFC3926 => 1,
+        };
+
+        push_fdt(&mut data, version, pkt.fdt_id.unwrap())
     }
 
     // In case of FDT, we must push Cenc if Cenc is not null
@@ -96,7 +102,13 @@ pub fn new_alc_pkt(oti: &oti::Oti, cci: &u128, tsi: u64, pkt: &Pkt) -> Vec<u8> {
     }
 
     if pkt.sender_current_time.is_some() {
-        push_sct(&mut data, pkt.sender_current_time.unwrap());
+        match profile {
+            Profile::RFC6726 => push_sct(&mut data, pkt.sender_current_time.unwrap()),
+            Profile::RFC3926 => {
+                log::warn!("SCT not implemented for RFC3926");
+                // TODO see SCT from https://www.rfc-editor.org/rfc/rfc3451 
+            }
+        };
     }
 
     let codec = <dyn AlcCodec>::instance(oti.fec_encoding_id);
@@ -295,6 +307,7 @@ mod tests {
     use crate::common::lct;
     use crate::common::oti;
     use crate::common::pkt;
+    use crate::common::Profile;
 
     #[test]
     pub fn test_alc_create() {
@@ -320,7 +333,7 @@ mod tests {
             sender_current_time: None,
         };
 
-        let alc_pkt = super::new_alc_pkt(&oti, &cci, tsi, &pkt);
+        let alc_pkt = super::new_alc_pkt(&oti, &cci, tsi, &pkt, Profile::RFC6726);
         let decoded_pkt = super::parse_alc_pkt(&alc_pkt).unwrap();
         assert!(decoded_pkt.lct.toi == pkt.toi);
         assert!(decoded_pkt.lct.cci == cci);
