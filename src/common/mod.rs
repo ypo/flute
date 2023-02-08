@@ -7,7 +7,7 @@ pub enum Profile {
     /// <https://www.rfc-editor.org/rfc/rfc6726.html>
     RFC6726,
     /// FLUTE Version 1
-    /// https://www.rfc-editor.org/rfc/rfc3926
+    /// <https://www.rfc-editor.org/rfc/rfc3926>
     RFC3926,
 }
 
