@@ -100,7 +100,7 @@
 //! - [ ] Reed-Solomon GF 2^16  
 //! - [ ] Reed-Solomon GF 2^m  
 //! - [X] RaptorQ  
-//! - [ ] Raptor
+//! - [X] Raptor
 //!
 //! The `Oti` module provides an implementation of the Object Transmission Information (OTI)
 //! used to configure Forward Error Correction (FEC) encoding in the FLUTE protocol.
