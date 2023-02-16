@@ -7,7 +7,7 @@ pub struct RaptorEncoder {
 }
 
 impl RaptorEncoder {
-    pub fn new(nb_parity_symbols: usize, nb_source_symbols: usize) -> RaptorEncoder {
+    pub fn new(nb_source_symbols: usize, nb_parity_symbols: usize) -> RaptorEncoder {
         RaptorEncoder {
             nb_parity_symbols,
             nb_source_symbols,
@@ -32,6 +32,7 @@ impl FecEncoder for RaptorEncoder {
                     false => ShardType::SourceSymbol,
                 },
             };
+            log::info!("Encode shard {}", shard.shard.len());
             output.push(Box::new(shard));
         }
 
@@ -46,8 +47,12 @@ pub struct RaptorDecoder {
 }
 
 impl RaptorDecoder {
-    pub fn new(nb_source_symbols: usize, encoding_symbol_length: usize) -> RaptorDecoder {
-        let source_block_size = nb_source_symbols * encoding_symbol_length;
+    pub fn new(nb_source_symbols: usize, source_block_size: usize) -> RaptorDecoder {
+        log::info!(
+            "new RaptorDecoder nb_source_symbols={} source_block_size={}",
+            nb_source_symbols,
+            source_block_size
+        );
         RaptorDecoder {
             decoder: raptor_code::SourceBlockDecoder::new(nb_source_symbols),
             source_block_size,
@@ -62,6 +67,12 @@ impl FecDecoder for RaptorDecoder {
             return;
         }
 
+        log::info!(
+            "encoding symbol length={} source_block_size={}",
+            encoding_symbol.len(),
+            self.source_block_size
+        );
+
         self.decoder.push_encoding_symbol(encoding_symbol, esi)
     }
 
@@ -70,6 +81,7 @@ impl FecDecoder for RaptorDecoder {
     }
 
     fn decode(&mut self) -> bool {
+        log::debug!("Decode source block length {}", self.source_block_size);
         self.data = self.decoder.decode(self.source_block_size);
         self.data.is_some()
     }

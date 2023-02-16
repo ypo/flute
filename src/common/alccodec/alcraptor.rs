@@ -31,7 +31,7 @@ impl AlcCodec for AlcRaptor {
         let transfer_header: u64 =
             (transfer_length << 24) | (oti.encoding_symbol_length as u64 & 0xFFFF);
 
-        assert!(oti.raptorq_scheme_specific.is_some());
+        assert!(oti.raptor_scheme_specific.is_some());
         let raptor = oti.raptor_scheme_specific.as_ref().unwrap();
 
         let padding: u16 = 0;
@@ -81,7 +81,7 @@ impl AlcCodec for AlcRaptor {
         let maximum_source_block_length = num_integer::div_ceil(block_size, symbol_size as u64);
 
         let oti = oti::Oti {
-            fec_encoding_id: oti::FECEncodingID::RaptorQ,
+            fec_encoding_id: oti::FECEncodingID::Raptor,
             fec_instance_id: 0,
             maximum_source_block_length: maximum_source_block_length as u32,
             encoding_symbol_length: symbol_size,

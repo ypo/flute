@@ -22,19 +22,25 @@ impl BlockDecoder {
         }
     }
 
-    pub fn init(&mut self, oti: &oti::Oti, source_block_length: u32, sbn: u32) -> Result<()> {
+    pub fn init(
+        &mut self,
+        oti: &oti::Oti,
+        nb_source_symbols: u32,
+        block_size: usize,
+        sbn: u32,
+    ) -> Result<()> {
         if self.initialized {
             return Ok(());
         }
 
         match oti.fec_encoding_id {
             oti::FECEncodingID::NoCode => {
-                let codec = nocode::NoCodeDecoder::new(source_block_length as usize);
+                let codec = nocode::NoCodeDecoder::new(nb_source_symbols as usize);
                 self.decoder = Some(Box::new(codec));
             }
             oti::FECEncodingID::ReedSolomonGF28 => {
                 let codec = rscodec::RSGalois8Codec::new(
-                    source_block_length as usize,
+                    nb_source_symbols as usize,
                     oti.max_number_of_parity_symbols as usize,
                     oti.encoding_symbol_length as usize,
                 )?;
@@ -42,7 +48,7 @@ impl BlockDecoder {
             }
             oti::FECEncodingID::ReedSolomonGF28UnderSpecified => {
                 let codec = rscodec::RSGalois8Codec::new(
-                    source_block_length as usize,
+                    nb_source_symbols as usize,
                     oti.max_number_of_parity_symbols as usize,
                     oti.encoding_symbol_length as usize,
                 )?;
@@ -58,7 +64,7 @@ impl BlockDecoder {
 
                 let codec = fec::raptorq::RaptorQDecoder::new(
                     sbn,
-                    source_block_length as usize,
+                    nb_source_symbols as usize,
                     oti.encoding_symbol_length as usize,
                     oti.raptorq_scheme_specific.as_ref().unwrap(),
                 );
@@ -69,10 +75,7 @@ impl BlockDecoder {
                     return Err(FluteError::new("Raptor Scheme not found"));
                 }
 
-                let codec = fec::raptor::RaptorDecoder::new(
-                    source_block_length as usize,
-                    oti.encoding_symbol_length as usize,
-                );
+                let codec = fec::raptor::RaptorDecoder::new(nb_source_symbols as usize, block_size);
                 self.decoder = Some(Box::new(codec));
             }
         }

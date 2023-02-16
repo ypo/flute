@@ -27,6 +27,11 @@ impl Block {
     ) -> Result<Box<Block>> {
         let nb_source_symbols: usize =
             num_integer::div_ceil(buffer.len(), oti.encoding_symbol_length as usize);
+        log::info!(
+            "nb_source_symbols={} encoding_symbol_length={}",
+            nb_source_symbols,
+            oti.encoding_symbol_length
+        );
         let shards: Vec<Box<dyn FecShard>> = match oti.fec_encoding_id {
             oti::FECEncodingID::NoCode => Block::create_shards_no_code(oti, buffer),
             oti::FECEncodingID::ReedSolomonGF28 => Block::create_shards_reed_solomon_gf8(

@@ -137,7 +137,21 @@ impl ObjectReceiver {
             });
 
             let oti = self.oti.as_ref().unwrap();
-            match block.init(oti, source_block_length, payload_id.sbn) {
+
+            let block_length: usize = match payload_id.source_block_length {
+                Some(_) => source_block_length as usize * oti.encoding_symbol_length as usize,
+                None => partition::block_length(
+                    self.a_large,
+                    self.a_small,
+                    self.nb_a_large,
+                    self.transfer_length.as_ref().unwrap().clone(),
+                    oti.encoding_symbol_length as u64,
+                    payload_id.sbn,
+                ) as usize,
+            };
+
+            log::info!("Init block {} with length {}", payload_id.sbn, block_length);
+            match block.init(oti, source_block_length, block_length, payload_id.sbn) {
                 Ok(_) => {}
                 Err(_) => {
                     self.state = State::Error;
@@ -383,6 +397,9 @@ impl ObjectReceiver {
             self.transfer_length.unwrap_or_default(),
             oti.encoding_symbol_length as u64,
         );
+
+        log::debug!("Block partitioning tl={:?} a_large={} a_small={} nb_a_large={} maximum_source_block_length={}", self.transfer_length, a_large, a_small, nb_a_large, oti.maximum_source_block_length);
+
         log::debug!("oti={:?}", oti);
         self.a_large = a_large;
         self.a_small = a_small;

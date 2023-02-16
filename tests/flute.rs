@@ -276,6 +276,13 @@ mod tests {
     }
 
     #[test]
+    pub fn test_receiver_raptor() {
+        crate::tests::init();
+        let oti: sender::Oti = sender::Oti::new_raptor(1400, 64, 20, 1, 4).unwrap();
+        test_receiver_with_oti(&oti, None, true, sender::Cenc::Null, true, None, 100000);
+    }
+
+    #[test]
     pub fn test_receiver_raptorq_outband_fti() {
         crate::tests::init();
         let mut oti: sender::Oti = sender::Oti::new_raptorq(1400, 64, 20, 1, 4).unwrap();

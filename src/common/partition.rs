@@ -25,6 +25,7 @@
 pub fn block_partitioning(b: u64, l: u64, e: u64) -> (u64, u64, u64, u64) {
     let t = num_integer::div_ceil(l, e);
     let n = num_integer::div_ceil(t, b);
+    log::debug!("t={} n={} b={} l={} e={}", t, n, b, l, e);
     if n == 0 {
         return (0, 0, 0, 0);
     }
@@ -35,6 +36,51 @@ pub fn block_partitioning(b: u64, l: u64, e: u64) -> (u64, u64, u64, u64) {
     let nb_blocks = n;
 
     (a_large, a_small, nb_a_large, nb_blocks)
+}
+
+/// Calculates the size of a block in octets.
+///
+/// # Arguments
+///
+/// * `a_large`: The length of each of the larger source blocks in symbols.
+/// * `a_small`: The length of each of the smaller source blocks in symbols.
+/// * `nb_a_large`: The number of blocks composed of `a_large` symbols.
+/// * `l`: Transfer length in octets.
+/// * `e`: Encoding symbol length in octets.
+/// * `sbn`: Source block number.
+///
+/// # Returns
+///
+/// The size of the block in octets.
+///
+pub fn block_length(a_large: u64, a_small: u64, nb_a_large: u64, l: u64, e: u64, sbn: u32) -> u64 {
+    let sbn = sbn as u64;
+
+    let large_block_size = a_large * e;
+    let small_block_size = a_small * e;
+
+    if sbn + 1 < nb_a_large {
+        return large_block_size;
+    }
+
+    if sbn + 1 == nb_a_large {
+        let large_size = nb_a_large * large_block_size;
+        if large_size <= l {
+            return large_block_size;
+        }
+
+        // Should never happen ?
+        return l - ((nb_a_large - 1) * large_block_size);
+    }
+
+    let l = l - (nb_a_large * large_block_size);
+    let sbn = sbn as u64 - nb_a_large;
+    let small_size = (sbn + 1) * small_block_size;
+    if small_size <= l {
+        return small_block_size;
+    }
+
+    l - (sbn * small_block_size)
 }
 
 #[cfg(test)]

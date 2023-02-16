@@ -137,6 +137,7 @@ impl FdtInstance {
         {
             return None;
         }
+
         let fec_encoding_id: oti::FECEncodingID =
             self.fec_oti_fec_encoding_id.unwrap().try_into().ok()?;
 
@@ -155,7 +156,7 @@ impl FdtInstance {
         };
 
         let raptor_scheme_specific = match fec_encoding_id {
-            oti::FECEncodingID::RaptorQ => {
+            oti::FECEncodingID::Raptor => {
                 raptor_scheme_specific(&self.fec_oti_scheme_specific_info).unwrap_or(None)
             }
             _ => None,
