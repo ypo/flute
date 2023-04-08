@@ -57,8 +57,8 @@ impl Fdt {
         };
 
         FdtInstance {
-            xmlns_xsi: "http://www.w3.org/2001/XMLSchema-instance".into(),
-            xsi_schema_location: "urn:ietf:params:xml:ns:fdt ietf-flute-fdt.xsd".into(),
+            xmlns_xsi: Some("http://www.w3.org/2001/XMLSchema-instance".into()),
+            xsi_schema_location: Some("urn:ietf:params:xml:ns:fdt ietf-flute-fdt.xsd".into()),
             expires: expires_ntp.to_string(),
             complete: self.complete,
             content_type: None,

@@ -9,9 +9,9 @@ use super::oti::{
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct FdtInstance {
     #[serde(rename = "xmlns:xsi")]
-    pub xmlns_xsi: String,
+    pub xmlns_xsi: Option<String>,
     #[serde(rename = "xmlns:schemaLocation")]
-    pub xsi_schema_location: String,
+    pub xsi_schema_location: Option<String>,
     // An FDT Instance is valid until its expiration time.  The
     //  expiration time is expressed within the FDT Instance payload as a
     //  UTF-8 decimal representation of a 32-bit unsigned integer.  The
