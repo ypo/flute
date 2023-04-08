@@ -179,6 +179,13 @@ impl FdtInstance {
 }
 
 impl File {
+    pub fn get_transfer_length(&self) -> Option<u64> {
+        match self.transfer_length {
+            Some(tl) => Some(tl),
+            None => self.content_length,
+        }
+    }
+
     pub fn get_oti(&self) -> Option<oti::Oti> {
         if self.fec_oti_fec_encoding_id.is_none()
             || self.fec_oti_fec_instance_id.is_none()

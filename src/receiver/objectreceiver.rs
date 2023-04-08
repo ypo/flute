@@ -190,7 +190,9 @@ impl ObjectReceiver {
 
         if self.oti.is_none() {
             self.oti = fdt.get_oti_for_file(file);
-            self.transfer_length = file.transfer_length.clone();
+            if self.oti.is_some() {
+                self.transfer_length = file.get_transfer_length();
+            }
         }
 
         let content_location = match url::Url::parse(&file.content_location) {
