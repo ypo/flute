@@ -378,7 +378,7 @@ pub fn parse_lct_header(data: &[u8]) -> Result<LCTHeader> {
 
 pub fn get_ext<'a>(data: &'a [u8], lct: &LCTHeader, ext: Ext) -> Result<Option<&'a [u8]>> {
     let mut lct_ext_ext = &data[(lct.header_ext_offset as usize)..lct.len];
-    while lct_ext_ext.len() > 4 {
+    while lct_ext_ext.len() >= 4 {
         let het = lct_ext_ext[0];
         let hel = match het {
             het if het >= 128 => 4 as usize,
