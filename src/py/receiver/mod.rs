@@ -12,5 +12,6 @@ pub fn receiver(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<objectwriterbuilder::ObjectWriterBuilder>()?;
     m.add_class::<receiverpy::Receiver>()?;
     m.add_class::<multireceiver::MultiReceiver>()?;
+    m.add_class::<udpendpoint::UDPEndpoint>()?;
     Ok(())
 }

@@ -38,7 +38,8 @@ class SenderReceiverTestCase(TestCase):
         print("------- test_create_receiver--------")
         writer = receiver.ObjectWriterBuilder.new_buffer()
         config = receiver.Config()
-        flute_receiver = receiver.Receiver(1, writer, config)
+        udp_endpoint = receiver.UDPEndpoint("192.168.1.1", "224.0.0.1", 1234)
+        flute_receiver = receiver.Receiver(udp_endpoint, 1, writer, config)
         print("Flute Receiver created !")
 
     def test_create_multireceiver(self):
@@ -47,7 +48,8 @@ class SenderReceiverTestCase(TestCase):
 
         writer = receiver.ObjectWriterBuilder.new_buffer()
         config = receiver.Config()
-        flute_receiver = receiver.MultiReceiver([1], writer, config)
+        
+        flute_receiver = receiver.MultiReceiver(writer, config)
 
         print("Flute Receiver created !")
 
@@ -65,7 +67,8 @@ class SenderReceiverTestCase(TestCase):
 
         receiver_writer = receiver.ObjectWriterBuilder.new_buffer()
         receiver_config = receiver.Config()
-        flute_receiver = receiver.Receiver(tsi, receiver_writer, receiver_config)
+        udp_endpoint = receiver.UDPEndpoint("192.168.1.1", "224.0.0.1", 1234)
+        flute_receiver = receiver.Receiver(udp_endpoint, tsi, receiver_writer, receiver_config)
 
         buf = bytes(b'hello world')
         flute_sender.add_object_from_buffer(buf, "text", "file://hello.txt", None)
@@ -91,18 +94,20 @@ class SenderReceiverTestCase(TestCase):
 
         receiver_writer = receiver.ObjectWriterBuilder.new_buffer()
         receiver_config = receiver.Config()
-        flute_receiver = receiver.MultiReceiver(None, receiver_writer, receiver_config)
+        flute_receiver = receiver.MultiReceiver(receiver_writer, receiver_config)
 
         buf = bytes(b'hello world')
         flute_sender.add_object_from_buffer(buf, "text", "file://hello.txt", None)
         flute_sender.publish()
+
+        udp_endpoint = receiver.UDPEndpoint("192.168.1.1", "224.0.0.1", 1234)
 
         while True:
             pkt = flute_sender.read()
             if pkt == None:
                 break
 
-            flute_receiver.push(bytes(pkt))
+            flute_receiver.push(udp_endpoint, bytes(pkt))
 
     def test_remove_object(self):
         from flute import sender
