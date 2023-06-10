@@ -1,4 +1,5 @@
 mod tests {
+    use flute::receiver::UDPEndpoint;
     use rand::RngCore;
     use std::rc::Rc;
 
@@ -33,6 +34,7 @@ mod tests {
                     content_location,
                     1,
                     None,
+                    None,
                     cenc,
                     inband_cenc,
                     object_oti.map(|e| e.clone()),
@@ -46,19 +48,23 @@ mod tests {
     }
 
     fn run(sender: &mut sender::Sender, receiver: &mut receiver::MultiReceiver) {
+        let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_owned(), 5000);
         loop {
             let now = std::time::SystemTime::now();
             let data = sender.read(now);
             if data.is_none() {
                 break;
             }
-            receiver.push(data.as_ref().unwrap(), now).unwrap();
+            receiver
+                .push(&endpoint, data.as_ref().unwrap(), now)
+                .unwrap();
             receiver.cleanup(now);
         }
     }
 
     fn run_loss(sender: &mut sender::Sender, receiver: &mut receiver::MultiReceiver) {
         let mut i = 0u32;
+        let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_owned(), 5000);
         loop {
             let now = std::time::SystemTime::now();
             let data = sender.read(now);
@@ -69,7 +75,9 @@ mod tests {
             if (i & 3) == 0 {
                 log::info!("ALC pkt {} is lost", i)
             } else {
-                receiver.push(data.as_ref().unwrap(), now).unwrap();
+                receiver
+                    .push(&endpoint, data.as_ref().unwrap(), now)
+                    .unwrap();
             }
             receiver.cleanup(now);
             i += 1;
@@ -130,7 +138,7 @@ mod tests {
         let content_type = "application/octet-stream";
         let (input_file_buffer, input_content_location) = create_file_buffer(transfer_file_size);
         let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new());
-        let mut receiver = receiver::MultiReceiver::new(None, output.clone(), None);
+        let mut receiver = receiver::MultiReceiver::new(output.clone(), None, false);
         let mut sender = create_sender(
             &input_file_buffer,
             &input_content_location,
@@ -321,7 +329,7 @@ mod tests {
         let (input_file_buffer, input_content_location) = create_file_buffer(100000);
         let content_type = "application/octet-stream";
         let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new());
-        let mut receiver = receiver::MultiReceiver::new(None, output.clone(), None);
+        let mut receiver = receiver::MultiReceiver::new(output.clone(), None, false);
         let mut sender = create_sender(
             &input_file_buffer,
             &input_content_location,
@@ -331,11 +339,13 @@ mod tests {
             sender::Cenc::Null,
             true,
             Some(sender::Config {
-                fdt_duration: std::time::Duration::from_secs(1),
+                fdt_duration: std::time::Duration::from_secs(30),
                 fdt_inband_sct: false,
                 ..Default::default()
             }),
         );
+
+        let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_owned(), 5000);
 
         loop {
             let now_sender = std::time::SystemTime::now();
@@ -346,7 +356,9 @@ mod tests {
 
             // Simulate reception 60s later -> FDT should be expired
             let now_receiver = std::time::SystemTime::now() + std::time::Duration::from_secs(60);
-            receiver.push(data.as_ref().unwrap(), now_receiver).unwrap();
+            receiver
+                .push(&endpoint, data.as_ref().unwrap(), now_receiver)
+                .unwrap();
             receiver.cleanup(now_receiver);
         }
 

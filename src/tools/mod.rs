@@ -22,6 +22,12 @@ pub fn system_time_to_ntp(time: SystemTime) -> Result<u64> {
 /// Convert NTP to SystemTime
 pub fn ntp_to_system_time(ntp: u64) -> Result<SystemTime> {
     let seconds_ntp = ntp >> 32;
+    if seconds_ntp < 2208988800u64 {
+        return Err(FluteError::new(format!(
+            "Invalid NTP seconds {}",
+            seconds_ntp
+        )));
+    }
     let seconds_utc = seconds_ntp - 2208988800u64;
     let fraction = ntp & 0xFFFFFFFF;
     let submicro = ((fraction as u128 * 1000000u128) / (1u128 << 32)) as u64;

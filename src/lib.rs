@@ -48,7 +48,7 @@
 //!
 //! // Add object(s) (files) to the FLUTE sender
 //! let obj = ObjectDesc::create_from_buffer(b"hello world", "text/plain",
-//! &url::Url::parse("file:///hello.txt").unwrap(), 1, None, Cenc::Null, true, None, true).unwrap();
+//! &url::Url::parse("file:///hello.txt").unwrap(), 1, None, None, Cenc::Null, true, None, true).unwrap();
 //! sender.add_object(obj);
 //!
 //! // Always call publish after adding objects
@@ -66,27 +66,28 @@
 //! Receive files from a UDP/IP network
 //!
 //!```
-//! use flute::receiver::{writer, MultiReceiver};
+//! use flute::receiver::{writer, MultiReceiver, UDPEndpoint};
 //! use std::net::UdpSocket;
 //! use std::time::SystemTime;
 //! use std::rc::Rc;
 //!
 //! // Create UDP/IP socket to receive FLUTE pkt
-//! let udp_socket = UdpSocket::bind("224.0.0.1:3400").expect("Fail to bind");
+//! let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_string(), 3400);
+//! let udp_socket = UdpSocket::bind(format!("{}:{}", endpoint.destination_group_address, endpoint.port)).expect("Fail to bind");
 //!
 //! // Create a writer able to write received files to the filesystem
 //! let writer = Rc::new(writer::ObjectWriterFSBuilder::new(&std::path::Path::new("./flute_dir"))
 //!     .unwrap_or_else(|_| std::process::exit(0)));
 //!
 //! // Create a multi-receiver capable of de-multiplexing several FLUTE sessions
-//! let mut receiver = MultiReceiver::new(None, writer, None);
+//! let mut receiver = MultiReceiver::new(writer, None, false);
 //!
 //! // Receive pkt from UDP/IP socket and push it to the FLUTE receiver
 //! let mut buf = [0; 2048];
 //! loop {
 //!     let (n, _src) = udp_socket.recv_from(&mut buf).expect("Failed to receive data");
 //!     let now = SystemTime::now();
-//!     receiver.push(&buf[..n], now).unwrap();
+//!     receiver.push(&endpoint, &buf[..n], now).unwrap();
 //!     receiver.cleanup(now);
 //! }
 //!```
@@ -164,6 +165,14 @@ mod tools;
 pub mod receiver;
 pub mod sender;
 pub use crate::tools::error;
+
+/// Core module with low-level function
+pub mod core {
+    pub use crate::common::alc::AlcPkt;
+    pub use crate::common::alc::get_sender_current_time;
+    pub use crate::common::alc::parse_alc_pkt;
+}
+
 
 #[cfg(feature = "python")]
 mod py;

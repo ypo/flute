@@ -1,5 +1,8 @@
 use super::{ObjectMetadata, ObjectWriter, ObjectWriterBuilder};
-use crate::error::{FluteError, Result};
+use crate::{
+    error::{FluteError, Result},
+    receiver::UDPEndpoint,
+};
 use std::{cell::RefCell, io::Write};
 
 ///
@@ -24,15 +27,32 @@ impl ObjectWriterFSBuilder {
 }
 
 impl ObjectWriterBuilder for ObjectWriterFSBuilder {
-    fn new_object_writer(&self, _tsi: &u64, _toi: &u128) -> Box<dyn ObjectWriter> {
+    fn new_object_writer(
+        &self,
+        _endpoint: &UDPEndpoint,
+        _tsi: &u64,
+        _toi: &u128,
+        meta: Option<&ObjectMetadata>,
+    ) -> Box<dyn ObjectWriter> {
         let obj = Box::new(ObjectWriterFS {
             dest: self.dest.clone(),
             inner: RefCell::new(ObjectWriterFSInner {
                 destination: None,
                 writer: None,
             }),
+            meta: meta.map(|m| m.clone()),
         });
         obj
+    }
+
+    fn set_cache_duration(
+        &self,
+        _endpoint: &UDPEndpoint,
+        _tsi: &u64,
+        _toi: &u128,
+        _content_location: &url::Url,
+        _duration: &std::time::Duration,
+    ) {
     }
 }
 
@@ -47,6 +67,7 @@ pub struct ObjectWriterFS {
     /// Folder destination were the object will be written
     dest: std::path::PathBuf,
     inner: RefCell<ObjectWriterFSInner>,
+    meta: Option<ObjectMetadata>,
 }
 
 ///
@@ -58,12 +79,12 @@ pub struct ObjectWriterFSInner {
 }
 
 impl ObjectWriter for ObjectWriterFS {
-    fn open(&self, meta: Option<&ObjectMetadata>) -> Result<()> {
-        if meta.is_none() {
+    fn open(&self) -> Result<()> {
+        if self.meta.is_none() {
             return Ok(());
         }
 
-        let meta = meta.unwrap();
+        let meta = self.meta.as_ref().unwrap();
         let content_location_path = meta.content_location.path();
         let relative_path = content_location_path
             .strip_prefix("/")
@@ -107,7 +128,7 @@ impl ObjectWriter for ObjectWriterFS {
             return;
         }
 
-        log::info!("File {:?} is completed !", inner.destination);
+        println!("File {:?} is completed !", inner.destination);
         inner.writer.as_mut().unwrap().flush().ok();
         inner.writer = None;
         inner.destination = None

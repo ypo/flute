@@ -1,4 +1,4 @@
-use super::{config, objectwriterbuilder};
+use super::{config, objectwriterbuilder, udpendpoint};
 use pyo3::{exceptions::PyTypeError, prelude::*};
 use std::time::SystemTime;
 
@@ -9,10 +9,15 @@ pub struct Receiver(crate::receiver::Receiver);
 #[pymethods]
 impl Receiver {
     #[new]
-    fn new(tsi: u64, writer: &objectwriterbuilder::ObjectWriterBuilder, config: &config::Config) -> Self {
+    fn new(
+        endpoint: &udpendpoint::UDPEndpoint,
+        tsi: u64,
+        writer: &objectwriterbuilder::ObjectWriterBuilder,
+        config: &config::Config,
+    ) -> Self {
         let c = config.0.clone();
         Self {
-            0: crate::receiver::Receiver::new(tsi, writer.inner.clone(), Some(c)),
+            0: crate::receiver::Receiver::new(&endpoint.inner, tsi, writer.inner.clone(), Some(c)),
         }
     }
 

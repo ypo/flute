@@ -4,6 +4,7 @@ mod config;
 mod objectwriterbuilder;
 mod multireceiver;
 mod receiverpy;
+mod udpendpoint;
 
 #[pymodule]
 pub fn receiver(_py: Python, m: &PyModule) -> PyResult<()> {

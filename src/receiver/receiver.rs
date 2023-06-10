@@ -1,8 +1,8 @@
-use super::fdtreceiver;
 use super::fdtreceiver::FdtReceiver;
 use super::objectreceiver;
 use super::objectreceiver::ObjectReceiver;
 use super::writer::ObjectWriterBuilder;
+use super::{fdtreceiver, UDPEndpoint};
 use crate::common::{alc, lct};
 use crate::tools::error::FluteError;
 use crate::tools::error::Result;
@@ -28,8 +28,8 @@ pub struct Config {
     /// Max number of objects with error that the receiver is keeping track of.
     /// Packets received for an object in error state are discarded
     pub max_objects_error: usize,
-    /// The receive expires if no data has been received before this timeout
-    /// `None` the receive never expires except if a close session packet is received
+    /// The receiver expires if no data has been received before this timeout
+    /// `None` the receiver never expires except if a close session packet is received
     pub session_timeout: Option<Duration>,
     /// Objects expire if no data has been received before this timeout
     /// `None` Objects never expires, not recommended as object that are not fully reconstructed might continue to consume memory for an finite amount of time.
@@ -47,6 +47,12 @@ impl Default for Config {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ObjectCompletedMeta {
+    expiration_date: SystemTime,
+    content_location: url::Url,
+}
+
 ///
 /// FLUTE `Receiver` able to re-construct objects from ALC/LCT packets
 ///
@@ -54,7 +60,7 @@ impl Default for Config {
 pub struct Receiver {
     tsi: u64,
     objects: HashMap<u128, Box<ObjectReceiver>>,
-    objects_completed: BTreeSet<u128>,
+    objects_completed: BTreeMap<u128, ObjectCompletedMeta>,
     objects_error: BTreeSet<u128>,
     fdt_receivers: BTreeMap<u32, Box<FdtReceiver>>,
     fdt_current: Option<Box<FdtReceiver>>,
@@ -62,23 +68,30 @@ pub struct Receiver {
     config: Config,
     last_activity: Instant,
     closed_is_imminent: bool,
+    endpoint: UDPEndpoint,
 }
 
 impl Receiver {
     /// Return a new `Receiver`
     ///
-    pub fn new(tsi: u64, writer: Rc<dyn ObjectWriterBuilder>, config: Option<Config>) -> Self {
+    pub fn new(
+        endpoint: &UDPEndpoint,
+        tsi: u64,
+        writer: Rc<dyn ObjectWriterBuilder>,
+        config: Option<Config>,
+    ) -> Self {
         Self {
             tsi,
             objects: HashMap::new(),
             fdt_receivers: BTreeMap::new(),
             fdt_current: None,
             writer,
-            objects_completed: BTreeSet::new(),
+            objects_completed: BTreeMap::new(),
             objects_error: BTreeSet::new(),
             config: config.unwrap_or_default(),
             last_activity: Instant::now(),
             closed_is_imminent: false,
+            endpoint: endpoint.clone(),
         }
     }
 
@@ -95,6 +108,20 @@ impl Receiver {
         self.last_activity
             .elapsed()
             .gt(self.config.session_timeout.as_ref().unwrap())
+    }
+
+    ///
+    /// Number of objects that are we are receiving
+    ///
+    pub fn nb_objects(&self) -> usize {
+        self.objects.len()
+    }
+
+    ///
+    /// Number objects in error state
+    ///
+    pub fn nb_objects_error(&self) -> usize {
+        self.objects_error.len()
     }
 
     ///
@@ -137,6 +164,7 @@ impl Receiver {
             .collect();
 
         for toi in expired_objects_toi {
+            log::warn!("Remove expired object tsi={} toi={}", self.tsi, toi);
             self.objects_error.remove(&toi);
             self.objects.remove(&toi);
         }
@@ -199,13 +227,18 @@ impl Receiver {
             let fdt_receiver = self
                 .fdt_receivers
                 .entry(fdt_instance_id)
-                .or_insert(Box::new(FdtReceiver::new(fdt_instance_id, now)));
+                .or_insert(Box::new(FdtReceiver::new(
+                    &self.endpoint,
+                    self.tsi,
+                    fdt_instance_id,
+                    now,
+                )));
 
             if fdt_receiver.state() != fdtreceiver::State::Receiving {
                 return Ok(());
             }
 
-            fdt_receiver.push(alc_pkt);
+            fdt_receiver.push(alc_pkt, now);
 
             if fdt_receiver.state() == fdtreceiver::State::Complete {
                 fdt_receiver.update_expired_state(now);
@@ -222,79 +255,172 @@ impl Receiver {
             };
         }
 
-        log::info!("FDT Received !");
         self.fdt_current = self.fdt_receivers.remove(&fdt_instance_id);
         assert!(self.fdt_current.is_some());
 
-        self.attach_fdt_to_objects();
+        self.attach_fdt_to_objects(now);
+        self.update_expiration_date_of_completed_objects(now);
 
         Ok(())
     }
 
-    fn attach_fdt_to_objects(&mut self) -> Option<()> {
+    fn attach_fdt_to_objects(&mut self, now: std::time::SystemTime) -> Option<()> {
         let fdt_current = self.fdt_current.as_mut()?;
         let fdt_id = fdt_current.fdt_id;
+        let server_time = fdt_current.get_server_time(now);
         let fdt_instance = fdt_current.fdt_instance()?;
+        let mut check_state = Vec::new();
         for obj in &mut self.objects {
-            obj.1.attach_fdt(fdt_id, fdt_instance);
+            let success = obj.1.attach_fdt(fdt_id, fdt_instance, now, server_time);
+            if success {
+                check_state.push(obj.0.clone());
+            }
+        }
+
+        for toi in check_state {
+            self.check_object_state(toi, now);
+        }
+
+        Some(())
+    }
+
+    fn update_expiration_date_of_completed_objects(
+        &mut self,
+        now: std::time::SystemTime,
+    ) -> Option<()> {
+        let fdt_current = self.fdt_current.as_mut()?;
+        let server_time = fdt_current.get_server_time(now);
+
+        let fdt_instance = fdt_current.fdt_instance()?;
+        let files = fdt_instance.file.as_ref()?;
+        let expiration_date = fdt_instance.get_expiration_date();
+
+        for file in files {
+            let toi: u128 = file.toi.parse().unwrap_or_default();
+            let cache_duration = file.get_cache_duration(expiration_date, server_time);
+            if let Some(obj) = self.objects_completed.get_mut(&toi) {
+                if let Some(cache_duration) = cache_duration {
+                    obj.expiration_date = now
+                        .checked_add(cache_duration)
+                        .unwrap_or(now + std::time::Duration::from_secs(3600 * 24 * 360 * 10));
+                    self.writer.set_cache_duration(
+                        &self.endpoint,
+                        &self.tsi,
+                        &toi,
+                        &obj.content_location,
+                        &cache_duration,
+                    );
+                }
+            }
         }
 
         Some(())
     }
 
     fn push_obj(&mut self, pkt: &alc::AlcPkt, now: SystemTime) -> Result<()> {
-        if self.objects_completed.contains(&pkt.lct.toi) {
-            return Ok(());
+        if self.objects_completed.contains_key(&pkt.lct.toi) {
+            self.gc_object_completed(now);
+            if self.objects_completed.contains_key(&pkt.lct.toi) {
+                return Ok(());
+            }
         }
         if self.objects_error.contains(&pkt.lct.toi) {
             return Ok(());
         }
 
+        let mut obj = self.objects.get_mut(&pkt.lct.toi);
+        if obj.is_none() {
+            self.create_obj(&pkt.lct.toi, now);
+            obj = self.objects.get_mut(&pkt.lct.toi);
+        }
+
+        let obj = match obj {
+            Some(obj) => obj.as_mut(),
+            None => return Err(FluteError::new("Bug ? Object not found")),
+        };
+
+        obj.push(pkt, now);
+        self.check_object_state(pkt.lct.toi, now);
+
+        Ok(())
+    }
+
+    fn check_object_state(&mut self, toi: u128, now: SystemTime) {
+        let obj = self.objects.get_mut(&toi);
+        if obj.is_none() {
+            return;
+        }
         let mut remove_object = false;
+
         {
-            let mut obj = self.objects.get_mut(&pkt.lct.toi);
-            if obj.is_none() {
-                self.create_obj(&pkt.lct.toi, now);
-                obj = self.objects.get_mut(&pkt.lct.toi);
-            }
+            let obj = obj.unwrap();
 
-            let obj = match obj {
-                Some(obj) => obj.as_mut(),
-                None => return Err(FluteError::new("Bug ? Object not found")),
-            };
-
-            obj.push(pkt);
             match obj.state {
                 objectreceiver::State::Receiving => {}
                 objectreceiver::State::Completed => {
                     remove_object = true;
-                    self.objects_completed.insert(obj.toi);
-                    self.gc_object_completed();
+                    log::info!(
+                        "Object state is completed {:?} tsi={} toi={}",
+                        self.endpoint,
+                        self.tsi,
+                        obj.toi
+                    );
+
+                    if obj.cache_expiration_date.is_some() {
+                        assert!(obj.content_location.is_some());
+                        log::debug!(
+                            "Insert {:?} for a duration of {:?}",
+                            obj.content_location,
+                            obj.cache_expiration_date.unwrap().duration_since(now)
+                        );
+                        self.objects_completed.insert(
+                            obj.toi,
+                            ObjectCompletedMeta {
+                                expiration_date: obj.cache_expiration_date.unwrap(),
+                                content_location: obj.content_location.as_ref().unwrap().clone(),
+                            },
+                        );
+                        self.gc_object_completed(now);
+                    } else {
+                        log::error!("No cache expiration date for {:?}", obj.content_location);
+                    }
                 }
                 objectreceiver::State::Error => {
+                    log::error!("Object in error state tsi={} toi={}", self.tsi, obj.toi);
                     remove_object = true;
-                    self.objects_error.insert(obj.toi);
+                    self.objects_error.insert(toi);
                     self.gc_object_error();
                 }
             }
         }
 
         if remove_object {
-            log::info!("Remove object {}", pkt.lct.toi);
-            self.objects.remove(&pkt.lct.toi);
+            log::debug!(
+                "Remove object {:?} tsi={} toi={}",
+                self.endpoint,
+                self.tsi,
+                toi
+            );
+            self.objects.remove(&toi);
         }
-
-        Ok(())
     }
 
-    fn gc_object_completed(&mut self) {
+    fn gc_object_completed(&mut self, now: SystemTime) {
+        let before = self.objects_completed.len();
+        self.objects_completed
+            .retain(|_toi, meta| meta.expiration_date > now);
+        let after = self.objects_completed.len();
+        if before != after {
+            log::info!("GC remove {} objects", before - after);
+        }
+
         if self.config.max_objects_completed.is_none() {
             return;
         }
 
         let max = self.config.max_objects_completed.unwrap();
         while self.objects_completed.len() > max {
-            let toi = self.objects_completed.pop_first().unwrap();
+            let (toi, _meta) = self.objects_completed.pop_first().unwrap();
             self.objects.remove(&toi);
         }
     }
@@ -307,15 +433,20 @@ impl Receiver {
     }
 
     fn create_obj(&mut self, toi: &u128, now: SystemTime) {
-        let session = self.writer.new_object_writer(&self.tsi, toi);
-        let mut obj = Box::new(ObjectReceiver::new(toi, session));
+        let mut obj = Box::new(ObjectReceiver::new(
+            &self.endpoint,
+            self.tsi,
+            toi,
+            self.writer.clone(),
+        ));
 
         if let Some(fdt) = self.fdt_current.as_mut() {
             let fdt_id = fdt.fdt_id;
+            let server_time = fdt.get_server_time(now);
             fdt.update_expired_state(now);
             if fdt.state() == fdtreceiver::State::Complete {
                 if let Some(fdt_instance) = fdt.fdt_instance() {
-                    obj.attach_fdt(fdt_id, fdt_instance);
+                    obj.attach_fdt(fdt_id, fdt_instance, now, server_time);
                 }
             }
         }

@@ -11,7 +11,7 @@ pub enum ShardType {
     RepairSymbol,
 }
 
-pub trait FecShard: Send + std::fmt::Debug {
+pub trait FecShard: Send + Sync + std::fmt::Debug {
     fn data(&self) -> &[u8];
     fn esi(&self) -> u32;
     fn get_type(&self) -> ShardType;

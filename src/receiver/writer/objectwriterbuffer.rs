@@ -1,5 +1,5 @@
 use super::{ObjectMetadata, ObjectWriter, ObjectWriterBuilder};
-use crate::tools::error::Result;
+use crate::{receiver::UDPEndpoint, tools::error::Result};
 use std::{cell::RefCell, rc::Rc};
 
 ///
@@ -42,24 +42,38 @@ impl ObjectWriterBufferBuilder {
 }
 
 impl ObjectWriterBuilder for ObjectWriterBufferBuilder {
-    fn new_object_writer(&self, _tsi: &u64, _toi: &u128) -> Box<dyn ObjectWriter> {
+    fn new_object_writer(
+        &self,
+        _endpoint: &UDPEndpoint,
+        _tsi: &u64,
+        _toi: &u128,
+        meta: Option<&ObjectMetadata>,
+    ) -> Box<dyn ObjectWriter> {
         let obj = Rc::new(RefCell::new(ObjectWriterBuffer {
             complete: false,
             error: false,
             data: Vec::new(),
-            meta: None,
+            meta: meta.map(|m| m.clone()),
         }));
 
         let obj_wrapper = Box::new(ObjectWriterBufferWrapper { inner: obj.clone() });
         self.objects.borrow_mut().push(obj);
         obj_wrapper
     }
+
+    fn set_cache_duration(
+        &self,
+        _endpoint: &UDPEndpoint,
+        _tsi: &u64,
+        _toi: &u128,
+        _content_location: &url::Url,
+        _duration: &std::time::Duration,
+    ) {
+    }
 }
 
 impl ObjectWriter for ObjectWriterBufferWrapper {
-    fn open(&self, meta: Option<&ObjectMetadata>) -> Result<()> {
-        let mut inner = self.inner.borrow_mut();
-        inner.meta = meta.map(|meta| meta.clone());
+    fn open(&self) -> Result<()> {
         Ok(())
     }
 

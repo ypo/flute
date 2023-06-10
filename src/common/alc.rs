@@ -2,16 +2,26 @@ use super::{alccodec::AlcCodec, lct, oti, pkt::Pkt, Profile};
 use crate::tools::{self, error::FluteError, error::Result};
 use std::time::SystemTime;
 
+/// ALC Packet
 #[derive(Debug)]
 pub struct AlcPkt<'a> {
+    /// LCT header
     pub lct: lct::LCTHeader,
+    /// OTI
     pub oti: Option<oti::Oti>,
+    /// Transfer length
     pub transfer_length: Option<u64>,
+    /// CENC
     pub cenc: Option<lct::Cenc>,
+    /// Server Time
     pub server_time: Option<SystemTime>,
+    /// Data
     pub data: &'a [u8],
+    /// offset to ALC header
     pub data_alc_header_offset: usize,
+    /// Offset to payoad
     pub data_payload_offset: usize,
+    /// FDT info
     pub fdt_info: Option<ExtFDT>,
 }
 
@@ -41,6 +51,7 @@ pub struct ExtFDT {
 }
 
 impl<'a> AlcPkt<'a> {
+    /// Create a cacheable pkt
     pub fn to_cache(&self) -> AlcPktCache {
         AlcPktCache {
             lct: self.lct.clone(),
@@ -127,6 +138,7 @@ pub fn new_alc_pkt(
     data
 }
 
+/// Parse a buffer to AlcPkt
 pub fn parse_alc_pkt(data: &[u8]) -> Result<AlcPkt> {
     let lct_header = lct::parse_lct_header(data)?;
 
@@ -138,6 +150,14 @@ pub fn parse_alc_pkt(data: &[u8]) -> Result<AlcPkt> {
     let codec = <dyn AlcCodec>::instance(fec);
     let fec_payload_id_block_length = codec.fec_payload_id_block_length();
     if fec_payload_id_block_length + lct_header.len > data.len() {
+        log::debug!(
+            "fec={:?} payload_id_block_length={} lct_len={} data_len={} lct={:?}",
+            fec,
+            fec_payload_id_block_length,
+            lct_header.len,
+            data.len(),
+            lct_header
+        );
         return Err(FluteError::new("Wrong size of ALC packet"));
     }
 
@@ -173,6 +193,7 @@ pub fn parse_alc_pkt(data: &[u8]) -> Result<AlcPkt> {
     })
 }
 
+/// Get Sender Current Time (EXT_TIME)
 pub fn get_sender_current_time(pkt: &AlcPkt) -> Result<Option<SystemTime>> {
     let ext = match lct::get_ext(pkt.data, &pkt.lct, lct::Ext::Time)? {
         Some(res) => res,

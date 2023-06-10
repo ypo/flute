@@ -1,6 +1,8 @@
 use super::filedesc::FileDesc;
 use super::objectdesc;
+use super::observer::ObserverList;
 use crate::common::{fdtinstance::FdtInstance, lct, oti};
+use crate::sender::observer;
 use crate::tools;
 use crate::tools::error::{FluteError, Result};
 use serde::Serialize;
@@ -21,6 +23,7 @@ pub struct Fdt {
     duration: std::time::Duration,
     inband_sct: bool,
     last_publish: Option<SystemTime>,
+    observers: ObserverList,
 }
 
 impl Fdt {
@@ -30,6 +33,7 @@ impl Fdt {
         cenc: lct::Cenc,
         duration: std::time::Duration,
         inband_sct: bool,
+        observers: ObserverList,
     ) -> Fdt {
         Fdt {
             fdtid,
@@ -44,6 +48,7 @@ impl Fdt {
             duration,
             inband_sct,
             last_publish: None,
+            observers,
         }
     }
 
@@ -57,8 +62,7 @@ impl Fdt {
         };
 
         FdtInstance {
-            xmlns_xsi: Some("http://www.w3.org/2001/XMLSchema-instance".into()),
-            xsi_schema_location: Some("urn:ietf:params:xml:ns:fdt ietf-flute-fdt.xsd".into()),
+            xmlns_xsi: None,
             expires: expires_ntp.to_string(),
             complete: self.complete,
             content_type: None,
@@ -91,9 +95,21 @@ impl Fdt {
             file: Some(
                 self.files
                     .iter()
-                    .map(|(_, desc)| desc.to_file_xml())
+                    .map(|(_, desc)| desc.to_file_xml(now))
                     .collect(),
             ),
+            xmlns_mbms_2005: None,
+            xmlns_mbms_2007: None,
+            xmlns_mbms_2008: None,
+            xmlns_mbms_2009: None,
+            xmlns_mbms_2012: None,
+            xmlns_mbms_2015: None,
+            xmlns_sv: None,
+            full_fdt: None,
+            base_url_1: None,
+            base_url_2: None,
+            group_id: None,
+            mbms_session_identity_expiry: None,
         }
     }
 
@@ -138,6 +154,7 @@ impl Fdt {
             &url::Url::parse("file:///").unwrap(),
             1,
             Some(std::time::Duration::new(1, 0)),
+            None,
             self.cenc,
             true,
             None,
@@ -165,7 +182,7 @@ impl Fdt {
             .duration_since(self.last_publish.unwrap())
             .unwrap_or_default();
 
-        self.duration + std::time::Duration::from_secs(5) < duration
+        self.duration < duration + std::time::Duration::from_secs(5)
     }
 
     pub fn get_next_fdt_transfer(&mut self, now: SystemTime) -> Option<Arc<FileDesc>> {
@@ -181,7 +198,7 @@ impl Fdt {
         }
 
         if self.current_fdt_will_expire(now) {
-            log::info!("FDT will expire soon, publish new version");
+            log::warn!("FDT will expire soon, publish new version");
             self.publish(now).ok();
         }
 
@@ -214,6 +231,10 @@ impl Fdt {
             "Start transmission of {}",
             file.object.content_location.as_str()
         );
+
+        let evt = observer::Event::StartTransfer(observer::FileInfo { toi: file.toi });
+        self.observers.dispatch(&evt, now);
+
         file.transfer_started();
         Some(file.clone())
     }
@@ -226,6 +247,9 @@ impl Fdt {
                 self.current_fdt_transfer = None;
             }
         } else {
+            let evt = observer::Event::StopTransfer(observer::FileInfo { toi: file.toi });
+            self.observers.dispatch(&evt, now);
+
             if !self.files.contains_key(&file.toi) {
                 log::debug!("Transfer is finished and file has been removed from FDT");
                 return;
@@ -250,7 +274,7 @@ impl Fdt {
     }
 
     fn to_xml(&self, now: SystemTime) -> Result<Vec<u8>> {
-        let mut buffer = Vec::new();
+        let mut buffer = ToFmtWrite(Vec::new());
         let mut writer = quick_xml::Writer::new_with_indent(&mut buffer, b' ', 2);
 
         match writer.write_event(quick_xml::events::Event::Decl(
@@ -260,13 +284,40 @@ impl Fdt {
             Err(e) => return Err(FluteError::new(e.to_string())),
         };
 
-        let mut ser = quick_xml::se::Serializer::with_root(writer, Some("FDT-Instance"));
-        match self.get_fdt_instance(now).serialize(&mut ser) {
+        let ser = match quick_xml::se::Serializer::with_root(&mut buffer, Some("FDT-Instance")) {
+            Ok(ser) => ser,
+            Err(e) => return Err(FluteError::new(e.to_string())),
+        };
+        match self.get_fdt_instance(now).serialize(ser) {
             Ok(_) => {}
             Err(e) => return Err(FluteError::new(e.to_string())),
         };
 
-        Ok(buffer)
+        Ok(buffer.0)
+    }
+}
+
+struct ToFmtWrite<T>(pub T);
+
+impl<T> std::fmt::Write for ToFmtWrite<T>
+where
+    T: std::io::Write,
+{
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        self.0.write_all(s.as_bytes()).map_err(|_| std::fmt::Error)
+    }
+}
+
+impl<T> std::io::Write for ToFmtWrite<T>
+where
+    T: std::io::Write,
+{
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.0.flush()
+    }
+
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.write(buf)
     }
 }
 
@@ -276,6 +327,7 @@ mod tests {
     use std::time::SystemTime;
 
     use crate::common::lct;
+    use crate::sender::observer::ObserverList;
 
     use super::objectdesc;
     use super::oti;
@@ -291,12 +343,14 @@ mod tests {
             lct::Cenc::Null,
             std::time::Duration::from_secs(3600),
             true,
+            ObserverList::new(),
         );
         let obj = objectdesc::ObjectDesc::create_from_buffer(
             &Vec::new(),
             "txt",
             &url::Url::parse("file:///").unwrap(),
             2,
+            None,
             None,
             lct::Cenc::Null,
             true,

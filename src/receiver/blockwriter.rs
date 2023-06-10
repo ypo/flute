@@ -52,8 +52,11 @@ impl BlockWriter {
     }
 
     pub fn check_md5(&self, md5: &str) -> bool {
-        log::info!("Check MD5 {} {:?}", md5, self.md5);
         self.md5.as_ref().map(|m| m.eq(md5)).unwrap_or(true)
+    }
+
+    pub fn get_md5(&self) -> Option<&str> {
+        self.md5.as_ref().map(|m| m.as_str())
     }
 
     pub fn write(
@@ -92,10 +95,13 @@ impl BlockWriter {
                 self.decoder_read(writer)?;
             }
 
-            self.md5 = self
-                .md5_context
-                .take()
-                .map(|ctx| base64::engine::general_purpose::STANDARD.encode(ctx.compute().0));
+            let output = self.md5_context.take().map(|ctx| ctx.compute().0);
+            self.md5 =
+                output.map(|output| base64::engine::general_purpose::STANDARD.encode(output));
+            /*    self.md5 = self
+            .md5_context
+            .take()
+            .map(|ctx| base64::engine::general_purpose::STANDARD.encode(ctx.compute().0));*/
         }
 
         Ok(true)

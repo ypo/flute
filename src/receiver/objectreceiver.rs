@@ -1,10 +1,13 @@
 use super::blockdecoder::BlockDecoder;
 use super::blockwriter::BlockWriter;
+use super::writer::ObjectWriterBuilder;
+use super::UDPEndpoint;
 use crate::common::{alc, fdtinstance::FdtInstance, lct, oti, partition};
 use crate::receiver::writer::{ObjectMetadata, ObjectWriter};
 use crate::tools::error::{FluteError, Result};
-use std::time::Duration;
+use std::rc::Rc;
 use std::time::Instant;
+use std::time::{Duration, SystemTime};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum State {
@@ -15,15 +18,24 @@ pub enum State {
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum ObjectWriterSessionState {
+    Idle,
     Closed,
     Opened,
     Error,
 }
 
 #[derive(Debug)]
+struct ObjectWriterSession {
+    writer: Box<dyn ObjectWriter>,
+    state: ObjectWriterSessionState,
+}
+
+#[derive(Debug)]
 pub struct ObjectReceiver {
     pub state: State,
     pub toi: u128,
+    pub tsi: u64,
+    pub endpoint: UDPEndpoint,
     oti: Option<oti::Oti>,
     cache: Vec<Box<alc::AlcPktCache>>,
     cache_size: usize,
@@ -35,17 +47,24 @@ pub struct ObjectReceiver {
     a_large: u64,
     a_small: u64,
     nb_a_large: u64,
-    writer_session: Box<dyn ObjectWriter>,
-    writer_session_state: ObjectWriterSessionState,
+    object_writer_builder: Rc<dyn ObjectWriterBuilder>,
+    object_writer: Option<ObjectWriterSession>,
     block_writer: Option<BlockWriter>,
     fdt_instance_id: Option<u32>,
     meta: Option<ObjectMetadata>,
     last_activity: Instant,
+    pub cache_expiration_date: Option<SystemTime>,
+    pub content_location: Option<url::Url>,
 }
 
 impl ObjectReceiver {
-    pub fn new(toi: &u128, writer_session: Box<dyn ObjectWriter>) -> ObjectReceiver {
-        log::info!("Create new Object Receiver with toi {}", toi);
+    pub fn new(
+        endpoint: &UDPEndpoint,
+        tsi: u64,
+        toi: &u128,
+        object_writer_builder: Rc<dyn ObjectWriterBuilder>,
+    ) -> ObjectReceiver {
+        log::debug!("Create new Object Receiver with toi {}", toi);
         ObjectReceiver {
             state: State::Receiving,
             oti: None,
@@ -59,21 +78,25 @@ impl ObjectReceiver {
             a_large: 0,
             a_small: 0,
             nb_a_large: 0,
-            writer_session,
-            writer_session_state: ObjectWriterSessionState::Closed,
+            object_writer_builder,
+            object_writer: None,
             block_writer: None,
             fdt_instance_id: None,
+            tsi,
             toi: toi.clone(),
+            endpoint: endpoint.clone(),
             meta: None,
             last_activity: Instant::now(),
+            cache_expiration_date: None,
+            content_location: None,
         }
     }
 
     pub fn last_activity_duration_since(&self, earlier: Instant) -> Duration {
-        self.last_activity.duration_since(earlier)
+        earlier.duration_since(self.last_activity)
     }
 
-    pub fn push(&mut self, pkt: &alc::AlcPkt) {
+    pub fn push(&mut self, pkt: &alc::AlcPkt, now: std::time::SystemTime) {
         if self.state != State::Receiving {
             return;
         }
@@ -84,30 +107,33 @@ impl ObjectReceiver {
         self.set_oti_from_pkt(pkt);
 
         self.init_blocks_partitioning();
-        self.init_block_writer();
-        self.push_from_cache();
+        self.init_object_writer();
+        self.push_from_cache(now);
 
         if self.oti.is_none() {
             self.cache(pkt);
             return;
         }
 
-        self.push_to_block(pkt).unwrap_or_else(|_| self.error());
+        self.push_to_block(pkt, now)
+            .unwrap_or_else(|_| self.error());
     }
 
-    fn push_to_block(&mut self, pkt: &alc::AlcPkt) -> Result<()> {
+    fn push_to_block(&mut self, pkt: &alc::AlcPkt, now: std::time::SystemTime) -> Result<()> {
         assert!(self.oti.is_some());
+        assert!(self.transfer_length.is_some());
         let payload_id = alc::parse_payload_id(pkt, self.oti.as_ref().unwrap())?;
         log::debug!(
-            "Receive sbn={} esi={} toi={}",
+            "toi={} sbn={} esi={} meta={:?}",
+            self.toi,
             payload_id.sbn,
             payload_id.esi,
-            self.toi
+            self.meta
         );
 
         if self.transfer_length.unwrap() == 0 {
             assert!(self.block_writer.is_none());
-            self.complete();
+            self.complete(now);
             return Ok(());
         }
 
@@ -150,7 +176,7 @@ impl ObjectReceiver {
                 ) as usize,
             };
 
-            log::info!("Init block {} with length {}", payload_id.sbn, block_length);
+            log::debug!("Init block {} with length {}", payload_id.sbn, block_length);
             match block.init(oti, source_block_length, block_length, payload_id.sbn) {
                 Ok(_) => {}
                 Err(_) => {
@@ -163,13 +189,19 @@ impl ObjectReceiver {
         block.push(pkt, &payload_id);
         if block.completed {
             log::debug!("block {} is completed", payload_id.sbn);
-            self.write_blocks(payload_id.sbn)?;
+            self.write_blocks(payload_id.sbn, now)?;
         }
 
         Ok(())
     }
 
-    pub fn attach_fdt(&mut self, fdt_instance_id: u32, fdt: &FdtInstance) -> bool {
+    pub fn attach_fdt(
+        &mut self,
+        fdt_instance_id: u32,
+        fdt: &FdtInstance,
+        now: std::time::SystemTime,
+        server_time: std::time::SystemTime,
+    ) -> bool {
         assert!(self.toi != lct::TOI_FDT);
         if self.fdt_instance_id.is_some() {
             return false;
@@ -185,42 +217,63 @@ impl ObjectReceiver {
                 Some(str) => Some(str.as_str().try_into().unwrap_or(lct::Cenc::Null)),
                 None => Some(lct::Cenc::Null),
             };
-            log::info!("Set cenc from FDT {:?}", self.cenc);
+            log::debug!("Set cenc from FDT {:?}", self.cenc);
         }
 
         if self.oti.is_none() {
             self.oti = fdt.get_oti_for_file(file);
             if self.oti.is_some() {
-                self.transfer_length = file.get_transfer_length();
+                assert!(self.transfer_length.is_none());
+                self.transfer_length = Some(file.get_transfer_length());
             }
         }
 
-        let content_location = match url::Url::parse(&file.content_location) {
-            Ok(val) => val,
+        self.content_location = match url::Url::parse(&file.content_location) {
+            Ok(val) => Some(val),
             Err(_) => {
-                log::info!("Fail to parse content-location to URL");
-                self.error();
-                return false;
+                let base_url = url::Url::parse("file:///").unwrap();
+                match base_url.join(&file.content_location) {
+                    Ok(val) => Some(val),
+                    Err(_) => {
+                        log::error!(
+                            "Fail to parse content-location {} to URL",
+                            file.content_location
+                        );
+                        self.error();
+                        return false;
+                    }
+                }
             }
         };
 
         self.content_md5 = file.content_md5.clone();
         self.fdt_instance_id = Some(fdt_instance_id);
+
+        let cache_duration = file.get_cache_duration(fdt.get_expiration_date(), server_time);
+        self.cache_expiration_date = cache_duration.map(|v| {
+            now.checked_add(v)
+                .unwrap_or(now + std::time::Duration::from_secs(3600 * 24 * 360 * 10))
+        });
+
         self.meta = Some(ObjectMetadata {
-            content_location: content_location,
+            content_location: self
+                .content_location
+                .clone()
+                .unwrap_or(url::Url::parse("file:///").unwrap()),
             content_length: file.content_length.map(|s| s as usize),
             content_type: file.content_type.clone(),
+            cache_duration,
         });
 
         self.init_blocks_partitioning();
-        self.init_block_writer();
-        self.push_from_cache();
-        self.write_blocks(0).unwrap_or_else(|_| self.error());
+        self.init_object_writer();
+        self.push_from_cache(now);
+        self.write_blocks(0, now).unwrap_or_else(|_| self.error());
         true
     }
 
-    fn init_block_writer(&mut self) {
-        if self.writer_session_state != ObjectWriterSessionState::Closed {
+    fn init_object_writer(&mut self) {
+        if self.object_writer.is_some() {
             return;
         }
 
@@ -228,9 +281,22 @@ impl ObjectReceiver {
             return;
         }
 
-        assert!(self.block_writer.is_none());
+        let object_writer = self.object_writer_builder.new_object_writer(
+            &self.endpoint,
+            &self.tsi,
+            &self.toi,
+            self.meta.as_ref(),
+        );
 
-        match self.writer_session.open(self.meta.as_ref()) {
+        assert!(self.block_writer.is_none());
+        self.object_writer = Some(ObjectWriterSession {
+            writer: object_writer,
+            state: ObjectWriterSessionState::Idle,
+        });
+
+        let object_writer = self.object_writer.as_mut().unwrap();
+
+        match object_writer.writer.open() {
             Err(_) => {
                 log::error!("Fail to open destination for {:?}", self.meta);
                 self.error();
@@ -247,11 +313,15 @@ impl ObjectReceiver {
             ));
         }
 
-        self.writer_session_state = ObjectWriterSessionState::Opened;
+        object_writer.state = ObjectWriterSessionState::Opened;
     }
 
-    fn write_blocks(&mut self, sbn_start: u32) -> Result<()> {
-        if self.writer_session_state != ObjectWriterSessionState::Opened {
+    fn write_blocks(&mut self, sbn_start: u32, now: std::time::SystemTime) -> Result<()> {
+        if self.object_writer.is_none() {
+            return Ok(());
+        }
+
+        if self.object_writer.as_ref().unwrap().state != ObjectWriterSessionState::Opened {
             return Ok(());
         }
 
@@ -268,7 +338,11 @@ impl ObjectReceiver {
                 break;
             }
 
-            let success = writer.write(sbn as u32, block, self.writer_session.as_ref())?;
+            let success = writer.write(
+                sbn as u32,
+                block,
+                self.object_writer.as_ref().unwrap().writer.as_ref(),
+            )?;
             if !success {
                 break;
             }
@@ -283,10 +357,14 @@ impl ObjectReceiver {
                     .unwrap_or(true);
 
                 if md5_valid {
-                    log::info!("Object with toi {} completed", self.toi);
-                    self.complete();
+                    self.complete(now);
                 } else {
-                    log::error!("MD5 does not match");
+                    log::error!(
+                        "MD5 does not match expects {:?} received {:?} {:?}",
+                        self.content_md5,
+                        writer.get_md5(),
+                        self.content_location
+                    );
                     self.error();
                 }
 
@@ -296,10 +374,14 @@ impl ObjectReceiver {
         Ok(())
     }
 
-    fn complete(&mut self) {
+    fn complete(&mut self, _now: std::time::SystemTime) {
         self.state = State::Completed;
-        self.writer_session_state = ObjectWriterSessionState::Closed;
-        self.writer_session.complete();
+
+        if let Some(object_writer) = self.object_writer.as_mut() {
+            object_writer.state = ObjectWriterSessionState::Closed;
+            object_writer.writer.complete();
+        }
+
         // Free space by removing blocks
         self.blocks.clear();
         self.cache.clear();
@@ -307,13 +389,17 @@ impl ObjectReceiver {
 
     fn error(&mut self) {
         self.state = State::Error;
-        self.writer_session_state = ObjectWriterSessionState::Error;
-        self.writer_session.error();
+
+        if let Some(object_writer) = self.object_writer.as_mut() {
+            object_writer.state = ObjectWriterSessionState::Error;
+            object_writer.writer.error();
+        }
+
         self.blocks.clear();
         self.cache.clear();
     }
 
-    fn push_from_cache(&mut self) {
+    fn push_from_cache(&mut self, now: std::time::SystemTime) {
         if self.blocks.is_empty() {
             return;
         }
@@ -321,7 +407,7 @@ impl ObjectReceiver {
         while !self.cache.is_empty() {
             let item = self.cache.pop().unwrap();
             let pkt = item.to_pkt();
-            match self.push_to_block(&pkt) {
+            match self.push_to_block(&pkt, now) {
                 Err(_) => {
                     self.error();
                     break;
@@ -337,10 +423,10 @@ impl ObjectReceiver {
         }
         self.cenc = pkt.cenc;
         if self.toi == lct::TOI_FDT && self.cenc.is_none() {
-            log::info!("Force Cenc to Null for the FDT");
+            log::debug!("Force Cenc to Null for the FDT");
             self.cenc = Some(lct::Cenc::Null);
         } else if self.cenc.is_some() {
-            log::info!("Set cenc from pkt {:?}", self.cenc);
+            log::debug!("Set cenc from pkt {:?}", self.cenc);
         }
     }
 
@@ -361,10 +447,12 @@ impl ObjectReceiver {
         }
 
         self.oti = pkt.oti.clone();
+        assert!(self.transfer_length.is_none());
         self.transfer_length = pkt.transfer_length;
 
         if pkt.transfer_length.is_none() {
             log::warn!("Bug? Pkt contains OTI without transfer length");
+            self.error();
             return;
         }
 
@@ -400,7 +488,17 @@ impl ObjectReceiver {
             oti.encoding_symbol_length as u64,
         );
 
-        log::debug!("Block partitioning tl={:?} a_large={} a_small={} nb_a_large={} maximum_source_block_length={}", self.transfer_length, a_large, a_small, nb_a_large, oti.maximum_source_block_length);
+        log::debug!(
+            "Block partitioning
+        toi={}
+         tl={:?} a_large={} a_small={} nb_a_large={} maximum_source_block_length={}",
+            self.toi,
+            self.transfer_length,
+            a_large,
+            a_small,
+            nb_a_large,
+            oti.maximum_source_block_length
+        );
 
         log::debug!("oti={:?}", oti);
         self.a_large = a_large;
@@ -425,9 +523,13 @@ impl ObjectReceiver {
 
 impl Drop for ObjectReceiver {
     fn drop(&mut self) {
-        if self.writer_session_state == ObjectWriterSessionState::Opened {
-            self.writer_session.error();
-            self.writer_session_state = ObjectWriterSessionState::Error;
+        if let Some(object_writer) = self.object_writer.as_mut() {
+            if object_writer.state == ObjectWriterSessionState::Opened
+                || object_writer.state == ObjectWriterSessionState::Idle
+            {
+                log::error!("Drop object received with state {:?}", object_writer.state);
+                self.error();
+            }
         }
     }
 }

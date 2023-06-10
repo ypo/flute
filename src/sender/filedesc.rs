@@ -1,4 +1,4 @@
-use super::objectdesc::ObjectDesc;
+use super::objectdesc::{create_fdt_cache_control, ObjectDesc};
 use crate::common::{fdtinstance, oti, partition};
 use crate::error::{FluteError, Result};
 use std::sync::RwLock;
@@ -151,7 +151,7 @@ impl FileDesc {
         now.duration_since(*last_transfer).unwrap_or_default() > *delay
     }
 
-    pub fn to_file_xml(&self) -> fdtinstance::File {
+    pub fn to_file_xml(&self, now: SystemTime) -> fdtinstance::File {
         let oti_attributes = match self.oti.fec_encoding_id {
             oti::FECEncodingID::RaptorQ => Some(self.oti.get_attributes()), // for RaptorQ we need to add OTI for each object
             _ => self.object.oti.as_ref().map(|oti| oti.get_attributes()),
@@ -182,6 +182,18 @@ impl FileDesc {
                 .map_or(None, |f| f.fec_oti_max_number_of_encoding_symbols),
             fec_oti_scheme_specific_info: oti_attributes
                 .map_or(None, |f| f.fec_oti_scheme_specific_info),
+            cache_control: self
+                .object
+                .cache_control
+                .as_ref()
+                .map(|cc| create_fdt_cache_control(cc, now)),
+            alternate_content_location_1: None,
+            alternate_content_location_2: None,
+            mbms_session_identity: None,
+            decryption_key_uri: None,
+            fec_redundancy_level: None,
+            file_etag: None,
+            independent_unit_positions: None,
         }
     }
 }

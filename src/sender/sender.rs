@@ -1,8 +1,10 @@
 use super::fdt::Fdt;
-use super::objectdesc;
+use super::observer::ObserverList;
 use super::sendersession::SenderSession;
+use super::{objectdesc, Subscriber};
 use crate::common::{lct, oti, Profile};
 use crate::tools::error::Result;
+use std::sync::Arc;
 use std::time::SystemTime;
 
 ///
@@ -54,6 +56,7 @@ pub struct Sender {
     fdt: Fdt,
     sessions: Vec<SenderSession>,
     session_index: usize,
+    observers: ObserverList,
 }
 
 impl Sender {
@@ -61,12 +64,15 @@ impl Sender {
     /// Creation of a FLUTE Sender
     ///
     pub fn new(tsi: u64, oti: &oti::Oti, config: &Config) -> Sender {
+        let observers = ObserverList::new();
+
         let fdt = Fdt::new(
             config.fdt_start_id,
             oti,
             config.fdt_cenc,
             config.fdt_duration,
             config.fdt_inband_sct,
+            observers.clone(),
         );
 
         let multiplex_files = match config.multiplex_files {
@@ -89,7 +95,18 @@ impl Sender {
             fdt,
             sessions,
             session_index: 0,
+            observers,
         }
+    }
+
+    /// Add an observer
+    pub fn subscribe(&mut self, s: Arc<dyn Subscriber>) {
+        self.observers.subscribe(s);
+    }
+
+    /// Remove an observer
+    pub fn unsubscribe(&mut self, s: Arc<dyn Subscriber>) {
+        self.observers.unsubscribe(s);
     }
 
     /// Add an object to the FDT
@@ -176,6 +193,7 @@ mod tests {
             "text",
             &url::Url::parse("file:///hello").unwrap(),
             1,
+            None,
             None,
             lct::Cenc::Null,
             true,

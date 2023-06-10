@@ -110,7 +110,7 @@ impl BlockDecoder {
         if decoder.can_decode() {
             self.completed = decoder.decode();
             if self.completed {
-                log::info!("Block completed");
+                log::debug!("Block completed");
             }
         }
     }

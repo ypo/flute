@@ -1,9 +1,48 @@
 use base64::Engine;
 
 use super::compress;
-use crate::common::{lct, oti};
+use crate::common::{fdtinstance, lct, oti};
+use crate::tools;
 use crate::tools::error::Result;
 use std::ffi::OsStr;
+use std::time::SystemTime;
+
+/// Cache Control
+///
+/// The `CacheControl` enum represents different directives used for controlling caching behavior.
+/// It is commonly used in web development to indicate caching preferences for specific files or resources.
+#[derive(Debug, Clone, Copy)]
+pub enum CacheControl {
+    /// Specifies that the receiver should not cache the specific file or resource.
+    NoCache,
+
+    /// Indicates that a specific file (or set of files) should be cached for an indefinite period of time,
+    /// allowing stale versions of the resource to be served even after they have expired.
+    MaxStale,
+
+    /// Specifies the expected expiry time for the file or resource, allowing the server
+    /// to indicate when the cached version should no longer be considered valid.
+    Expires(std::time::Duration),
+}
+
+/// Concert CacheControl to fdtinstance::CacheControl
+pub fn create_fdt_cache_control(cc: &CacheControl, now: SystemTime) -> fdtinstance::CacheControl {
+    match cc {
+        CacheControl::NoCache => fdtinstance::CacheControl {
+            value: fdtinstance::CacheControlChoice::NoCache(Some(true)),
+        },
+        CacheControl::MaxStale => fdtinstance::CacheControl {
+            value: fdtinstance::CacheControlChoice::MaxStale(Some(true)),
+        },
+        CacheControl::Expires(duration) => {
+            let expires = now + *duration;
+            let ntp = tools::system_time_to_ntp(expires).unwrap_or_default();
+            fdtinstance::CacheControl {
+                value: fdtinstance::CacheControlChoice::Expires((ntp >> 32) as u32),
+            }
+        }
+    }
+}
 
 ///
 /// Object (file) that can be send over FLUTE
@@ -41,6 +80,8 @@ pub struct ObjectDesc {
     pub max_transfer_count: u32,
     /// If defined, object is transmitted in a carousel every `carousel_delay_ns`
     pub carousel_delay: Option<std::time::Duration>,
+    /// Define object cache control
+    pub cache_control: Option<CacheControl>,
 }
 
 impl ObjectDesc {
@@ -51,6 +92,7 @@ impl ObjectDesc {
         content_type: &str,
         max_transfer_count: u32,
         carousel_delay: Option<std::time::Duration>,
+        cache_control: Option<CacheControl>,
         cenc: lct::Cenc,
         inband_cenc: bool,
         oti: Option<oti::Oti>,
@@ -76,6 +118,7 @@ impl ObjectDesc {
             content_location,
             max_transfer_count,
             carousel_delay,
+            cache_control,
             cenc,
             inband_cenc,
             oti,
@@ -90,6 +133,7 @@ impl ObjectDesc {
         content_location: &url::Url,
         max_transfer_count: u32,
         carousel_delay: Option<std::time::Duration>,
+        cache_control: Option<CacheControl>,
         cenc: lct::Cenc,
         inband_cenc: bool,
         oti: Option<oti::Oti>,
@@ -102,6 +146,7 @@ impl ObjectDesc {
             content_location.clone(),
             max_transfer_count,
             carousel_delay,
+            cache_control,
             cenc,
             inband_cenc,
             oti,
@@ -116,6 +161,7 @@ impl ObjectDesc {
         content_location: url::Url,
         max_transfer_count: u32,
         carousel_delay: Option<std::time::Duration>,
+        cache_control: Option<CacheControl>,
         cenc: lct::Cenc,
         inband_cenc: bool,
         oti: Option<oti::Oti>,
@@ -156,6 +202,7 @@ impl ObjectDesc {
             oti: oti,
             max_transfer_count,
             carousel_delay,
+            cache_control,
         }))
     }
 }

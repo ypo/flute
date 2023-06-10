@@ -10,6 +10,8 @@
 //! ```
 //!
 
+use std::time::Duration;
+
 use crate::tools::error::Result;
 
 ///
@@ -25,6 +27,8 @@ pub struct ObjectMetadata {
     /// This field describes the format of the object's content,
     /// and can be used to determine how to handle or process the object.
     pub content_type: Option<String>,
+    /// Object cache duration hint
+    pub cache_duration: Option<Duration>,
 }
 
 ///
@@ -32,7 +36,22 @@ pub struct ObjectMetadata {
 ///
 pub trait ObjectWriterBuilder {
     /// Return a new object writer that will be used to store the received object to its final destination
-    fn new_object_writer(&self, tsi: &u64, toi: &u128) -> Box<dyn ObjectWriter>;
+    fn new_object_writer(
+        &self,
+        endpoint: &UDPEndpoint,
+        tsi: &u64,
+        toi: &u128,
+        meta: Option<&ObjectMetadata>,
+    ) -> Box<dyn ObjectWriter>;
+    /// Update cache duration of an object
+    fn set_cache_duration(
+        &self,
+        endpoint: &UDPEndpoint,
+        tsi: &u64,
+        toi: &u128,
+        content_location: &url::Url,
+        duration: &Duration,
+    );
 }
 
 ///
@@ -40,7 +59,7 @@ pub trait ObjectWriterBuilder {
 ///
 pub trait ObjectWriter {
     /// Open the destination
-    fn open(&self, meta: Option<&ObjectMetadata>) -> Result<()>;
+    fn open(&self) -> Result<()>;
     /// Write data
     fn write(&self, data: &[u8]);
     /// Called when all the data has been written
@@ -69,3 +88,5 @@ pub use objectwriterbuffer::ObjectWriterBufferBuilder;
 
 pub use objectwriterfs::ObjectWriterFS;
 pub use objectwriterfs::ObjectWriterFSBuilder;
+
+use super::UDPEndpoint;
