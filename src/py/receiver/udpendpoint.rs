@@ -10,9 +10,9 @@ pub struct UDPEndpoint {
 impl UDPEndpoint {
     #[new]
     fn new(
-        source_address: Option<&str>,
         destination_group_address: &str,
         port: u16,
+        source_address: Option<&str>,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: crate::receiver::UDPEndpoint {

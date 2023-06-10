@@ -29,7 +29,7 @@ Flute Sender python example
     flute_sender = sender.Sender(1, oti, sender_config)
 
     # Transfer a file 
-    flute_sender.add_file("/path/to/file",  "application/octet-stream", None, 0, None)
+    flute_sender.add_file("/path/to/file", 0, "application/octet-stream", None, None)
     flute_sender.publish()
 
     while True:
@@ -53,7 +53,8 @@ Flute Receiver python example
     tsi = 1
 
     # Creation of a FLUTE receiver
-    flute_receiver = receiver.Receiver(tsi, receiver_writer, receiver_config)
+    udp_endpoint = receiver.UDPEndpoint("224.0.0.1", 1234)
+    flute_receiver = receiver.Receiver(udp_endpoint, tsi, receiver_writer, receiver_config)
 
     while True:
         # Receive LCT/ALC packet from multicast

@@ -51,9 +51,9 @@ impl Sender {
     fn add_file(
         &mut self,
         filepath: &str,
+        cenc: u8,
         content_type: &str,
         content_location: Option<&str>,
-        cenc: u8,
         oti: Option<&oti::Oti>,
     ) -> PyResult<u128> {
         let cenc = cenc

@@ -28,8 +28,8 @@ num-integer = "0.1"
 reed-solomon-erasure = "6.0"
 flate2 = "1.0"
 md5 = "0.7"
-pyo3 = { version = "0.17.3", features = ["extension-module"], optional = true }
-pyo3-log = { version = "0.7", optional = true }
+pyo3 = { version = "0.19", features = ["extension-module"], optional = true }
+pyo3-log = { version = "0.8", optional = true }
 raptorq = "1.7"
 raptor-code = "1.0.5"
 
