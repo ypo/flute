@@ -72,7 +72,14 @@ impl<'a> AlcPktCache {
     }
 }
 
-pub fn new_alc_pkt(oti: &oti::Oti, cci: &u128, tsi: u64, pkt: &Pkt, profile: Profile) -> Vec<u8> {
+pub fn new_alc_pkt(
+    oti: &oti::Oti,
+    cci: &u128,
+    tsi: u64,
+    pkt: &Pkt,
+    profile: Profile,
+    now: SystemTime,
+) -> Vec<u8> {
     let mut data = Vec::new();
     log::debug!("Send ALC sbn={} esi={} toi={}", pkt.sbn, pkt.esi, pkt.toi);
     lct::push_lct_header(
@@ -101,12 +108,12 @@ pub fn new_alc_pkt(oti: &oti::Oti, cci: &u128, tsi: u64, pkt: &Pkt, profile: Pro
         push_cenc(&mut data, pkt.cenc as u8);
     }
 
-    if pkt.sender_current_time.is_some() {
+    if pkt.sender_current_time {
         match profile {
-            Profile::RFC6726 => push_sct(&mut data, pkt.sender_current_time.unwrap()),
+            Profile::RFC6726 => push_sct(&mut data, now),
             Profile::RFC3926 => {
                 log::warn!("SCT not implemented for RFC3926");
-                // TODO see SCT from https://www.rfc-editor.org/rfc/rfc3451 
+                // TODO see SCT from https://www.rfc-editor.org/rfc/rfc3451
             }
         };
     }
@@ -304,6 +311,8 @@ fn push_payload(data: &mut Vec<u8>, pkt: &Pkt) {
 
 #[cfg(test)]
 mod tests {
+    use std::time::SystemTime;
+
     use crate::common::lct;
     use crate::common::oti;
     use crate::common::pkt;
@@ -330,10 +339,11 @@ mod tests {
             transfer_length: transfer_length,
             close_object: false,
             source_block_length: 1,
-            sender_current_time: None,
+            sender_current_time: false,
         };
 
-        let alc_pkt = super::new_alc_pkt(&oti, &cci, tsi, &pkt, Profile::RFC6726);
+        let alc_pkt =
+            super::new_alc_pkt(&oti, &cci, tsi, &pkt, Profile::RFC6726, SystemTime::now());
         let decoded_pkt = super::parse_alc_pkt(&alc_pkt).unwrap();
         assert!(decoded_pkt.lct.toi == pkt.toi);
         assert!(decoded_pkt.lct.cci == cci);

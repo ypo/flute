@@ -17,7 +17,7 @@ pub struct FileDesc {
     pub oti: oti::Oti,
     pub toi: u128,
     pub fdt_id: Option<u32>,
-    pub sender_current_time: Option<SystemTime>,
+    pub sender_current_time: bool,
     transfer_info: RwLock<TransferInfo>,
 }
 
@@ -27,7 +27,7 @@ impl FileDesc {
         default_oti: &oti::Oti,
         toi: &u128,
         fdt_id: Option<u32>,
-        sender_current_time: Option<SystemTime>,
+        sender_current_time: bool,
     ) -> Result<FileDesc> {
         let mut oti = match &object.oti {
             Some(res) => res.clone(),

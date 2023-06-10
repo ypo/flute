@@ -105,7 +105,7 @@ impl Fdt {
         }
 
         let toi = self.toi;
-        let filedesc = Arc::new(FileDesc::new(obj, &self.oti, &toi, None, None)?);
+        let filedesc = Arc::new(FileDesc::new(obj, &self.oti, &toi, None, false)?);
         self.toi += 1;
         if self.toi == lct::TOI_FDT {
             self.toi = 1;
@@ -148,10 +148,7 @@ impl Fdt {
             &self.oti,
             &lct::TOI_FDT,
             Some(self.fdtid),
-            match self.inband_sct {
-                true => Some(now.clone()),
-                false => None,
-            },
+            self.inband_sct,
         )?);
         self.fdt_transfer_queue.push(filedesc);
         self.fdtid = (self.fdtid + 1) & 0xFFFFF;

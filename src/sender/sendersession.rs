@@ -58,6 +58,7 @@ impl SenderSession {
                 self.tsi,
                 pkt,
                 self.profile,
+                now,
             ));
         }
     }
