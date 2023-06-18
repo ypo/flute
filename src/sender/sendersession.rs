@@ -43,14 +43,15 @@ impl SenderSession {
                 return None;
             }
 
-            assert!(self.file.is_some());
             let encoder = self.encoder.as_mut().unwrap();
-            let file = self.file.as_ref().unwrap();
             let pkt = encoder.read();
             if pkt.is_none() {
                 self.release_file(fdt, now);
                 continue;
             }
+
+            assert!(self.file.is_some());
+            let file = self.file.as_ref().unwrap();
             let pkt = pkt.as_ref().unwrap();
             return Some(alc::new_alc_pkt(
                 &file.oti,

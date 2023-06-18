@@ -6,16 +6,18 @@ use crate::sender::observer;
 use crate::tools;
 use crate::tools::error::{FluteError, Result};
 use serde::Serialize;
+use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::SystemTime;
 
 #[derive(Debug)]
 pub struct Fdt {
+    _tsi: u64,
     fdtid: u32,
     oti: oti::Oti,
     toi: u128,
-    files_transfer_queue: Vec<Arc<FileDesc>>,
-    fdt_transfer_queue: Vec<Arc<FileDesc>>,
+    files_transfer_queue: VecDeque<Arc<FileDesc>>,
+    fdt_transfer_queue: VecDeque<Arc<FileDesc>>,
     files: std::collections::HashMap<u128, Arc<FileDesc>>,
     current_fdt_transfer: Option<Arc<FileDesc>>,
     complete: Option<bool>,
@@ -28,6 +30,7 @@ pub struct Fdt {
 
 impl Fdt {
     pub fn new(
+        tsi: u64,
         fdtid: u32,
         default_oti: &oti::Oti,
         cenc: lct::Cenc,
@@ -36,11 +39,12 @@ impl Fdt {
         observers: ObserverList,
     ) -> Fdt {
         Fdt {
+            _tsi: tsi,
             fdtid,
             oti: default_oti.clone(),
             toi: 1,
-            files_transfer_queue: Vec::new(),
-            fdt_transfer_queue: Vec::new(),
+            files_transfer_queue: VecDeque::new(),
+            fdt_transfer_queue: VecDeque::new(),
             files: std::collections::HashMap::new(),
             current_fdt_transfer: None,
             complete: None,
@@ -129,8 +133,12 @@ impl Fdt {
 
         assert!(self.files.contains_key(&filedesc.toi) == false);
         self.files.insert(filedesc.toi, filedesc.clone());
-        self.files_transfer_queue.push(filedesc);
+        self.files_transfer_queue.push_back(filedesc);
         Ok(toi)
+    }
+
+    pub fn is_added(&self, toi: u128) -> bool {
+        self.files.contains_key(&toi)
     }
 
     pub fn remove_object(&mut self, toi: u128) -> bool {
@@ -143,6 +151,15 @@ impl Fdt {
     }
 
     pub fn nb_objects(&self) -> usize {
+        if self.files.len() > 100 {
+            let uri: Vec<String> = self
+                .files
+                .iter()
+                .map(|f| f.1.object.content_location.to_string())
+                .collect();
+            log::error!("{:?}", uri);
+        }
+
         self.files.len()
     }
 
@@ -167,7 +184,7 @@ impl Fdt {
             Some(self.fdtid),
             self.inband_sct,
         )?);
-        self.fdt_transfer_queue.push(filedesc);
+        self.fdt_transfer_queue.push_back(filedesc);
         self.fdtid = (self.fdtid + 1) & 0xFFFFF;
         self.last_publish = Some(now);
         Ok(())
@@ -176,6 +193,10 @@ impl Fdt {
     fn current_fdt_will_expire(&self, now: SystemTime) -> bool {
         if self.current_fdt_transfer.is_none() || self.last_publish.is_none() {
             return true;
+        }
+
+        if self.fdt_transfer_queue.is_empty() {
+            return false;
         }
 
         let duration = now
@@ -203,7 +224,7 @@ impl Fdt {
         }
 
         if !self.fdt_transfer_queue.is_empty() {
-            self.current_fdt_transfer = self.fdt_transfer_queue.pop();
+            self.current_fdt_transfer = self.fdt_transfer_queue.pop_front();
         }
 
         if self.current_fdt_transfer.is_none() {
@@ -226,7 +247,7 @@ impl Fdt {
             .enumerate()
             .find(|(_, item)| item.should_transfer_now(now))?;
 
-        let file = self.files_transfer_queue.swap_remove(index);
+        let file = self.files_transfer_queue.remove(index).unwrap();
         log::info!(
             "Start transmission of {}",
             file.object.content_location.as_str()
@@ -261,10 +282,10 @@ impl Fdt {
             );
             if file.is_expired() == false {
                 log::debug!("Transfer file again");
-                self.files_transfer_queue.push(file);
+                self.files_transfer_queue.push_back(file);
             } else {
                 self.files.remove(&file.toi);
-                self.publish(now).ok();
+                //self.publish(now).ok();
             }
         }
     }
@@ -338,6 +359,7 @@ mod tests {
 
         let oti: oti::Oti = Default::default();
         let mut fdt = super::Fdt::new(
+            10,
             1,
             &oti,
             lct::Cenc::Null,

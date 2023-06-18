@@ -67,6 +67,7 @@ impl Sender {
         let observers = ObserverList::new();
 
         let fdt = Fdt::new(
+            tsi,
             config.fdt_start_id,
             oti,
             config.fdt_cenc,
@@ -118,6 +119,11 @@ impl Sender {
     /// A `Result` containing an `u128` representing the unique identifier of the added object (TOI), if the operation was successful.
     pub fn add_object(&mut self, obj: Box<objectdesc::ObjectDesc>) -> Result<u128> {
         self.fdt.add_object(obj)
+    }
+
+    /// Check if the object is inside the FDT
+    pub fn is_added(&self, toi: u128) -> bool {
+        self.fdt.is_added(toi)
     }
 
     /// Remove an object from the FDT
