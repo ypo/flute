@@ -100,7 +100,7 @@ impl AlcCodec for AlcNoCode {
         |     Source Block Number  16 bits | Enc. Symb. ID  16 bits     |
         +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
          */
-        let header: u32 = ((sbn & 0xFF) << 16) | (esi as u32) & 0xFF;
+        let header: u32 = ((sbn & 0xFFFF) << 16) | (esi as u32) & 0xFFFF;
         data.extend(header.to_be_bytes());
     }
 
