@@ -221,7 +221,7 @@ fn parse_ext_fdt(ext: &[u8]) -> Result<Option<ExtFDT>> {
 
     let fdt_bytes = u32::from_be_bytes(ext.try_into().unwrap());
     let version = (fdt_bytes >> 20) & 0xF;
-    let fdt_instance_id = fdt_bytes & 0xFFFF;
+    let fdt_instance_id = fdt_bytes & 0xFFFFF;
 
     Ok(Some(ExtFDT {
         version,
