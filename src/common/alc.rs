@@ -88,6 +88,29 @@ impl<'a> AlcPktCache {
     }
 }
 
+pub fn new_alc_pkt_close_session(cci: &u128, tsi: u64) -> Vec<u8> {
+    let mut data = Vec::new();
+
+    let oti = oti::Oti::new_no_code(0, 0);
+
+    lct::push_lct_header(
+        &mut data,
+        0,
+        &cci,
+        tsi,
+        &0u128,
+        oti.fec_encoding_id as u8,
+        false,
+        true,
+    );
+    // push_fdt(&mut data, 1, 0);
+    let codec = <dyn AlcCodec>::instance(oti.fec_encoding_id);
+    codec.add_fti(&mut data, &oti, 0);
+    // Add FEC Payload ID
+    data.extend(0u32.to_be_bytes());
+    data
+}
+
 pub fn new_alc_pkt(
     oti: &oti::Oti,
     cci: &u128,
@@ -128,10 +151,7 @@ pub fn new_alc_pkt(
     if pkt.sender_current_time {
         match profile {
             Profile::RFC6726 => push_sct(&mut data, now),
-            Profile::RFC3926 => {
-                log::warn!("SCT not implemented for RFC3926");
-                // TODO see SCT from https://www.rfc-editor.org/rfc/rfc3451
-            }
+            Profile::RFC3926 => push_sct(&mut data, now),
         };
     }
 

@@ -172,15 +172,26 @@ impl MultiReceiver {
         };
 
         if alc.lct.close_session {
-            match self.get_receiver(&key) {
-                Some(receiver) => receiver.push(&alc, now),
+            log::info!("Close session is set");
+            let mut remove_session = false;
+            let ret = match self.get_receiver(&key) {
+                Some(receiver) => {
+                    remove_session = true;
+                    receiver.push(&alc, now)
+                }
                 None => {
                     log::warn!(
                         "A session that is not allocated is about to be closed, skip the session"
                     );
-                    return Ok(());
+                    Ok(())
                 }
+            };
+
+            if remove_session {
+                log::warn!("Remove closed session");
+                self.alc_receiver.remove(&key);
             }
+            ret
         } else {
             let receiver = self.get_receiver_or_create(&key);
             receiver.push(&alc, now)
