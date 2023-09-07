@@ -21,7 +21,7 @@ path = "src/lib.rs"
 log  = "0.4"
 chrono = "0.4.23"
 serde = { version = "1.0", features = ["derive"] }
-quick-xml = { version = "0.28", features = ["serialize"] }
+quick-xml = { version = "0.28.1", features = ["serialize"] }
 base64 = "0.21"
 url = "2.3.1"
 num-integer = "0.1"
@@ -32,10 +32,10 @@ pyo3 = { version = "0.19", features = ["extension-module"], optional = true }
 pyo3-log = { version = "0.8", optional = true }
 raptorq = "1.7"
 raptor-code = "1.0.5"
+rand = "0.8"
 
 [dev-dependencies]
 env_logger = "0.10.0"
-rand = "0.8"
 
 [features]
 python = ["pyo3", "pyo3-log"]

@@ -3,8 +3,10 @@ use super::objectdesc;
 use super::observer::ObserverList;
 use crate::common::{fdtinstance::FdtInstance, lct, oti};
 use crate::sender::observer;
+use crate::sender::TOIMaxLength;
 use crate::tools;
 use crate::tools::error::{FluteError, Result};
+use rand::Rng;
 use serde::Serialize;
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -16,6 +18,7 @@ pub struct Fdt {
     fdtid: u32,
     oti: oti::Oti,
     toi: u128,
+    toi_max_length: TOIMaxLength,
     files_transfer_queue: VecDeque<Arc<FileDesc>>,
     fdt_transfer_queue: VecDeque<Arc<FileDesc>>,
     files: std::collections::HashMap<u128, Arc<FileDesc>>,
@@ -23,6 +26,7 @@ pub struct Fdt {
     complete: Option<bool>,
     cenc: lct::Cenc,
     duration: std::time::Duration,
+    carousel: std::time::Duration,
     inband_sct: bool,
     last_publish: Option<SystemTime>,
     observers: ObserverList,
@@ -35,14 +39,37 @@ impl Fdt {
         default_oti: &oti::Oti,
         cenc: lct::Cenc,
         duration: std::time::Duration,
+        carousel: std::time::Duration,
         inband_sct: bool,
         observers: ObserverList,
+        toi_max_length: TOIMaxLength,
+        toi_initial_value: Option<u128>,
     ) -> Fdt {
+        let toi = match toi_initial_value {
+            Some(0) => 1,
+            Some(n) => n,
+            None => {
+                let mut rng = rand::thread_rng();
+                let mut toi = rng.gen();
+                match toi_max_length {
+                    TOIMaxLength::ToiMax16 => toi &= 0xFFFFu128,
+                    TOIMaxLength::ToiMax32 => toi &= 0xFFFFFFFFu128,
+                    TOIMaxLength::ToiMax64 => toi &= 0xFFFFFFFFFFFFFFFFu128,
+                    TOIMaxLength::ToiMax112 => {}
+                };
+                if toi == 0 {
+                    toi = 1;
+                }
+                log::info!("TOI initial value = {}", toi);
+                toi
+            }
+        };
+
         Fdt {
             _tsi: tsi,
             fdtid,
             oti: default_oti.clone(),
-            toi: 1,
+            toi,
             files_transfer_queue: VecDeque::new(),
             fdt_transfer_queue: VecDeque::new(),
             files: std::collections::HashMap::new(),
@@ -50,9 +77,11 @@ impl Fdt {
             complete: None,
             cenc,
             duration,
+            carousel,
             inband_sct,
             last_publish: None,
             observers,
+            toi_max_length,
         }
     }
 
@@ -125,16 +154,35 @@ impl Fdt {
         }
 
         let toi = self.toi;
+        self.inc_toi();
         let filedesc = Arc::new(FileDesc::new(obj, &self.oti, &toi, None, false)?);
-        self.toi += 1;
-        if self.toi == lct::TOI_FDT {
-            self.toi = 1;
-        }
 
         assert!(self.files.contains_key(&filedesc.toi) == false);
         self.files.insert(filedesc.toi, filedesc.clone());
         self.files_transfer_queue.push_back(filedesc);
         Ok(toi)
+    }
+
+    pub fn inc_toi(&mut self) {
+        loop {
+            self.toi += 1;
+            match self.toi_max_length {
+                TOIMaxLength::ToiMax16 => self.toi &= 0xFFFFu128,
+                TOIMaxLength::ToiMax32 => self.toi &= 0xFFFFFFFFu128,
+                TOIMaxLength::ToiMax64 => self.toi &= 0xFFFFFFFFFFFFFFFFu128,
+                TOIMaxLength::ToiMax112 => {}
+            }
+
+            if self.toi == lct::TOI_FDT {
+                self.toi = 1;
+            }
+
+            if !self.files.contains_key(&self.toi) {
+                break;
+            }
+
+            log::warn!("TOI {} is already used by a file", self.toi)
+        }
     }
 
     pub fn is_added(&self, toi: u128) -> bool {
@@ -164,13 +212,14 @@ impl Fdt {
     }
 
     pub fn publish(&mut self, now: SystemTime) -> Result<()> {
+        log::info!("TSI={} Publish new FDT", self._tsi);
         let content = self.to_xml(now)?;
         let obj = objectdesc::ObjectDesc::create_from_buffer(
             &content,
             "text/xml",
             &url::Url::parse("file:///").unwrap(),
             1,
-            Some(std::time::Duration::new(1, 0)),
+            Some(self.carousel),
             None,
             self.cenc,
             true,
@@ -195,7 +244,7 @@ impl Fdt {
             return true;
         }
 
-        if self.fdt_transfer_queue.is_empty() {
+        if !self.fdt_transfer_queue.is_empty() {
             return false;
         }
 
@@ -219,7 +268,7 @@ impl Fdt {
         }
 
         if self.current_fdt_will_expire(now) {
-            log::warn!("FDT will expire soon, publish new version");
+            log::debug!("FDT will expire soon, publish new version");
             self.publish(now).ok();
         }
 
@@ -233,6 +282,7 @@ impl Fdt {
 
         match &self.current_fdt_transfer {
             Some(value) if value.should_transfer_now(now) => {
+                log::debug!("TSI={} Start transmission of FDT", self._tsi);
                 value.transfer_started();
                 Some(value.clone())
             }
@@ -264,6 +314,8 @@ impl Fdt {
         file.transfer_done(now);
 
         if file.toi == lct::TOI_FDT {
+            log::debug!("TSI={} Stop transmission of FDT", self._tsi);
+
             if file.is_expired() {
                 self.current_fdt_transfer = None;
             }
@@ -364,8 +416,11 @@ mod tests {
             &oti,
             lct::Cenc::Null,
             std::time::Duration::from_secs(3600),
+            std::time::Duration::from_secs(1),
             true,
             ObserverList::new(),
+            crate::sender::TOIMaxLength::ToiMax112,
+            Some(1),
         );
         let obj = objectdesc::ObjectDesc::create_from_buffer(
             &Vec::new(),

@@ -2,10 +2,23 @@ use super::fdt::Fdt;
 use super::observer::ObserverList;
 use super::sendersession::SenderSession;
 use super::{objectdesc, Subscriber};
-use crate::common::{lct, oti, Profile};
+use crate::common::{alc, lct, oti, Profile};
 use crate::tools::error::Result;
 use std::sync::Arc;
 use std::time::SystemTime;
+
+/// Maximum number of bits to encode the TOI
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TOIMaxLength {
+    /// 16 bits
+    ToiMax16,
+    /// 32 bits
+    ToiMax32,
+    /// 64 bits
+    ToiMax64,
+    /// 112 bits
+    ToiMax112,
+}
 
 ///
 /// Configuration of the `Sender`
@@ -14,6 +27,8 @@ use std::time::SystemTime;
 pub struct Config {
     /// Max duration of the FDT before expiration.
     pub fdt_duration: std::time::Duration,
+    /// Repeat duration of the FDT in the carousel
+    pub fdt_carousel: std::time::Duration,
     /// First FDT ID.
     pub fdt_start_id: u32,
     /// Content Encoding of the FDT.
@@ -31,18 +46,27 @@ pub struct Config {
     pub interleave_blocks: u8,
     /// Select FLUTE sender profile used during the transmission
     pub profile: Profile,
+    /// Max number of bits to encode the TOI
+    pub toi_max_length: TOIMaxLength,
+    /// Value of the first TOI of a FLUTE session
+    /// TOI value must be > 0
+    /// None : Initialize the TOI to a random value
+    pub toi_initial_value: Option<u128>,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             fdt_duration: std::time::Duration::from_secs(3600),
+            fdt_carousel: std::time::Duration::from_secs(1),
             fdt_start_id: 1,
             fdt_cenc: lct::Cenc::Null,
             fdt_inband_sct: true,
             multiplex_files: 3,
             interleave_blocks: 4,
             profile: Profile::RFC6726,
+            toi_max_length: TOIMaxLength::ToiMax112,
+            toi_initial_value: Some(1),
         }
     }
 }
@@ -57,6 +81,7 @@ pub struct Sender {
     sessions: Vec<SenderSession>,
     session_index: usize,
     observers: ObserverList,
+    tsi: u64,
 }
 
 impl Sender {
@@ -72,8 +97,11 @@ impl Sender {
             oti,
             config.fdt_cenc,
             config.fdt_duration,
+            config.fdt_carousel,
             config.fdt_inband_sct,
             observers.clone(),
+            config.toi_max_length,
+            config.toi_initial_value,
         );
 
         let multiplex_files = match config.multiplex_files {
@@ -97,6 +125,7 @@ impl Sender {
             sessions,
             session_index: 0,
             observers,
+            tsi,
         }
     }
 
@@ -156,6 +185,11 @@ impl Sender {
     /// After calling this function, a call to `publish()` to publish your modifications
     pub fn set_complete(&mut self) {
         self.fdt.set_complete();
+    }
+
+    /// Generate a close_session packet
+    pub fn read_close_session(&mut self, _now: SystemTime) -> Vec<u8> {
+        alc::new_alc_pkt_close_session(&0u128, self.tsi)
     }
 
     /// Read the next ALC/LCT packet
