@@ -295,7 +295,10 @@ pub struct File {
     #[serde(alias = "@FEC-Redundancy-Level")]
     pub fec_redundancy_level: Option<String>,
 
-    #[serde(rename = "@mbms2012:File-ETag")]
+    #[serde(
+        rename = "@mbms2012:File-ETag",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[serde(alias = "@File-ETag")]
     pub file_etag: Option<String>,
 

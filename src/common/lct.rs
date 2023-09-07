@@ -25,16 +25,26 @@ pub enum Ext {
 
 pub const TOI_FDT: u128 = 0;
 
+/// LCT Header
 #[derive(Clone, Debug)]
 pub struct LCTHeader {
+    /// len
     pub len: usize,
+    /// cci
     pub cci: u128,
+    /// TSI
     pub tsi: u64,
+    /// TOI
     pub toi: u128,
+    /// cp
     pub cp: u8,
+    /// Close Object
     pub close_object: bool,
+    /// Close Session
     pub close_session: bool,
+    /// Header ext offset
     pub header_ext_offset: u32,
+    /// LCT packet length
     pub length: usize,
 }
 
@@ -222,6 +232,7 @@ pub fn push_lct_header(
     toi: &u128,
     codepoint: u8,
     close_object: bool,
+    close_session: bool,
 ) {
     let cci_size = nb_bytes_128(cci);
     let tsi_size = nb_bytes_64(tsi);
@@ -235,7 +246,10 @@ pub fn push_lct_header(
         true => 1,
         false => 0,
     };
-    let a: u8 = 0;
+    let a: u8 = match close_session {
+        true => 1,
+        false => 0,
+    };
     let o = (toi_size >> 2) & 0x3;
     let s = (tsi_size >> 2) & 1;
     let c = match cci_size {
@@ -416,6 +430,6 @@ mod tests {
         let tsi: u64 = 0;
         let toi: u128 = 0;
         let codepoint: u8 = 0;
-        super::push_lct_header(&mut lct, psi, &cci, tsi, &toi, codepoint, false)
+        super::push_lct_header(&mut lct, psi, &cci, tsi, &toi, codepoint, false, false)
     }
 }

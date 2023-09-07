@@ -21,6 +21,7 @@ impl NoCodeDecoder {
 impl FecDecoder for NoCodeDecoder {
     fn push_symbol(&mut self, encoding_symbol: &[u8], esi: u32) {
         if self.shards.len() <= esi as usize {
+            log::error!("ESI {} > {}", esi, self.shards.len());
             return;
         }
 

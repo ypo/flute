@@ -38,9 +38,14 @@ pub struct AlcPktCache {
     pub fdt_info: Option<ExtFDT>,
 }
 
+/// Payload ID
+#[derive(Debug)]
 pub struct PayloadID {
+    /// Source Block Number
     pub sbn: u32,
+    /// Encoding Symbol Number
     pub esi: u32,
+    /// Source Block Length
     pub source_block_length: Option<u32>,
 }
 
@@ -101,6 +106,7 @@ pub fn new_alc_pkt(
         &pkt.toi,
         oti.fec_encoding_id as u8,
         pkt.close_object,
+        false,
     );
 
     if pkt.toi == lct::TOI_FDT {
@@ -203,6 +209,7 @@ pub fn get_sender_current_time(pkt: &AlcPkt) -> Result<Option<SystemTime>> {
     parse_sct(ext)
 }
 
+/// Get Payload ID
 pub fn parse_payload_id(pkt: &AlcPkt, oti: &oti::Oti) -> Result<PayloadID> {
     let codec = <dyn AlcCodec>::instance(oti.fec_encoding_id);
     codec.get_fec_payload_id(pkt, oti)
