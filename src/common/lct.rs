@@ -319,7 +319,7 @@ pub fn parse_lct_header(data: &[u8]) -> Result<LCTHeader> {
     let o = (flags2 >> 5) & 0x3;
     let h = (flags2 >> 4) & 0x1;
     let c = (flags1 >> 2) & 0x3;
-    let a = (flags2 << 1) & 0x1;
+    let a = (flags2 >> 1) & 0x1;
     let b = flags2 & 0x1;
     let version = flags1 >> 4;
     if version != 1 && version != 2 {
