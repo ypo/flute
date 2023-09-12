@@ -45,7 +45,7 @@ Flute Receiver python example
     from flute import receiver
 
     # Write received objects to a destination folder
-    receiver_writer = receiver.FluteWriter("/path/to/dest")
+    receiver_writer = receiver.ObjectWriterBuilder("/path/to/dest")
 
     # FLUTE Receiver configuration parameters
     receiver_config = receiver.Config()
