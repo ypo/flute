@@ -99,8 +99,21 @@ where
     }
 }
 
+fn xmlns<S>(os: &Option<String>, serializer: S) -> std::result::Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if let Some(s) = os {
+        serializer.serialize_str(s)
+    } else {
+        serializer.serialize_str("urn:IETF:metadata:2005:FLUTE:FDT")
+    }
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct FdtInstance {
+    #[serde(rename = "@xmlns", serialize_with = "xmlns")]
+    pub xmlns: Option<String>,
     #[serde(rename = "@xmlns:xsi", serialize_with = "xmlns_xsi")]
     pub xmlns_xsi: Option<String>,
     #[serde(rename = "@xmlns:mbms2005", serialize_with = "xmlns_mbms_2005")]
@@ -131,60 +144,93 @@ pub struct FdtInstance {
     pub content_type: Option<String>,
     #[serde(rename = "@Content-Encoding", skip_serializing_if = "Option::is_none")]
     pub content_encoding: Option<String>,
+
     #[serde(
         rename = "@FEC-OTI-FEC-Encoding-ID",
         skip_serializing_if = "Option::is_none"
     )]
     pub fec_oti_fec_encoding_id: Option<u8>,
+
     #[serde(
         rename = "@FEC-OTI-FEC-Instance-ID",
         skip_serializing_if = "Option::is_none"
     )]
     pub fec_oti_fec_instance_id: Option<u64>,
+
     #[serde(
         rename = "@FEC-OTI-Maximum-Source-Block-Length",
         skip_serializing_if = "Option::is_none"
     )]
     pub fec_oti_maximum_source_block_length: Option<u64>,
+
     #[serde(
         rename = "@FEC-OTI-Encoding-Symbol-Length",
         skip_serializing_if = "Option::is_none"
     )]
     pub fec_oti_encoding_symbol_length: Option<u64>,
+
     #[serde(
         rename = "@FEC-OTI-Max-Number-of-Encoding-Symbols",
         skip_serializing_if = "Option::is_none"
     )]
     pub fec_oti_max_number_of_encoding_symbols: Option<u64>,
+
     #[serde(
         rename = "@FEC-OTI-Scheme-Specific-Info",
         skip_serializing_if = "Option::is_none"
     )]
     pub fec_oti_scheme_specific_info: Option<String>, // Base64
+
     #[serde(rename = "@mbms2008:FullFDT", skip_serializing_if = "Option::is_none")]
     #[serde(alias = "@FullFDT")]
     pub full_fdt: Option<bool>,
+
     #[serde(rename = "File", skip_serializing_if = "Option::is_none")]
     pub file: Option<Vec<File>>,
+
+    #[serde(rename = "sv:schemaVersion", skip_serializing_if = "Option::is_none")]
+    #[serde(alias = "schemaVersion")]
+    pub schema_version: Option<u32>,
+
     #[serde(
         rename = "mbms2012:Base-URL-1",
         skip_serializing_if = "Option::is_none"
     )]
     #[serde(alias = "Base-URL-1")]
     pub base_url_1: Option<Vec<String>>,
+
     #[serde(
         rename = "mbms2012:Base-URL-2",
         skip_serializing_if = "Option::is_none"
     )]
     #[serde(alias = "Base-URL-2")]
     pub base_url_2: Option<Vec<String>>,
-    #[serde(alias = "GroupId", skip_serializing_if = "Option::is_none")]
-    pub group_id: Option<Vec<String>>,
+
     #[serde(
-        alias = "MBMS-Session-Identity-Expiry",
+        rename = "sv:delimiter",
+        skip_serializing_if = "Option::is_none",
+        skip_deserializing
+    )]
+    #[serde(alias = "delimiter")]
+    pub delimiter: Option<u8>,
+
+    #[serde(rename = "Group", skip_serializing_if = "Option::is_none")]
+    pub group: Option<Vec<String>>,
+
+    #[serde(
+        rename = "MBMS-Session-Identity-Expiry",
         skip_serializing_if = "Option::is_none"
     )]
-    pub mbms_session_identity_expiry: Option<Vec<String>>,
+    pub mbms_session_identity_expiry: Option<Vec<MBMSSessionIdentityExpiry>>,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct MBMSSessionIdentityExpiry {
+    #[serde(rename = "$value")]
+    content: u8,
+
+    #[serde(rename = "@value")]
+    pub value: u32,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -195,8 +241,8 @@ pub enum CacheControlChoice {
     #[serde(rename = "mbms2007:max-stale")]
     #[serde(alias = "max-stale")]
     MaxStale(Option<bool>),
-    #[serde(rename = "mbms2007:expires")]
-    #[serde(alias = "expires")]
+    #[serde(rename = "mbms2007:Expires")]
+    #[serde(alias = "Expires")]
     Expires(u32),
 }
 
@@ -216,6 +262,14 @@ pub struct File {
     pub cache_control: Option<CacheControl>,
 
     #[serde(
+        rename = "sv:delimiter",
+        skip_serializing_if = "Option::is_none",
+        skip_deserializing
+    )]
+    #[serde(alias = "delimiter")]
+    pub delimiter: Option<u8>,
+
+    #[serde(
         rename = "mbms2012:Alternate-Content-Location-1",
         skip_serializing_if = "Option::is_none"
     )]
@@ -230,10 +284,20 @@ pub struct File {
     pub alternate_content_location_2: Option<Vec<String>>,
 
     #[serde(
-        rename = "mbms2005:MBMS-Session-Identity",
+        rename = "sv:delimiter",
+        skip_serializing_if = "Option::is_none",
+        skip_deserializing
+    )]
+    #[serde(alias = "delimiter")]
+    pub delimiter2: Option<u8>,
+
+    #[serde(rename = "Group", skip_serializing_if = "Option::is_none")]
+    pub group: Option<Vec<String>>,
+
+    #[serde(
+        rename = "MBMS-Session-Identity",
         skip_serializing_if = "Option::is_none"
     )]
-    #[serde(alias = "MBMS-Session-Identity")]
     pub mbms_session_identity: Option<Vec<u8>>,
 
     #[serde(rename = "@Content-Location")]

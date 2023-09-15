@@ -194,6 +194,9 @@ impl FileDesc {
             fec_redundancy_level: None,
             file_etag: None,
             independent_unit_positions: None,
+            delimiter: Some(0),
+            delimiter2: Some(0),
+            group: None,
         }
     }
 }

@@ -95,6 +95,7 @@ impl Fdt {
         };
 
         FdtInstance {
+            xmlns: None,
             xmlns_xsi: None,
             expires: expires_ntp.to_string(),
             complete: self.complete,
@@ -141,8 +142,10 @@ impl Fdt {
             full_fdt: None,
             base_url_1: None,
             base_url_2: None,
-            group_id: None,
+            group: None,
             mbms_session_identity_expiry: None,
+            schema_version: Some(4),
+            delimiter: Some(0),
         }
     }
 
