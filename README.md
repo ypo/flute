@@ -206,14 +206,15 @@ Flute Receiver python example
 
     tsi = 1
 
-    # Creation of a FLUTE receiver
+    # Create a FLUTE receiver with the specified endpoint, tsi, writer, and configuration
     udp_endpoint = receiver.UDPEndpoint("224.0.0.1", 1234)
     flute_receiver = receiver.Receiver(udp_endpoint, tsi, receiver_writer, receiver_config)
 
     while True:
-        # Receive LCT/ALC packet from multicast
+        # Receive LCT/ALC packet from UDP/IP multicast (Implement your own receive_from_udp_socket() function)
+        # Note: FLUTE does not handle the UDP/IP layer, you need to implement the socket reception mechanism yourself
         pkt = receive_from_udp_socket()
 
-        # Push packet to the flute receiver
+        # Push the received packet to the FLUTE receiver
         flute_receiver.push(bytes(pkt))
 ```
