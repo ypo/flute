@@ -133,6 +133,11 @@ impl FdtReceiver {
         self.fdt_instance.as_ref()
     }
 
+    pub fn fdt_xml_str(&self) -> Option<String> {
+        let inner = self.inner.borrow();
+        String::from_utf8(inner.data.clone()).ok()
+    }
+
     pub fn update_expired_state(&self, now: SystemTime) {
         if self.state() != State::Complete {
             return;
@@ -183,6 +188,8 @@ impl ObjectWriterBuilder for FdtWriterBuilder {
         _duration: &std::time::Duration,
     ) {
     }
+
+    fn fdt_received(&self, _endpoint: &UDPEndpoint, _tsi: &u64, _fdt_xml: &str) {}
 }
 
 impl ObjectWriter for FdtWriter {

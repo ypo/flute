@@ -1,3 +1,9 @@
+#[cfg(feature = "opentelemetry")]
+use opentelemetry::{
+    trace::{Span, TraceContextExt},
+    KeyValue,
+};
+
 use crate::common::{alc, oti};
 use crate::error::FluteError;
 use crate::fec;
@@ -11,6 +17,8 @@ pub struct BlockDecoder {
     pub completed: bool,
     pub initialized: bool,
     decoder: Option<Box<dyn FecDecoder>>,
+    #[cfg(feature = "opentelemetry")]
+    telemetry_ctx: Option<opentelemetry::Context>,
 }
 
 impl BlockDecoder {
@@ -19,7 +27,28 @@ impl BlockDecoder {
             completed: false,
             initialized: false,
             decoder: None,
+            #[cfg(feature = "opentelemetry")]
+            telemetry_ctx: None,
         }
+    }
+
+    #[cfg(feature = "opentelemetry")]
+    pub fn op_init(
+        &mut self,
+        mut telemetry_span: opentelemetry::global::BoxedSpan,
+        nb_source_symbols: u32,
+        block_size: usize,
+        sbn: u32,
+    ) {
+        telemetry_span.add_event(
+            "block",
+            vec![
+                KeyValue::new("sbn", sbn as i64),
+                KeyValue::new("block_size", block_size as i64),
+                KeyValue::new("nb_source_symbols", nb_source_symbols as i64),
+            ],
+        );
+        self.telemetry_ctx = Some(opentelemetry::Context::current_with_span(telemetry_span));
     }
 
     pub fn init(
@@ -102,6 +131,11 @@ impl BlockDecoder {
         if self.completed {
             return;
         }
+
+        /*
+        let tracer = opentelemetry::global::tracer("ObjectReceiverLogger");
+        let _pkt_span = tracer.start_with_context("pkt", self.telemetry_ctx.as_ref().unwrap());
+        */
 
         let payload = &pkt.data[pkt.data_payload_offset..];
         let decoder = self.decoder.as_mut().unwrap();

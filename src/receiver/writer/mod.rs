@@ -52,6 +52,8 @@ pub trait ObjectWriterBuilder {
         content_location: &url::Url,
         duration: &Duration,
     );
+    /// Called when an FDT is received
+    fn fdt_received(&self, endpoint: &UDPEndpoint, tsi: &u64, fdt_xml: &str);
 }
 
 ///

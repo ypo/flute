@@ -70,6 +70,8 @@ impl ObjectWriterBuilder for ObjectWriterBufferBuilder {
         _duration: &std::time::Duration,
     ) {
     }
+
+    fn fdt_received(&self, _endpoint: &UDPEndpoint, _tsi: &u64, _fdt_xml: &str) {}
 }
 
 impl ObjectWriter for ObjectWriterBufferWrapper {

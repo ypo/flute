@@ -12,6 +12,9 @@ mod tsifilter;
 mod udpendpoint;
 mod uncompress;
 
+#[cfg(feature = "opentelemetry")]
+mod objectreceiverlogger;
+
 pub mod writer;
 pub use multireceiver::MultiReceiver;
 pub use receiver::Config;

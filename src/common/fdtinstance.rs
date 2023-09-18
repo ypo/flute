@@ -7,6 +7,13 @@ use crate::tools::{
 use quick_xml::de::from_reader;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "opentelemetry")]
+use opentelemetry::{
+    global::BoxedSpan,
+    trace::{Span, Tracer},
+    KeyValue,
+};
+
 use super::oti::{
     self, RaptorQSchemeSpecific, RaptorSchemeSpecific, ReedSolomonGF2MSchemeSpecific,
 };
@@ -409,7 +416,19 @@ fn raptor_scheme_specific(
 }
 
 impl FdtInstance {
+    #[cfg(feature = "opentelemetry")]
+    fn op_start(buffer: &[u8]) -> BoxedSpan {
+        let tracer = opentelemetry::global::tracer("FdtInstance");
+        let mut span = tracer.start("FdtInstance");
+        let str = String::from_utf8_lossy(buffer);
+        span.add_event("fdt", vec![KeyValue::new("content", str.to_string())]);
+        span
+    }
+
     pub fn parse(buffer: &[u8]) -> Result<FdtInstance> {
+        #[cfg(feature = "opentelemetry")]
+        let _span = Self::op_start(buffer);
+
         let instance: Result<FdtInstance> =
             from_reader(buffer).map_err(|err| FluteError::new(err.to_string()));
         instance
@@ -543,6 +562,7 @@ impl File {
             || self.fec_oti_maximum_source_block_length.is_none()
             || self.fec_oti_encoding_symbol_length.is_none()
         {
+            log::debug!("Cannot find OTI {:?}", self);
             return None;
         }
         let fec_encoding_id: oti::FECEncodingID =
