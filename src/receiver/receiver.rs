@@ -6,7 +6,7 @@ use super::{fdtreceiver, UDPEndpoint};
 use crate::common::{alc, lct};
 use crate::tools::error::FluteError;
 use crate::tools::error::Result;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use std::rc::Rc;
 use std::time::Duration;
 use std::time::Instant;
@@ -63,7 +63,7 @@ pub struct Receiver {
     objects_completed: BTreeMap<u128, ObjectCompletedMeta>,
     objects_error: BTreeSet<u128>,
     fdt_receivers: BTreeMap<u32, Box<FdtReceiver>>,
-    fdt_current: Option<Box<FdtReceiver>>,
+    fdt_current: VecDeque<Box<FdtReceiver>>,
     writer: Rc<dyn ObjectWriterBuilder>,
     config: Config,
     last_activity: Instant,
@@ -84,7 +84,7 @@ impl Receiver {
             tsi,
             objects: HashMap::new(),
             fdt_receivers: BTreeMap::new(),
-            fdt_current: None,
+            fdt_current: VecDeque::new(),
             writer,
             objects_completed: BTreeMap::new(),
             objects_error: BTreeSet::new(),
@@ -104,7 +104,7 @@ impl Receiver {
             return false;
         }
 
-        log::info!("Check elapsed {:?}", self.last_activity.elapsed());
+        log::debug!("Check elapsed {:?}", self.last_activity.elapsed());
         self.last_activity
             .elapsed()
             .gt(self.config.session_timeout.as_ref().unwrap())
@@ -153,9 +153,19 @@ impl Receiver {
         let expired_objects_toi: std::collections::HashSet<u128> = self
             .objects
             .iter()
-            .filter_map(|(key, value)| {
-                let duration = value.last_activity_duration_since(now);
+            .filter_map(|(key, object)| {
+                let duration = object.last_activity_duration_since(now);
                 if duration.gt(object_timeout) {
+                    log::warn!(
+                        "Object Expired ! tsi={} toi={} state : {:?} location: {:?} attached={:?} blocks completed={}/{}",
+                        object.tsi,
+                        object.toi,
+                        object.state,
+                        object.content_location.as_ref().map(|u| u.to_string()),
+                        object.fdt_instance_id,
+                        object.nb_block_completed(),
+                        object.nb_block()
+                    );
                     Some(key.clone())
                 } else {
                     None
@@ -164,7 +174,6 @@ impl Receiver {
             .collect();
 
         for toi in expired_objects_toi {
-            log::warn!("Remove expired object tsi={} toi={}", self.tsi, toi);
             self.objects_error.remove(&toi);
             self.objects.remove(&toi);
         }
@@ -199,6 +208,13 @@ impl Receiver {
         }
     }
 
+    fn is_fdt_received(&self, fdt_instance_id: u32) -> bool {
+        self.fdt_current
+            .iter()
+            .find(|fdt| fdt.fdt_id == fdt_instance_id)
+            .is_some()
+    }
+
     fn push_fdt_obj(&mut self, alc_pkt: &alc::AlcPkt, now: std::time::SystemTime) -> Result<()> {
         if alc_pkt.fdt_info.is_none() {
             if alc_pkt.lct.close_object {
@@ -217,9 +233,7 @@ impl Receiver {
             .map(|f| f.fdt_instance_id)
             .unwrap();
 
-        let current_fdt_instance_id = self.fdt_current.as_ref().map(|fdt| fdt.fdt_id);
-        if current_fdt_instance_id == Some(fdt_instance_id) {
-            // FDT already received
+        if self.is_fdt_received(fdt_instance_id) {
             return Ok(());
         }
 
@@ -235,6 +249,11 @@ impl Receiver {
                 )));
 
             if fdt_receiver.state() != fdtreceiver::State::Receiving {
+                log::warn!(
+                    "TSI={} FDT state is {:?}, bug ?",
+                    self.tsi,
+                    fdt_receiver.state()
+                );
                 return Ok(());
             }
 
@@ -249,26 +268,49 @@ impl Receiver {
                 fdtreceiver::State::Complete => {}
                 fdtreceiver::State::Error => return Err(FluteError::new("Fail to decode FDT")),
                 fdtreceiver::State::Expired => {
-                    log::warn!("FDT has been received but is already expired");
+                    log::warn!(
+                        "TSI={} FDT has been received but is already expired",
+                        self.tsi
+                    );
                     return Ok(());
                 }
             };
         }
 
-        self.fdt_current = self.fdt_receivers.remove(&fdt_instance_id);
-        assert!(self.fdt_current.is_some());
+        if let Some(previous_fdt) = self.fdt_current.front() {
+            if previous_fdt.fdt_id + 1 != fdt_instance_id {
+                log::warn!(
+                    "TSI={} Previous FDT ID {} was current is {} is there an FDT missing ?",
+                    self.tsi,
+                    previous_fdt.fdt_id,
+                    fdt_instance_id
+                );
+            }
+        }
 
-        self.attach_fdt_to_objects(now);
-        self.update_expiration_date_of_completed_objects(now);
+        let fdt_current = self.fdt_receivers.remove(&fdt_instance_id);
+        if let Some(fdt_current) = fdt_current {
+            if let Some(xml) = fdt_current.fdt_xml_str() {
+                self.writer.fdt_received(&self.endpoint, &self.tsi, &xml);
+            }
+            self.fdt_current.push_front(fdt_current);
+            self.attach_latest_fdt_to_objects(now);
+            self.update_expiration_date_of_completed_objects_using_latest_fdt(now);
+
+            if self.fdt_current.len() > 10 {
+                self.fdt_current.pop_back();
+            }
+        }
 
         Ok(())
     }
 
-    fn attach_fdt_to_objects(&mut self, now: std::time::SystemTime) -> Option<()> {
-        let fdt_current = self.fdt_current.as_mut()?;
-        let fdt_id = fdt_current.fdt_id;
-        let server_time = fdt_current.get_server_time(now);
-        let fdt_instance = fdt_current.fdt_instance()?;
+    fn attach_latest_fdt_to_objects(&mut self, now: std::time::SystemTime) -> Option<()> {
+        let fdt = self.fdt_current.front_mut()?;
+        let fdt_id = fdt.fdt_id;
+        let server_time = fdt.get_server_time(now);
+        let fdt_instance = fdt.fdt_instance()?;
+        log::info!("TSI={} Attach FDT id {}", self.tsi, fdt_id);
         let mut check_state = Vec::new();
         for obj in &mut self.objects {
             let success = obj.1.attach_fdt(fdt_id, fdt_instance, now, server_time);
@@ -284,14 +326,13 @@ impl Receiver {
         Some(())
     }
 
-    fn update_expiration_date_of_completed_objects(
+    fn update_expiration_date_of_completed_objects_using_latest_fdt(
         &mut self,
         now: std::time::SystemTime,
     ) -> Option<()> {
-        let fdt_current = self.fdt_current.as_mut()?;
-        let server_time = fdt_current.get_server_time(now);
-
-        let fdt_instance = fdt_current.fdt_instance()?;
+        let fdt = self.fdt_current.front_mut()?;
+        let server_time = fdt.get_server_time(now);
+        let fdt_instance = fdt.fdt_instance()?;
         let files = fdt_instance.file.as_ref()?;
         let expiration_date = fdt_instance.get_expiration_date();
 
@@ -300,16 +341,26 @@ impl Receiver {
             let cache_duration = file.get_cache_duration(expiration_date, server_time);
             if let Some(obj) = self.objects_completed.get_mut(&toi) {
                 if let Some(cache_duration) = cache_duration {
-                    obj.expiration_date = now
+                    let new_duration = now
                         .checked_add(cache_duration)
                         .unwrap_or(now + std::time::Duration::from_secs(3600 * 24 * 360 * 10));
-                    self.writer.set_cache_duration(
-                        &self.endpoint,
-                        &self.tsi,
-                        &toi,
-                        &obj.content_location,
-                        &cache_duration,
-                    );
+
+                    let diff = match new_duration < obj.expiration_date {
+                        true => obj.expiration_date.duration_since(new_duration),
+                        false => new_duration.duration_since(obj.expiration_date),
+                    }
+                    .unwrap();
+
+                    if diff.as_secs() > 1 {
+                        obj.expiration_date = new_duration;
+                        self.writer.set_cache_duration(
+                            &self.endpoint,
+                            &self.tsi,
+                            &toi,
+                            &obj.content_location,
+                            &cache_duration,
+                        );
+                    }
                 }
             }
         }
@@ -359,7 +410,7 @@ impl Receiver {
                 objectreceiver::State::Receiving => {}
                 objectreceiver::State::Completed => {
                     remove_object = true;
-                    log::info!(
+                    log::debug!(
                         "Object state is completed {:?} tsi={} toi={}",
                         self.endpoint,
                         self.tsi,
@@ -411,7 +462,7 @@ impl Receiver {
             .retain(|_toi, meta| meta.expiration_date > now);
         let after = self.objects_completed.len();
         if before != after {
-            log::info!("GC remove {} objects", before - after);
+            log::debug!("GC remove {} objects", before - after);
         }
 
         if self.config.max_objects_completed.is_none() {
@@ -440,15 +491,29 @@ impl Receiver {
             self.writer.clone(),
         ));
 
-        if let Some(fdt) = self.fdt_current.as_mut() {
+        let mut fdt_index = 0;
+        for fdt in &mut self.fdt_current.iter_mut() {
             let fdt_id = fdt.fdt_id;
             let server_time = fdt.get_server_time(now);
             fdt.update_expired_state(now);
             if fdt.state() == fdtreceiver::State::Complete {
                 if let Some(fdt_instance) = fdt.fdt_instance() {
-                    obj.attach_fdt(fdt_id, fdt_instance, now, server_time);
+                    let success = obj.attach_fdt(fdt_id, fdt_instance, now, server_time);
+                    if success {
+                        if fdt_index != 0 {
+                            log::warn!(
+                                "TSI={} TOI={} Attaching an object to an FDT that is not the latest (index={}) ",
+                                self.tsi,
+                                obj.toi,
+                                fdt_index
+                            );
+                        }
+
+                        break;
+                    }
                 }
             }
+            fdt_index += 1;
         }
 
         self.objects.insert(toi.clone(), obj);
