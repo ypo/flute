@@ -1,19 +1,26 @@
 use super::blockencoder::BlockEncoder;
 use super::fdt::Fdt;
 use super::filedesc::FileDesc;
+#[cfg(feature = "opentelemetry")]
+use super::objectsenderlogger::ObjectSenderLogger;
 use super::Profile;
 use crate::common::alc;
+use crate::core::UDPEndpoint;
 use std::sync::Arc;
 use std::time::SystemTime;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct SenderSession {
+    endpoint: UDPEndpoint,
     tsi: u64,
     file: Option<Arc<FileDesc>>,
     encoder: Option<BlockEncoder>,
     interleave_blocks: usize,
     transfer_fdt_only: bool,
     profile: Profile,
+    #[cfg(feature = "opentelemetry")]
+    logger: Option<ObjectSenderLogger>,
 }
 
 impl SenderSession {
@@ -22,14 +29,18 @@ impl SenderSession {
         interleave_blocks: usize,
         transfer_fdt_only: bool,
         profile: Profile,
+        endpoint: UDPEndpoint,
     ) -> SenderSession {
         SenderSession {
+            endpoint,
             tsi,
             file: None,
             encoder: None,
             interleave_blocks,
             transfer_fdt_only,
             profile,
+            #[cfg(feature = "opentelemetry")]
+            logger: None,
         }
     }
 
@@ -74,6 +85,21 @@ impl SenderSession {
         if self.file.is_none() {
             return;
         }
+
+        #[cfg(feature = "opentelemetry")]
+        if !self.transfer_fdt_only {
+            let file = self.file.as_ref().unwrap();
+            if file._total_nb_transfer() == 0 {
+                self.logger = Some(ObjectSenderLogger::new(
+                    &self.endpoint,
+                    self.tsi,
+                    file.toi,
+                    file.fdt_id,
+                    now
+                ));
+            }
+        }
+
         self.encoder = Some(BlockEncoder::new(
             self.file.as_ref().unwrap().clone(),
             self.interleave_blocks,
@@ -87,5 +113,11 @@ impl SenderSession {
         };
         self.file = None;
         self.encoder = None;
+
+        #[cfg(feature = "opentelemetry")]
+        {
+            self.logger = None;
+        }
+        
     }
 }

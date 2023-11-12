@@ -1,10 +1,12 @@
 use base64::Engine;
 
 use super::compress;
+use super::toiallocator::Toi;
 use crate::common::{fdtinstance, lct, oti};
 use crate::tools;
 use crate::tools::error::Result;
 use std::ffi::OsStr;
+use std::sync::Arc;
 use std::time::SystemTime;
 
 /// Cache Control
@@ -82,6 +84,10 @@ pub struct ObjectDesc {
     pub carousel_delay: Option<std::time::Duration>,
     /// Define object cache control
     pub cache_control: Option<CacheControl>,
+    /// Add file to a list of groups
+    pub groups: Option<Vec<String>>,
+    /// Assign an optional TOI to this object
+    pub toi: Option<Arc<Toi>>,
 }
 
 impl ObjectDesc {
@@ -93,6 +99,7 @@ impl ObjectDesc {
         max_transfer_count: u32,
         carousel_delay: Option<std::time::Duration>,
         cache_control: Option<CacheControl>,
+        groups: Option<Vec<String>>,
         cenc: lct::Cenc,
         inband_cenc: bool,
         oti: Option<oti::Oti>,
@@ -119,6 +126,7 @@ impl ObjectDesc {
             max_transfer_count,
             carousel_delay,
             cache_control,
+            groups,
             cenc,
             inband_cenc,
             oti,
@@ -134,6 +142,7 @@ impl ObjectDesc {
         max_transfer_count: u32,
         carousel_delay: Option<std::time::Duration>,
         cache_control: Option<CacheControl>,
+        groups: Option<Vec<String>>,
         cenc: lct::Cenc,
         inband_cenc: bool,
         oti: Option<oti::Oti>,
@@ -147,6 +156,7 @@ impl ObjectDesc {
             max_transfer_count,
             carousel_delay,
             cache_control,
+            groups,
             cenc,
             inband_cenc,
             oti,
@@ -162,6 +172,7 @@ impl ObjectDesc {
         max_transfer_count: u32,
         carousel_delay: Option<std::time::Duration>,
         cache_control: Option<CacheControl>,
+        groups: Option<Vec<String>>,
         cenc: lct::Cenc,
         inband_cenc: bool,
         oti: Option<oti::Oti>,
@@ -203,6 +214,8 @@ impl ObjectDesc {
             max_transfer_count,
             carousel_delay,
             cache_control,
+            groups,
+            toi: None,
         }))
     }
 }

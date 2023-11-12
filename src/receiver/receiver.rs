@@ -1,8 +1,9 @@
+use super::fdtreceiver;
 use super::fdtreceiver::FdtReceiver;
 use super::objectreceiver;
 use super::objectreceiver::ObjectReceiver;
 use super::writer::ObjectWriterBuilder;
-use super::{fdtreceiver, UDPEndpoint};
+use crate::common::udpendpoint::UDPEndpoint;
 use crate::common::{alc, lct};
 use crate::tools::error::FluteError;
 use crate::tools::error::Result;
@@ -34,6 +35,10 @@ pub struct Config {
     /// Objects expire if no data has been received before this timeout
     /// `None` Objects never expires, not recommended as object that are not fully reconstructed might continue to consume memory for an finite amount of time.
     pub object_timeout: Option<Duration>,
+    /// Enable MD5 check of the received objects. Default `true`
+    pub enable_md5_check: bool,
+    /// CHeck if FDT is already received
+    pub check_fdt_received: bool,
 }
 
 impl Default for Config {
@@ -43,6 +48,8 @@ impl Default for Config {
             max_objects_error: 0,
             session_timeout: None,
             object_timeout: Some(Duration::from_secs(10)),
+            enable_md5_check: true,
+            check_fdt_received: true
         }
     }
 }
@@ -157,14 +164,20 @@ impl Receiver {
                 let duration = object.last_activity_duration_since(now);
                 if duration.gt(object_timeout) {
                     log::warn!(
-                        "Object Expired ! tsi={} toi={} state : {:?} location: {:?} attached={:?} blocks completed={}/{}",
+                        "Object Expired ! tsi={} toi={} state : {:?} 
+                        location: {:?} attached={:?} blocks completed={}/{} duration={:?} max_duration={:?} 
+                        transfer_length={:?} byte_left={:?}",
                         object.tsi,
                         object.toi,
                         object.state,
                         object.content_location.as_ref().map(|u| u.to_string()),
                         object.fdt_instance_id,
                         object.nb_block_completed(),
-                        object.nb_block()
+                        object.nb_block(),
+                        duration,
+                        object_timeout,
+                        object.transfer_length,
+                        object.byte_left()
                     );
                     Some(key.clone())
                 } else {
@@ -233,7 +246,7 @@ impl Receiver {
             .map(|f| f.fdt_instance_id)
             .unwrap();
 
-        if self.is_fdt_received(fdt_instance_id) {
+        if self.config.check_fdt_received && self.is_fdt_received(fdt_instance_id) {
             return Ok(());
         }
 
@@ -268,9 +281,18 @@ impl Receiver {
                 fdtreceiver::State::Complete => {}
                 fdtreceiver::State::Error => return Err(FluteError::new("Fail to decode FDT")),
                 fdtreceiver::State::Expired => {
+
+                    let expiration = fdt_receiver.get_expiration_time().unwrap_or(now);
+                    let server_time = fdt_receiver.get_server_time(now);
+
+                    let expiration: chrono::DateTime<chrono::Utc> = expiration.into();
+                    let server_time: chrono::DateTime<chrono::Utc> = server_time.into();
+
                     log::warn!(
-                        "TSI={} FDT has been received but is already expired",
-                        self.tsi
+                        "TSI={} FDT has been received but is already expired expiration time={} server time={}",
+                        self.tsi,
+                        expiration.to_rfc3339(),
+                        server_time.to_rfc3339()  
                     );
                     return Ok(());
                 }
@@ -289,9 +311,15 @@ impl Receiver {
         }
 
         let fdt_current = self.fdt_receivers.remove(&fdt_instance_id);
-        if let Some(fdt_current) = fdt_current {
+        if let Some(mut fdt_current) = fdt_current {
             if let Some(xml) = fdt_current.fdt_xml_str() {
-                self.writer.fdt_received(&self.endpoint, &self.tsi, &xml);
+                let expiration_date = fdt_current
+                    .fdt_instance()
+                    .map(|inst| inst.get_expiration_date().unwrap_or(now))
+                    .unwrap_or(now);
+
+                self.writer
+                    .fdt_received(&self.endpoint, &self.tsi, &xml, expiration_date, now);
             }
             self.fdt_current.push_front(fdt_current);
             self.attach_latest_fdt_to_objects(now);
@@ -336,6 +364,32 @@ impl Receiver {
         let files = fdt_instance.file.as_ref()?;
         let expiration_date = fdt_instance.get_expiration_date();
 
+        if let Some(true) = fdt_instance.full_fdt {
+            let files_toi: std::collections::HashMap<u128, Option<&String>> = files.iter().map(|f| (f.toi.parse().unwrap_or_default(), f.content_md5.as_ref())).collect();
+            let remove_candidates: std::collections::HashMap<u128, ObjectCompletedMeta> = self.objects_completed.iter().filter_map(|(toi, meta)| match  files_toi.contains_key(toi) {
+                true => None, 
+                false => Some((toi.clone(), meta.clone()))
+            }).collect();
+            
+            if !remove_candidates.is_empty() {
+                let content_locations: std::collections::HashSet<&str> = files.iter().map(|f| f.content_location.as_str()).collect();
+                let duration = std::time::Duration::from_secs(4);
+                for (toi, meta) in &remove_candidates {
+                    let content_location = meta.content_location.to_string();
+                    if !content_locations.contains(content_location.as_str()) && meta.expiration_date > now + duration {
+                        self.writer.set_cache_duration(
+                            &self.endpoint,
+                            &self.tsi,
+                            &toi,
+                            &meta.content_location,
+                            &duration,
+                        );
+                    }
+                }
+                self.objects_completed.retain(|f, _| !remove_candidates.contains_key(f));
+            }
+        }
+        
         for file in files {
             let toi: u128 = file.toi.parse().unwrap_or_default();
             let cache_duration = file.get_cache_duration(expiration_date, server_time);
@@ -376,7 +430,14 @@ impl Receiver {
             }
         }
         if self.objects_error.contains(&pkt.lct.toi) {
-            return Ok(());
+
+            let payload_id = alc::get_fec_inline_payload_id(pkt)?;
+            if payload_id.sbn == 0 && payload_id.esi == 0 {
+                log::warn!("Re-download object after errors");
+                self.objects_error.remove(&pkt.lct.toi);
+            } else {
+                return Ok(());
+            }
         }
 
         let mut obj = self.objects.get_mut(&pkt.lct.toi);
@@ -457,6 +518,15 @@ impl Receiver {
     }
 
     fn gc_object_completed(&mut self, now: SystemTime) {
+
+        if let Some(fdt) = self.fdt_current.front_mut() {
+            if let Some(instance) = fdt.fdt_instance() {
+                if let Some(true) = instance.full_fdt {
+                    return;
+                }
+            } 
+        }
+
         let before = self.objects_completed.len();
         self.objects_completed
             .retain(|_toi, meta| meta.expiration_date > now);
@@ -488,9 +558,14 @@ impl Receiver {
             &self.endpoint,
             self.tsi,
             toi,
+            None,
             self.writer.clone(),
+            self.config.enable_md5_check,
+            now
         ));
 
+
+        let mut is_attached = false;
         let mut fdt_index = 0;
         for fdt in &mut self.fdt_current.iter_mut() {
             let fdt_id = fdt.fdt_id;
@@ -500,6 +575,7 @@ impl Receiver {
                 if let Some(fdt_instance) = fdt.fdt_instance() {
                     let success = obj.attach_fdt(fdt_id, fdt_instance, now, server_time);
                     if success {
+                        is_attached = true;
                         if fdt_index != 0 {
                             log::warn!(
                                 "TSI={} TOI={} Attaching an object to an FDT that is not the latest (index={}) ",
@@ -516,6 +592,40 @@ impl Receiver {
             fdt_index += 1;
         }
 
+        if is_attached == false {
+            log::warn!("Object received before the FDT");
+        }
+
         self.objects.insert(toi.clone(), obj);
+    }
+}
+
+
+
+impl Drop for Receiver {
+    fn drop(&mut self) {
+        
+        log::info!("Drop Flute Receiver");
+
+        if let Some(fdt) = self.fdt_current.front_mut() {
+
+            if let Some(instance) = fdt.fdt_instance() {
+                if instance.full_fdt == Some(true) {
+                    let duration = std::time::Duration::from_secs(0);
+                    for obj in &self.objects_completed {
+                        log::info!("Remove from cache {}", &obj.1.content_location.to_string());
+                        self.writer.set_cache_duration(
+                            &self.endpoint,
+                            &self.tsi,
+                            &obj.0,
+                            &obj.1.content_location,
+                            &duration,
+                        );
+                    }
+
+                }
+            }
+
+        }
     }
 }

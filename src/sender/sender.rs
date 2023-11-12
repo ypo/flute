@@ -1,8 +1,9 @@
 use super::fdt::Fdt;
 use super::observer::ObserverList;
 use super::sendersession::SenderSession;
-use super::{objectdesc, Subscriber};
+use super::{objectdesc, Subscriber, Toi};
 use crate::common::{alc, lct, oti, Profile};
+use crate::core::UDPEndpoint;
 use crate::tools::error::Result;
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -14,8 +15,12 @@ pub enum TOIMaxLength {
     ToiMax16,
     /// 32 bits
     ToiMax32,
+    /// 48 bits
+    ToiMax48,
     /// 64 bits
     ToiMax64,
+    /// 80 bits
+    ToiMax80,
     /// 112 bits
     ToiMax112,
 }
@@ -52,6 +57,8 @@ pub struct Config {
     /// TOI value must be > 0
     /// None : Initialize the TOI to a random value
     pub toi_initial_value: Option<u128>,
+    /// List of groups added to the FDT-Instance
+    pub groups: Option<Vec<String>>,
 }
 
 impl Default for Config {
@@ -67,6 +74,7 @@ impl Default for Config {
             profile: Profile::RFC6726,
             toi_max_length: TOIMaxLength::ToiMax112,
             toi_initial_value: Some(1),
+            groups: None,
         }
     }
 }
@@ -78,17 +86,19 @@ impl Default for Config {
 #[derive(Debug)]
 pub struct Sender {
     fdt: Fdt,
+    fdt_session: SenderSession,
     sessions: Vec<SenderSession>,
     session_index: usize,
     observers: ObserverList,
     tsi: u64,
+    endpoint: UDPEndpoint,
 }
 
 impl Sender {
     ///
     /// Creation of a FLUTE Sender
     ///
-    pub fn new(tsi: u64, oti: &oti::Oti, config: &Config) -> Sender {
+    pub fn new(endpoint: UDPEndpoint, tsi: u64, oti: &oti::Oti, config: &Config) -> Sender {
         let observers = ObserverList::new();
 
         let fdt = Fdt::new(
@@ -102,6 +112,7 @@ impl Sender {
             observers.clone(),
             config.toi_max_length,
             config.toi_initial_value,
+            config.groups.clone(),
         );
 
         let multiplex_files = match config.multiplex_files {
@@ -109,23 +120,34 @@ impl Sender {
             n => n + 1,
         };
 
-        let sessions = (0..multiplex_files)
-            .map(|index| {
+        let fdt_session = SenderSession::new(
+            tsi,
+            config.interleave_blocks as usize,
+            true,
+            config.profile,
+            endpoint.clone(),
+        );
+
+        let sessions = (0..multiplex_files - 1)
+            .map(|_| {
                 SenderSession::new(
                     tsi,
                     config.interleave_blocks as usize,
-                    index == 0,
+                    false,
                     config.profile,
+                    endpoint.clone(),
                 )
             })
             .collect();
 
         Sender {
             fdt,
+            fdt_session,
             sessions,
             session_index: 0,
             observers,
             tsi,
+            endpoint,
         }
     }
 
@@ -139,9 +161,21 @@ impl Sender {
         self.observers.unsubscribe(s);
     }
 
+    /// Get UDP endpoint
+    pub fn get_udp_endpoint(&self) -> &UDPEndpoint {
+        &self.endpoint
+    }
+
+    /// Get TSI
+    pub fn get_tsi(&self) -> u64 {
+        self.tsi
+    }
+
     /// Add an object to the FDT
     ///
     /// After calling this function, a call to `publish()` to publish your modifications
+    ///
+    /// If a TOI as been set to the ObjectDesc, there is no need to release it
     ///
     /// # Returns
     ///
@@ -192,10 +226,20 @@ impl Sender {
         alc::new_alc_pkt_close_session(&0u128, self.tsi)
     }
 
+    /// Allocate a TOI
+    /// TOI must be either release or assigned to an object and call add_object()`
+    pub fn allocate_toi(&mut self) -> Arc<Toi> {
+        self.fdt.allocate_toi()
+    }
+
     /// Read the next ALC/LCT packet
     /// return None if there is no new packet to be transferred
     /// ALC/LCT packet should be encapsulated into a UDP/IP payload and transferred via UDP/multicast
     pub fn read(&mut self, now: SystemTime) -> Option<Vec<u8>> {
+        if let Some(fdt_data) = self.fdt_session.run(&mut self.fdt, now) {
+            return Some(fdt_data);
+        }
+
         let session_index_orig = self.session_index;
         loop {
             let session = self.sessions.get_mut(self.session_index).unwrap();
@@ -222,6 +266,7 @@ impl Sender {
 mod tests {
 
     use crate::common::lct;
+    use crate::core::UDPEndpoint;
 
     use super::objectdesc;
     use super::oti;
@@ -233,6 +278,7 @@ mod tests {
             "text",
             &url::Url::parse("file:///hello").unwrap(),
             1,
+            None,
             None,
             None,
             lct::Cenc::Null,
@@ -248,7 +294,8 @@ mod tests {
         crate::tests::init();
 
         let oti: oti::Oti = Default::default();
-        let mut sender = super::Sender::new(1, &oti, &Default::default());
+        let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_owned(), 1234);
+        let mut sender = super::Sender::new(endpoint, 1, &oti, &Default::default());
 
         let nb_pkt = oti.encoding_symbol_length as usize * 3;
 
@@ -266,9 +313,10 @@ mod tests {
     pub fn test_sender_file_too_large() {
         crate::tests::init();
         let oti = oti::Oti::new_no_code(4, 2);
+        let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_owned(), 1234);
         // Create a buffer larger that the max transfer length
         let object = create_obj(oti.max_transfer_length() + 1);
-        let mut sender = super::Sender::new(1, &oti, &Default::default());
+        let mut sender = super::Sender::new(endpoint, 1, &oti, &Default::default());
         let res = sender.add_object(object);
         assert!(res.is_err());
     }
@@ -279,8 +327,8 @@ mod tests {
         let oti = Default::default();
 
         let object = create_obj(1024);
-
-        let mut sender = super::Sender::new(1, &oti, &Default::default());
+        let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_owned(), 1234);
+        let mut sender = super::Sender::new(endpoint, 1, &oti, &Default::default());
         assert!(sender.nb_objects() == 0);
 
         let toi = sender.add_object(object).unwrap();
@@ -296,7 +344,8 @@ mod tests {
         crate::tests::init();
 
         let oti = Default::default();
-        let mut sender = super::Sender::new(1, &oti, &Default::default());
+        let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_owned(), 1234);
+        let mut sender = super::Sender::new(endpoint, 1, &oti, &Default::default());
 
         let object1 = create_obj(1024);
         let object2 = create_obj(1024);

@@ -1,7 +1,7 @@
 use super::blockdecoder::BlockDecoder;
 use super::blockwriter::BlockWriter;
 use super::writer::ObjectWriterBuilder;
-use super::UDPEndpoint;
+use crate::common::udpendpoint::UDPEndpoint;
 use crate::common::{alc, fdtinstance::FdtInstance, lct, oti, partition};
 use crate::receiver::writer::{ObjectMetadata, ObjectWriter};
 use crate::tools::error::{FluteError, Result};
@@ -44,9 +44,10 @@ pub struct ObjectReceiver {
     cache_size: usize,
     blocks: Vec<BlockDecoder>,
     blocks_variable_size: bool,
-    transfer_length: Option<u64>,
+    pub transfer_length: Option<u64>,
     cenc: Option<lct::Cenc>,
-    content_md5: Option<String>,
+    pub content_md5: Option<String>,
+    enable_md5_check: bool,
     a_large: u64,
     a_small: u64,
     nb_a_large: u64,
@@ -58,6 +59,7 @@ pub struct ObjectReceiver {
     last_activity: Instant,
     pub cache_expiration_date: Option<SystemTime>,
     pub content_location: Option<url::Url>,
+
     #[cfg(feature = "opentelemetry")]
     logger: ObjectReceiverLogger,
 }
@@ -67,7 +69,10 @@ impl ObjectReceiver {
         endpoint: &UDPEndpoint,
         tsi: u64,
         toi: &u128,
+        _fdt_instance_id: Option<u32>,
         object_writer_builder: Rc<dyn ObjectWriterBuilder>,
+        enable_md5_check: bool,
+        _now: SystemTime,
     ) -> ObjectReceiver {
         log::debug!("Create new Object Receiver with toi {}", toi);
         ObjectReceiver {
@@ -79,6 +84,7 @@ impl ObjectReceiver {
             transfer_length: None,
             cenc: None,
             content_md5: None,
+            enable_md5_check,
             blocks_variable_size: false,
             a_large: 0,
             a_small: 0,
@@ -95,7 +101,7 @@ impl ObjectReceiver {
             cache_expiration_date: None,
             content_location: None,
             #[cfg(feature = "opentelemetry")]
-            logger: ObjectReceiverLogger::new(tsi, toi.clone()),
+            logger: ObjectReceiverLogger::new(endpoint, tsi, toi.clone(), _fdt_instance_id, _now),
         }
     }
 
@@ -122,7 +128,7 @@ impl ObjectReceiver {
         self.set_oti_from_pkt(pkt);
 
         self.init_blocks_partitioning();
-        self.init_object_writer();
+        self.init_object_writer(now);
         self.push_from_cache(now);
 
         if self.oti.is_none() {
@@ -272,10 +278,22 @@ impl ObjectReceiver {
             }
         };
 
+        let mut groups = match fdt.group.as_ref() {
+            Some(groups) => groups.clone(),
+            None => vec![],
+        };
+
+        match file.group.as_ref() {
+            Some(group) => groups.append(&mut group.iter().map(|g| g.clone()).collect()),
+            None => {}
+        };
+
         #[cfg(feature = "opentelemetry")]
         let _span = self.logger.fdt_attached();
 
-        self.content_md5 = file.content_md5.clone();
+        if self.enable_md5_check {
+            self.content_md5 = file.content_md5.clone();
+        }
         self.fdt_instance_id = Some(fdt_instance_id);
 
         let cache_duration = file.get_cache_duration(fdt.get_expiration_date(), server_time);
@@ -292,17 +310,28 @@ impl ObjectReceiver {
             content_length: file.content_length.map(|s| s as usize),
             content_type: file.content_type.clone(),
             cache_duration,
+            groups: match groups.is_empty() {
+                true => None,
+                false => Some(groups),
+            },
         });
 
         self.init_blocks_partitioning();
-        self.init_object_writer();
+        self.init_object_writer(now);
         self.push_from_cache(now);
         self.write_blocks(0, now)
             .unwrap_or_else(|_| self.error("Fail to write blocks to storage"));
         true
     }
 
-    fn init_object_writer(&mut self) {
+    pub fn byte_left(&self) -> usize {
+        if let Some(w) = self.block_writer.as_ref() {
+            return w.left();
+        }
+        0
+    }
+
+    fn init_object_writer(&mut self, now: SystemTime) {
         if self.object_writer.is_some() {
             return;
         }
@@ -316,6 +345,7 @@ impl ObjectReceiver {
             &self.tsi,
             &self.toi,
             self.meta.as_ref(),
+            now,
         );
 
         assert!(self.block_writer.is_none());
@@ -398,7 +428,7 @@ impl ObjectReceiver {
                     );
 
                     self.error(&format!(
-                        "MD5 does not match expects {:?} receiver {:?}",
+                        "MD5 does not match expects {:?} received {:?}",
                         self.content_md5, &md5
                     ));
                 }

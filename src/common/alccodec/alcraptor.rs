@@ -1,6 +1,10 @@
 use super::AlcCodec;
 use crate::{
-    common::{alc, lct, oti, pkt},
+    common::{
+        alc, lct,
+        oti::{self, SchemeSpecific},
+        pkt,
+    },
     error::FluteError,
 };
 
@@ -31,18 +35,19 @@ impl AlcCodec for AlcRaptor {
         let transfer_header: u64 =
             (transfer_length << 24) | (oti.encoding_symbol_length as u64 & 0xFFFF);
 
-        assert!(oti.raptor_scheme_specific.is_some());
-        let raptor = oti.raptor_scheme_specific.as_ref().unwrap();
-
-        let padding: u16 = 0;
-
-        data.extend(ext_header.to_be_bytes());
-        data.extend(transfer_header.to_be_bytes());
-        data.extend(raptor.source_blocks_length.to_be_bytes());
-        data.extend(raptor.sub_blocks_length.to_be_bytes());
-        data.extend(raptor.symbol_alignment.to_be_bytes());
-        data.extend(padding.to_be_bytes());
-        lct::inc_hdr_len(data, len);
+        assert!(oti.scheme_specific.is_some());
+        if let SchemeSpecific::Raptor(raptor) = oti.scheme_specific.as_ref().unwrap() {
+            let padding: u16 = 0;
+            data.extend(ext_header.to_be_bytes());
+            data.extend(transfer_header.to_be_bytes());
+            data.extend(raptor.source_blocks_length.to_be_bytes());
+            data.extend(raptor.sub_blocks_length.to_be_bytes());
+            data.extend(raptor.symbol_alignment.to_be_bytes());
+            data.extend(padding.to_be_bytes());
+            lct::inc_hdr_len(data, len);
+        } else {
+            assert!(false);
+        }
     }
 
     fn get_fti(
@@ -86,13 +91,11 @@ impl AlcCodec for AlcRaptor {
             maximum_source_block_length: maximum_source_block_length as u32,
             encoding_symbol_length: symbol_size,
             max_number_of_parity_symbols: 0, // Unknown for RaptorQ
-            reed_solomon_scheme_specific: None,
-            raptorq_scheme_specific: None,
-            raptor_scheme_specific: Some(oti::RaptorSchemeSpecific {
+            scheme_specific: Some(SchemeSpecific::Raptor(oti::RaptorSchemeSpecific {
                 source_blocks_length: z,
                 sub_blocks_length: n,
                 symbol_alignment: al,
-            }),
+            })),
             inband_fti: true,
         };
 
@@ -115,6 +118,10 @@ impl AlcCodec for AlcRaptor {
         pkt: &alc::AlcPkt,
         _oti: &oti::Oti,
     ) -> crate::error::Result<alc::PayloadID> {
+        self.get_fec_inline_payload_id(pkt)
+    }
+
+    fn get_fec_inline_payload_id(&self, pkt: &alc::AlcPkt) -> crate::error::Result<alc::PayloadID> {
         let data = &pkt.data[pkt.data_alc_header_offset..pkt.data_payload_offset];
         let arr: [u8; 4] = match data.try_into() {
             Ok(arr) => arr,

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema
+xmlns="urn:3GPP:metadata:2007:MBMS:FLUTE:FDT"
+xmlns:xs="http://www.w3.org/2001/XMLSchema"
+targetNamespace="urn:3GPP:metadata:2007:MBMS:FLUTE:FDT"
+elementFormDefault="qualified">
+<xs:element name="Cache-Control">
+<xs:complexType>
+<xs:choice>
+<xs:element name="no-cache" type="xs:boolean" fixed="true"/>
+<xs:element name="max-stale" type="xs:boolean" fixed="true"/>
+<xs:element name="Expires" type="xs:unsignedInt"/>
+</xs:choice>
+<xs:anyAttribute processContents="skip"/>
+</xs:complexType>
+</xs:element>
+</xs:schema>

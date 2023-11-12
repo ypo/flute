@@ -1,5 +1,5 @@
 use super::{ObjectMetadata, ObjectWriter, ObjectWriterBuilder};
-use crate::{receiver::UDPEndpoint, tools::error::Result};
+use crate::{tools::error::Result, common::udpendpoint::UDPEndpoint};
 use std::{cell::RefCell, rc::Rc};
 
 ///
@@ -48,6 +48,7 @@ impl ObjectWriterBuilder for ObjectWriterBufferBuilder {
         _tsi: &u64,
         _toi: &u128,
         meta: Option<&ObjectMetadata>,
+        _now: std::time::SystemTime,
     ) -> Box<dyn ObjectWriter> {
         let obj = Rc::new(RefCell::new(ObjectWriterBuffer {
             complete: false,
@@ -71,7 +72,15 @@ impl ObjectWriterBuilder for ObjectWriterBufferBuilder {
     ) {
     }
 
-    fn fdt_received(&self, _endpoint: &UDPEndpoint, _tsi: &u64, _fdt_xml: &str) {}
+    fn fdt_received(
+        &self,
+        _endpoint: &UDPEndpoint,
+        _tsi: &u64,
+        _fdt_xml: &str,
+        _expires: std::time::SystemTime,
+        _now: std::time::SystemTime,
+    ) {
+    }
 }
 
 impl ObjectWriter for ObjectWriterBufferWrapper {

@@ -88,7 +88,7 @@ impl Cenc {
     }
 }
 
-fn nb_bytes_128(cci: &u128) -> u32 {
+fn nb_bytes_128(cci: &u128, min: u32) -> u32 {
     if (cci & 0xFFFF0000000000000000000000000000) != 0x0 {
         return 16;
     }
@@ -121,10 +121,10 @@ fn nb_bytes_128(cci: &u128) -> u32 {
         return 2;
     }
 
-    return 0;
+    return min;
 }
 
-fn nb_bytes_64(n: u64) -> u32 {
+fn nb_bytes_64(n: u64, min: u32) -> u32 {
     if (n & 0xFFFF000000000000) != 0x0 {
         return 8;
     }
@@ -141,7 +141,7 @@ fn nb_bytes_64(n: u64) -> u32 {
         return 2;
     }
 
-    return 0;
+    return min;
 }
 
 /**
@@ -234,9 +234,9 @@ pub fn push_lct_header(
     close_object: bool,
     close_session: bool,
 ) {
-    let cci_size = nb_bytes_128(cci);
-    let tsi_size = nb_bytes_64(tsi);
-    let toi_size = nb_bytes_128(toi);
+    let cci_size = nb_bytes_128(cci, 0);
+    let tsi_size = nb_bytes_64(tsi, 2);
+    let toi_size = nb_bytes_128(toi, 2);
 
     let h_tsi = (tsi_size & 2) >> 1; // Is TSI half-word ?
     let h_toi = (toi_size & 2) >> 1; // Is TOI half-word ?

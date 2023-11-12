@@ -1,6 +1,7 @@
 use super::filedesc::FileDesc;
 use super::objectdesc;
 use super::observer::ObserverList;
+use super::toiallocator::{Toi, ToiAllocator};
 use crate::common::{fdtinstance::FdtInstance, lct, oti};
 use crate::sender::observer;
 use crate::sender::TOIMaxLength;
@@ -30,6 +31,8 @@ pub struct Fdt {
     inband_sct: bool,
     last_publish: Option<SystemTime>,
     observers: ObserverList,
+    groups: Option<Vec<String>>,
+    toi_allocator: Arc<ToiAllocator>,
 }
 
 impl Fdt {
@@ -44,6 +47,7 @@ impl Fdt {
         observers: ObserverList,
         toi_max_length: TOIMaxLength,
         toi_initial_value: Option<u128>,
+        groups: Option<Vec<String>>,
     ) -> Fdt {
         let toi = match toi_initial_value {
             Some(0) => 1,
@@ -54,7 +58,9 @@ impl Fdt {
                 match toi_max_length {
                     TOIMaxLength::ToiMax16 => toi &= 0xFFFFu128,
                     TOIMaxLength::ToiMax32 => toi &= 0xFFFFFFFFu128,
+                    TOIMaxLength::ToiMax48 => toi &= 0xFFFFFFFFFFFFu128,
                     TOIMaxLength::ToiMax64 => toi &= 0xFFFFFFFFFFFFFFFFu128,
+                    TOIMaxLength::ToiMax80 => toi &= 0xFFFFFFFFFFFFFFFFFFFFu128,
                     TOIMaxLength::ToiMax112 => {}
                 };
                 if toi == 0 {
@@ -82,6 +88,8 @@ impl Fdt {
             last_publish: None,
             observers,
             toi_max_length,
+            groups,
+            toi_allocator: ToiAllocator::new(),
         }
     }
 
@@ -142,11 +150,17 @@ impl Fdt {
             full_fdt: None,
             base_url_1: None,
             base_url_2: None,
-            group: None,
+            group: self.groups.clone(),
             mbms_session_identity_expiry: None,
             schema_version: Some(4),
             delimiter: Some(0),
         }
+    }
+
+    pub fn allocate_toi(&mut self) -> Arc<Toi> {
+        let ret = ToiAllocator::allocate(&self.toi_allocator, self.toi);
+        self.inc_toi();
+        ret
     }
 
     pub fn add_object(&mut self, obj: Box<objectdesc::ObjectDesc>) -> Result<u128> {
@@ -156,8 +170,15 @@ impl Fdt {
             ));
         }
 
-        let toi = self.toi;
-        self.inc_toi();
+        let toi = match obj.toi.as_ref() {
+            Some(toi) => toi.get(),
+            None => {
+                let ret = self.toi;
+                self.inc_toi();
+                ret
+            }
+        };
+
         let filedesc = Arc::new(FileDesc::new(obj, &self.oti, &toi, None, false)?);
 
         assert!(self.files.contains_key(&filedesc.toi) == false);
@@ -172,7 +193,9 @@ impl Fdt {
             match self.toi_max_length {
                 TOIMaxLength::ToiMax16 => self.toi &= 0xFFFFu128,
                 TOIMaxLength::ToiMax32 => self.toi &= 0xFFFFFFFFu128,
+                TOIMaxLength::ToiMax48 => self.toi &= 0xFFFFFFFFFFFFu128,
                 TOIMaxLength::ToiMax64 => self.toi &= 0xFFFFFFFFFFFFFFFFu128,
+                TOIMaxLength::ToiMax80 => self.toi &= 0xFFFFFFFFFFFFFFFFFFFFu128,
                 TOIMaxLength::ToiMax112 => {}
             }
 
@@ -180,11 +203,11 @@ impl Fdt {
                 self.toi = 1;
             }
 
-            if !self.files.contains_key(&self.toi) {
+            if !self.files.contains_key(&self.toi) && !self.toi_allocator.contains(&self.toi) {
                 break;
             }
 
-            log::warn!("TOI {} is already used by a file", self.toi)
+            log::warn!("TOI {} is already used by a file or reserved", self.toi)
         }
     }
 
@@ -224,6 +247,7 @@ impl Fdt {
             1,
             Some(self.carousel),
             None,
+            self.groups.clone(),
             self.cenc,
             true,
             None,
@@ -408,10 +432,7 @@ mod tests {
     use super::objectdesc;
     use super::oti;
 
-    #[test]
-    pub fn test_fdt() {
-        crate::tests::init();
-
+    fn create_fdt() -> super::Fdt {
         let oti: oti::Oti = Default::default();
         let mut fdt = super::Fdt::new(
             10,
@@ -424,14 +445,16 @@ mod tests {
             ObserverList::new(),
             crate::sender::TOIMaxLength::ToiMax112,
             Some(1),
+            Some(vec!["Group1".to_owned()]),
         );
-        let obj = objectdesc::ObjectDesc::create_from_buffer(
+        let obj1 = objectdesc::ObjectDesc::create_from_buffer(
             &Vec::new(),
-            "txt",
-            &url::Url::parse("file:///").unwrap(),
+            "plain/txt",
+            &url::Url::parse("file:///object1").unwrap(),
             2,
             None,
             None,
+            Some(vec!["Test1".to_owned()]),
             lct::Cenc::Null,
             true,
             None,
@@ -439,10 +462,63 @@ mod tests {
         )
         .unwrap();
 
-        fdt.add_object(obj).unwrap();
+        let obj2 = objectdesc::ObjectDesc::create_from_buffer(
+            &Vec::new(),
+            "plain/txt",
+            &url::Url::parse("file:///object2").unwrap(),
+            2,
+            None,
+            None,
+            None,
+            lct::Cenc::Gzip,
+            true,
+            None,
+            true,
+        )
+        .unwrap();
 
+        fdt.add_object(obj1).unwrap();
+        fdt.add_object(obj2).unwrap();
+        fdt
+    }
+
+    #[test]
+    pub fn test_fdt() {
+        use std::{io::Write, process::Command};
+
+        crate::tests::init();
+        let fdt = create_fdt();
         let buffer = fdt.to_xml(SystemTime::now()).unwrap();
         let content = String::from_utf8(buffer.clone()).unwrap();
-        log::info!("content={}", content);
+        log::info!("{}", content);
+
+        let check_fdt_folder = "./assets/xsd/";
+        let xsd_filename = "FLUTE-FDT-3GPP-Main.xsd";
+        let xsd_path = std::path::Path::new(check_fdt_folder).join(xsd_filename);
+
+        let xml_generated_data = String::from_utf8(buffer).unwrap();
+        let tmp_fdt_file = tempfile::Builder::new()
+            .prefix("TempFile")
+            .suffix(".xml")
+            .tempfile()
+            .unwrap();
+        write!(&tmp_fdt_file, "{}", &xml_generated_data).unwrap();
+
+        let output = Command::new("xmllint")
+            .arg("--schema")
+            .arg(xsd_path)
+            .arg(&tmp_fdt_file.path())
+            .arg("--noout")
+            .output()
+            .expect("failed to execute process");
+
+        let output_print = std::str::from_utf8(&output.stderr).expect("ascii to text went wrong ");
+
+        assert!(
+            output.status.success(),
+            "\n\nValidation failed\n\n{}\n\n",
+            output_print
+        );
+        // log::info!("content={}", content);
     }
 }

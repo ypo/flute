@@ -11,6 +11,10 @@ mod objectdesc;
 mod observer;
 mod sender;
 mod sendersession;
+mod toiallocator;
+
+#[cfg(feature = "opentelemetry")]
+mod objectsenderlogger;
 
 pub use crate::common::lct::Cenc;
 pub use crate::common::oti::FECEncodingID;
@@ -24,3 +28,4 @@ pub use observer::Subscriber;
 pub use sender::Config;
 pub use sender::Sender;
 pub use sender::TOIMaxLength;
+pub use toiallocator::Toi;

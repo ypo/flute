@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema
+xmlns="urn:IETF:metadata:2005:FLUTE:FDT"
+xmlns:fl="urn:IETF:metadata:2005:FLUTE:FDT"
+xmlns:xs="http://www.w3.org/2001/XMLSchema"
+xmlns:mbms2005="urn:3GPP:metadata:2005:MBMS:FLUTE:FDT"
+xmlns:mbms2007="urn:3GPP:metadata:2007:MBMS:FLUTE:FDT"
+xmlns:mbms2008="urn:3GPP:metadata:2008:MBMS:FLUTE:FDT_ext"
+xmlns:mbms2009="urn:3GPP:metadata:2009:MBMS:FLUTE:FDT_ext"
+xmlns:mbms2012="urn:3GPP:metadata:2012:MBMS:FLUTE:FDT"
+xmlns:mbms2015="urn:3GPP:metadata:2015:MBMS:FLUTE:FDT"
+xmlns:sv="urn:3gpp:metadata:2009:MBMS:schemaVersion"
+targetNamespace="urn:IETF:metadata:2005:FLUTE:FDT"
+elementFormDefault="qualified"
+version="3">
+<xs:import namespace="urn:3GPP:metadata:2005:MBMS:FLUTE:FDT"
+schemaLocation="FLUTE-FDT-3GPP-2005-Extensions.xsd"/>
+<xs:import namespace="urn:3GPP:metadata:2007:MBMS:FLUTE:FDT"
+schemaLocation="FLUTE-FDT-3GPP-2007-Extensions.xsd"/>
+<xs:import namespace="urn:3GPP:metadata:2008:MBMS:FLUTE:FDT_ext"
+schemaLocation="FLUTE-FDT-3GPP-2008-Extensions.xsd"/>
+<xs:import namespace="urn:3GPP:metadata:2009:MBMS:FLUTE:FDT_ext"
+schemaLocation="FLUTE-FDT-3GPP-2009-Extensions.xsd"/>
+<xs:import namespace="urn:3GPP:metadata:2012:MBMS:FLUTE:FDT"
+schemaLocation="FLUTE-FDT-3GPP-2012-Extensions.xsd"/>
+<xs:import namespace="urn:3GPP:metadata:2015:MBMS:FLUTE:FDT"
+schemaLocation="FLUTE-FDT-3GPP-2015-Extensions.xsd"/>
+<xs:import namespace="urn:3gpp:metadata:2009:MBMS:schemaVersion"
+schemaLocation="schema-version.xsd"/>
+<xs:element name="FDT-Instance" type="FDT-InstanceType"/>
+<xs:complexType name="FDT-InstanceType">
+<xs:sequence>
+<xs:element name="File" type="FileType" maxOccurs="unbounded"/>
+<xs:element ref="sv:schemaVersion"/>
+<xs:element ref="mbms2012:Base-URL-1" minOccurs="0" maxOccurs="unbounded"/>
+<xs:element ref="mbms2012:Base-URL-2" minOccurs="0" maxOccurs="unbounded"/>
+<xs:element ref="sv:delimiter"/>
+<xs:any namespace="##other" processContents="skip" minOccurs="0" maxOccurs="unbounded"/>
+<xs:element name="Group" type="mbms2005:groupIdType" minOccurs="0" maxOccurs="unbounded"/>
+<xs:element name="MBMS-Session-Identity-Expiry" type="mbms2005:MBMS-Session-Identity-Expiry-Type" minOccurs="0" maxOccurs="unbounded"/>
+</xs:sequence>
+<xs:attribute name="Expires" type="xs:string" use="required"/>
+<xs:attribute name="Complete" type="xs:boolean" use="optional"/>
+<xs:attribute name="Content-Type" type="xs:string" use="optional"/>
+<xs:attribute name="Content-Encoding" type="xs:string" use="optional"/>
+<xs:attribute name="FEC-OTI-FEC-Encoding-ID" type="xs:unsignedLong" use="optional"/>
+<xs:attribute name="FEC-OTI-FEC-Instance-ID" type="xs:unsignedLong" use="optional"/>
+<xs:attribute name="FEC-OTI-Maximum-Source-Block-Length" type="xs:unsignedLong" use="optional"/>
+<xs:attribute name="FEC-OTI-Encoding-Symbol-Length" type="xs:unsignedLong" use="optional"/>
+<xs:attribute name="FEC-OTI-Max-Number-of-Encoding-Symbols" type="xs:unsignedLong"
+use="optional"/>
+<xs:attribute name="FEC-OTI-Scheme-Specific-Info" type="xs:base64Binary" use="optional"/>
+<xs:attribute ref="mbms2008:FullFDT" use="optional" default="false"/>
+<xs:anyAttribute processContents="skip"/>
+</xs:complexType>
+<xs:complexType name="FileType">
+<xs:sequence>
+<xs:element ref="mbms2007:Cache-Control" minOccurs="0"/>
+<xs:element ref="sv:delimiter"/>
+<xs:element ref="mbms2012:Alternate-Content-Location-1" minOccurs="0"
+maxOccurs="unbounded"/>
+<xs:element ref="mbms2012:Alternate-Content-Location-2" minOccurs="0"
+maxOccurs="unbounded"/>
+<xs:element ref="sv:delimiter"/>
+<xs:any namespace="##other" processContents="skip" minOccurs="0" maxOccurs="unbounded"/>
+<xs:element name="Group" type="mbms2005:groupIdType" minOccurs="0" maxOccurs="unbounded"/>
+<xs:element name="MBMS-Session-Identity" type="mbms2005:MBMS-Session-Identity-Type"
+minOccurs="0" maxOccurs="unbounded"/>
+</xs:sequence>
+<xs:attribute name="Content-Location" type="xs:anyURI" use="required"/>
+<xs:attribute name="TOI" type="xs:positiveInteger" use="required"/>
+<xs:attribute name="Content-Length" type="xs:unsignedLong" use="optional"/>
+<xs:attribute name="Transfer-Length" type="xs:unsignedLong" use="optional"/>
+<xs:attribute name="Content-Type" type="xs:string" use="optional"/>
+<xs:attribute name="Content-Encoding" type="xs:string" use="optional"/>
+<xs:attribute name="Content-MD5" type="xs:base64Binary" use="optional"/>
+<xs:attribute name="FEC-OTI-FEC-Encoding-ID" type="xs:unsignedLong" use="optional"/>
+<xs:attribute name="FEC-OTI-FEC-Instance-ID" type="xs:unsignedLong" use="optional"/>
+<xs:attribute name="FEC-OTI-Maximum-Source-Block-Length" type="xs:unsignedLong" use="optional"/>
+<xs:attribute name="FEC-OTI-Encoding-Symbol-Length" type="xs:unsignedLong" use="optional"/>
+<xs:attribute name="FEC-OTI-Max-Number-of-Encoding-Symbols" type="xs:unsignedLong"
+use="optional"/>
+<xs:attribute name="FEC-OTI-Scheme-Specific-Info" type="xs:base64Binary" use="optional"/>
+<xs:attribute ref="mbms2009:Decryption-KEY-URI" use="optional"/>
+<xs:attribute ref="mbms2012:FEC-Redundancy-Level" use="optional"/>
+<xs:attribute ref="mbms2012:File-ETag" use="optional"/>
+<xs:attribute ref="mbms2015:IndependentUnitPositions" use="optional"/>
+<xs:anyAttribute processContents="skip"/>
+</xs:complexType>
+</xs:schema>

@@ -14,7 +14,12 @@ impl Sender {
     #[new]
     pub fn new(tsi: u64, oti: &oti::Oti, config: &config::Config) -> Self {
         Self {
-            0: crate::sender::Sender::new(tsi, &oti.0, &config.0),
+            0: crate::sender::Sender::new(
+                crate::core::UDPEndpoint::new(None, "224.0.0.1".to_owned(), 0), // FIXME
+                tsi,
+                &oti.0,
+                &config.0,
+            ),
         }
     }
 
@@ -34,6 +39,7 @@ impl Sender {
             content_type,
             &content_location,
             1,
+            None,
             None,
             None,
             crate::sender::Cenc::Null,
@@ -74,6 +80,7 @@ impl Sender {
             content_location.as_ref(),
             content_type,
             1,
+            None,
             None,
             None,
             cenc,

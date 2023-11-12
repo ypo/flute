@@ -2,7 +2,7 @@ use super::AlcCodec;
 use crate::{
     common::{
         alc, lct,
-        oti::{self, ReedSolomonGF2MSchemeSpecific},
+        oti::{self, ReedSolomonGF2MSchemeSpecific, SchemeSpecific},
         pkt,
     },
     error::FluteError,
@@ -24,20 +24,24 @@ impl AlcCodec for AlcRS2m {
         |  Max Source Block Length (B)  |  Max Nb Enc. Symbols (max_n)  |
         +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+*/
 
-        let scheme_specific = oti.reed_solomon_scheme_specific.clone().unwrap_or_default();
-        let ext_header_l: u64 =
-            (lct::Ext::Fti as u64) << 56 | 4u64 << 48 | transfer_length & 0xFFFFFFFFFFFF;
+        if let SchemeSpecific::ReedSolomon(scheme_specific) = oti.scheme_specific.as_ref().unwrap()
+        {
+            let ext_header_l: u64 =
+                (lct::Ext::Fti as u64) << 56 | 4u64 << 48 | transfer_length & 0xFFFFFFFFFFFF;
 
-        let b = oti.maximum_source_block_length as u16;
-        let max_n = (oti.max_number_of_parity_symbols + oti.maximum_source_block_length) as u16;
+            let b = oti.maximum_source_block_length as u16;
+            let max_n = (oti.max_number_of_parity_symbols + oti.maximum_source_block_length) as u16;
 
-        data.extend(ext_header_l.to_be_bytes());
-        data.push(scheme_specific.m);
-        data.push(scheme_specific.g);
-        data.extend(oti.encoding_symbol_length.to_be_bytes());
-        data.extend(b.to_be_bytes());
-        data.extend(max_n.to_be_bytes());
-        lct::inc_hdr_len(data, 4);
+            data.extend(ext_header_l.to_be_bytes());
+            data.push(scheme_specific.m);
+            data.push(scheme_specific.g);
+            data.extend(oti.encoding_symbol_length.to_be_bytes());
+            data.extend(b.to_be_bytes());
+            data.extend(max_n.to_be_bytes());
+            lct::inc_hdr_len(data, 4);
+        } else {
+            assert!(false);
+        }
     }
 
     fn get_fti(
@@ -71,7 +75,7 @@ impl AlcCodec for AlcRS2m {
             maximum_source_block_length: b as u32,
             encoding_symbol_length,
             max_number_of_parity_symbols: max_n as u32 - b as u32,
-            reed_solomon_scheme_specific: Some(ReedSolomonGF2MSchemeSpecific {
+            scheme_specific: Some(SchemeSpecific::ReedSolomon(ReedSolomonGF2MSchemeSpecific {
                 g: match g {
                     0 => 1,
                     g => g,
@@ -80,9 +84,7 @@ impl AlcCodec for AlcRS2m {
                     0 => 8,
                     m => m,
                 },
-            }),
-            raptorq_scheme_specific: None,
-            raptor_scheme_specific: None,
+            })),
             inband_fti: true,
         };
 
@@ -91,9 +93,12 @@ impl AlcCodec for AlcRS2m {
 
     fn add_fec_payload_id(&self, data: &mut Vec<u8>, oti: &oti::Oti, pkt: &pkt::Pkt) {
         let m = oti
-            .reed_solomon_scheme_specific
+            .scheme_specific
             .as_ref()
-            .map(|f| f.m)
+            .map(|f| match f {
+                SchemeSpecific::ReedSolomon(s) => s.m,
+                _ => 8,
+            })
             .unwrap_or(8);
 
         let sbn = pkt.sbn;
@@ -126,9 +131,12 @@ impl AlcCodec for AlcRS2m {
         let payload_id_header = u32::from_be_bytes(arr);
 
         let m = oti
-            .reed_solomon_scheme_specific
+            .scheme_specific
             .as_ref()
-            .map(|f| f.m)
+            .map(|f| match f {
+                SchemeSpecific::ReedSolomon(s) => s.m,
+                _ => 8,
+            })
             .unwrap_or(8);
 
         let sbn = payload_id_header >> m;
@@ -140,6 +148,13 @@ impl AlcCodec for AlcRS2m {
             sbn,
             source_block_length: None,
         })
+    }
+
+    fn get_fec_inline_payload_id(
+        &self,
+        _pkt: &alc::AlcPkt,
+    ) -> crate::error::Result<alc::PayloadID> {
+        return Err(FluteError::new("not supported"));
     }
 
     fn fec_payload_id_block_length(&self) -> usize {

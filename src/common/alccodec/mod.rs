@@ -16,6 +16,7 @@ pub trait AlcCodec {
     fn get_fti(&self, data: &[u8], lct_header: &lct::LCTHeader) -> Result<Option<(oti::Oti, u64)>>;
     fn add_fec_payload_id(&self, data: &mut Vec<u8>, oti: &oti::Oti, pkt: &pkt::Pkt);
     fn get_fec_payload_id(&self, pkt: &AlcPkt, oti: &oti::Oti) -> Result<PayloadID>;
+    fn get_fec_inline_payload_id(&self, pkt: &AlcPkt) -> Result<PayloadID>;
     fn fec_payload_id_block_length(&self) -> usize;
 }
 

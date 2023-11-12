@@ -1,4 +1,7 @@
-use flute::receiver::{writer, MultiReceiver, UDPEndpoint};
+use flute::{
+    core::UDPEndpoint,
+    receiver::{writer, MultiReceiver},
+};
 use std::{net::UdpSocket, rc::Rc};
 
 fn main() {

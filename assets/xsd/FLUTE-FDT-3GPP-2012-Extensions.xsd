@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema
+xmlns="urn:3GPP:metadata:2012:MBMS:FLUTE:FDT"
+xmlns:xs="http://www.w3.org/2001/XMLSchema"
+xmlns:ns1="urn:3GPP:metadata:2012:MBMS:FLUTE:FDT"
+targetNamespace="urn:3GPP:metadata:2012:MBMS:FLUTE:FDT"
+elementFormDefault="qualified">
+<xs:element name="Alternate-Content-Location-1" type="Alternative-Content-LocationType"/>
+<xs:element name="Alternate-Content-Location-2" type="Alternative-Content-LocationType"/>
+<xs:complexType name="Alternative-Content-LocationType">
+<xs:sequence>
+<xs:element name="Alternate-Content-Location" type="xs:anyURI" minOccurs="0"
+maxOccurs="unbounded"/>
+</xs:sequence>
+<xs:attribute name="Availability-Time" type="xs:dateTime"/>
+</xs:complexType>
+<xs:element name="Base-URL-1" type="xs:anyURI"/>
+<xs:element name="Base-URL-2" type="xs:anyURI"/>
+<xs:attribute name="FEC-Redundancy-Level" type="xs:unsignedInt"/>
+<xs:attribute name="File-ETag" type="xs:string"/>
+</xs:schema>

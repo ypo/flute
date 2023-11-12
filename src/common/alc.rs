@@ -235,6 +235,18 @@ pub fn parse_payload_id(pkt: &AlcPkt, oti: &oti::Oti) -> Result<PayloadID> {
     codec.get_fec_payload_id(pkt, oti)
 }
 
+/// Get Inline Payload ID
+pub fn get_fec_inline_payload_id(pkt: &AlcPkt) -> Result<PayloadID> {
+    let fec: oti::FECEncodingID = pkt
+        .lct
+        .cp
+        .try_into()
+        .map_err(|_| FluteError::new(format!("Codepoint {} not supported", pkt.lct.cp)))?;
+
+    let codec = <dyn AlcCodec>::instance(fec);
+    codec.get_fec_inline_payload_id(pkt)
+}
+
 fn parse_ext_fdt(ext: &[u8]) -> Result<Option<ExtFDT>> {
     if ext.len() != 4 {
         return Err(FluteError::new("Wrong size of FDT Extension"));
@@ -349,6 +361,7 @@ fn parse_sct(ext: &[u8]) -> Result<Option<std::time::SystemTime>> {
         1 => u32::from_be_bytes(ext[8..12].as_ref().try_into().unwrap()),
         _ => 0,
     };
+
     let ntp: u64 = ((ntp_seconds as u64) << 32) | (ntp_faction as u64);
     tools::ntp_to_system_time(ntp).map(|op| Some(op))
 }

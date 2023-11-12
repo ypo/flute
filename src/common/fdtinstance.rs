@@ -16,6 +16,7 @@ use opentelemetry::{
 
 use super::oti::{
     self, RaptorQSchemeSpecific, RaptorSchemeSpecific, ReedSolomonGF2MSchemeSpecific,
+    SchemeSpecific,
 };
 
 fn xmlns_mbms_2005<S>(os: &Option<String>, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -215,13 +216,17 @@ pub struct FdtInstance {
 
     #[serde(
         rename = "sv:delimiter",
+        alias = "delimiter",
         skip_serializing_if = "Option::is_none",
         skip_deserializing
     )]
     #[serde(alias = "delimiter")]
     pub delimiter: Option<u8>,
 
-    #[serde(rename = "Group", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "Group",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub group: Option<Vec<String>>,
 
     #[serde(
@@ -383,36 +388,36 @@ pub struct File {
 
 fn reed_solomon_scheme_specific(
     fec_oti_scheme_specific_info: &Option<String>,
-) -> Result<Option<ReedSolomonGF2MSchemeSpecific>> {
+) -> Result<Option<SchemeSpecific>> {
     if fec_oti_scheme_specific_info.is_none() {
         return Ok(None);
     }
 
     let scheme =
         ReedSolomonGF2MSchemeSpecific::decode(fec_oti_scheme_specific_info.as_ref().unwrap())?;
-    Ok(Some(scheme))
+    Ok(Some(SchemeSpecific::ReedSolomon(scheme)))
 }
 
 fn raptorq_scheme_specific(
     fec_oti_scheme_specific_info: &Option<String>,
-) -> Result<Option<RaptorQSchemeSpecific>> {
+) -> Result<Option<SchemeSpecific>> {
     if fec_oti_scheme_specific_info.is_none() {
         return Ok(None);
     }
 
     let scheme = RaptorQSchemeSpecific::decode(fec_oti_scheme_specific_info.as_ref().unwrap())?;
-    Ok(Some(scheme))
+    Ok(Some(SchemeSpecific::RaptorQ(scheme)))
 }
 
 fn raptor_scheme_specific(
     fec_oti_scheme_specific_info: &Option<String>,
-) -> Result<Option<RaptorSchemeSpecific>> {
+) -> Result<Option<SchemeSpecific>> {
     if fec_oti_scheme_specific_info.is_none() {
         return Ok(None);
     }
 
     let scheme = RaptorSchemeSpecific::decode(fec_oti_scheme_specific_info.as_ref().unwrap())?;
-    Ok(Some(scheme))
+    Ok(Some(SchemeSpecific::Raptor(scheme)))
 }
 
 impl FdtInstance {
@@ -474,21 +479,13 @@ impl FdtInstance {
         let fec_encoding_id: oti::FECEncodingID =
             self.fec_oti_fec_encoding_id.unwrap().try_into().ok()?;
 
-        let reed_solomon_scheme_specific = match fec_encoding_id {
+        let scheme_specific = match fec_encoding_id {
             oti::FECEncodingID::ReedSolomonGF2M => {
                 reed_solomon_scheme_specific(&self.fec_oti_scheme_specific_info).unwrap_or(None)
             }
-            _ => None,
-        };
-
-        let raptorq_scheme_specific = match fec_encoding_id {
             oti::FECEncodingID::RaptorQ => {
                 raptorq_scheme_specific(&self.fec_oti_scheme_specific_info).unwrap_or(None)
             }
-            _ => None,
-        };
-
-        let raptor_scheme_specific = match fec_encoding_id {
             oti::FECEncodingID::Raptor => {
                 raptor_scheme_specific(&self.fec_oti_scheme_specific_info).unwrap_or(None)
             }
@@ -507,9 +504,7 @@ impl FdtInstance {
             max_number_of_parity_symbols: (fec_oti_max_number_of_encoding_symbols
                 - self.fec_oti_maximum_source_block_length.unwrap())
                 as u32,
-            reed_solomon_scheme_specific,
-            raptorq_scheme_specific,
-            raptor_scheme_specific,
+            scheme_specific,
             inband_fti: false,
         })
     }
@@ -568,21 +563,13 @@ impl File {
         let fec_encoding_id: oti::FECEncodingID =
             self.fec_oti_fec_encoding_id.unwrap().try_into().ok()?;
 
-        let reed_solomon_scheme_specific = match fec_encoding_id {
+        let scheme_specific = match fec_encoding_id {
             oti::FECEncodingID::ReedSolomonGF2M => {
                 reed_solomon_scheme_specific(&self.fec_oti_scheme_specific_info).unwrap_or(None)
             }
-            _ => None,
-        };
-
-        let raptorq_scheme_specific = match fec_encoding_id {
             oti::FECEncodingID::RaptorQ => {
                 raptorq_scheme_specific(&self.fec_oti_scheme_specific_info).unwrap_or(None)
             }
-            _ => None,
-        };
-
-        let raptor_scheme_specific = match fec_encoding_id {
             oti::FECEncodingID::Raptor => {
                 raptor_scheme_specific(&self.fec_oti_scheme_specific_info).unwrap_or(None)
             }
@@ -601,9 +588,7 @@ impl File {
             max_number_of_parity_symbols: (fec_oti_max_number_of_encoding_symbols
                 - self.fec_oti_maximum_source_block_length.unwrap())
                 as u32,
-            reed_solomon_scheme_specific,
-            raptorq_scheme_specific,
-            raptor_scheme_specific,
+            scheme_specific,
             inband_fti: false,
         })
     }

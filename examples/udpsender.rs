@@ -1,10 +1,14 @@
-use flute::sender::{Cenc, ObjectDesc, Sender};
+use flute::{
+    core::UDPEndpoint,
+    sender::{Cenc, ObjectDesc, Sender},
+};
 use std::{net::UdpSocket, time::SystemTime};
 
 fn main() {
     std::env::set_var("RUST_LOG", "info");
     env_logger::builder().try_init().ok();
     let dest = "224.0.0.1:3400";
+    let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_owned(), 3400);
 
     let args: Vec<String> = std::env::args().collect();
     if args.len() == 1 {
@@ -14,11 +18,12 @@ fn main() {
     }
 
     log::info!("Create UDP Socket");
+
     let udp_socket = UdpSocket::bind("0.0.0.0:0").unwrap();
 
     log::info!("Create FLUTE Sender");
     let tsi = 1;
-    let mut sender = Sender::new(tsi, &Default::default(), &Default::default());
+    let mut sender = Sender::new(endpoint, tsi, &Default::default(), &Default::default());
 
     log::info!("Connect to {}", dest);
     udp_socket.connect(dest).expect("Connection failed");
@@ -37,6 +42,7 @@ fn main() {
             None,
             "application/octet-stream",
             1,
+            None,
             None,
             None,
             Cenc::Null,

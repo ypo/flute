@@ -4,7 +4,10 @@ use opentelemetry::{
     KeyValue,
 };
 
-use crate::common::{alc, oti};
+use crate::common::{
+    alc,
+    oti::{self, SchemeSpecific},
+};
 use crate::error::FluteError;
 use crate::fec;
 use crate::fec::nocode;
@@ -87,20 +90,20 @@ impl BlockDecoder {
                 log::warn!("Not implemented")
             }
             oti::FECEncodingID::RaptorQ => {
-                if oti.raptorq_scheme_specific.is_none() {
+                if let Some(SchemeSpecific::RaptorQ(scheme)) = oti.scheme_specific.as_ref() {
+                    let codec = fec::raptorq::RaptorQDecoder::new(
+                        sbn,
+                        nb_source_symbols as usize,
+                        oti.encoding_symbol_length as usize,
+                        scheme,
+                    );
+                    self.decoder = Some(Box::new(codec));
+                } else {
                     return Err(FluteError::new("RaptorQ Scheme not found"));
                 }
-
-                let codec = fec::raptorq::RaptorQDecoder::new(
-                    sbn,
-                    nb_source_symbols as usize,
-                    oti.encoding_symbol_length as usize,
-                    oti.raptorq_scheme_specific.as_ref().unwrap(),
-                );
-                self.decoder = Some(Box::new(codec));
             }
             oti::FECEncodingID::Raptor => {
-                if oti.raptor_scheme_specific.is_none() {
+                if oti.scheme_specific.is_none() {
                     return Err(FluteError::new("Raptor Scheme not found"));
                 }
 

@@ -1,5 +1,5 @@
 mod tests {
-    use flute::receiver::UDPEndpoint;
+    use flute::core::UDPEndpoint;
     use rand::RngCore;
     use std::rc::Rc;
 
@@ -25,7 +25,8 @@ mod tests {
             fdt_cenc: cenc,
             ..Default::default()
         });
-        let mut sender = Box::new(sender::Sender::new(1, &oti, &config));
+        let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_owned(), 5000);
+        let mut sender = Box::new(sender::Sender::new(endpoint, 1, &oti, &config));
         sender
             .add_object(
                 sender::ObjectDesc::create_from_buffer(
@@ -33,6 +34,7 @@ mod tests {
                     content_type,
                     content_location,
                     1,
+                    None,
                     None,
                     None,
                     cenc,
@@ -72,7 +74,7 @@ mod tests {
                 break;
             }
 
-            if (i & 3) == 0 {
+            if (i & 7) == 0 {
                 log::info!("ALC pkt {} is lost", i)
             } else {
                 receiver

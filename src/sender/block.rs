@@ -1,4 +1,4 @@
-use crate::common::oti::{self, Oti};
+use crate::common::oti::{self, Oti, SchemeSpecific};
 use crate::fec::{self, FecShard};
 use crate::fec::{DataFecShard, FecEncoder};
 use crate::tools::error::{FluteError, Result};
@@ -121,15 +121,21 @@ impl Block {
     ) -> Result<Vec<Box<dyn FecShard>>> {
         assert!(nb_source_symbols <= oti.maximum_source_block_length as usize);
         assert!(nb_source_symbols <= block_length as usize);
-        assert!(oti.raptorq_scheme_specific.is_some());
-        let encoder = fec::raptorq::RaptorQEncoder::new(
-            nb_source_symbols,
-            oti.max_number_of_parity_symbols as usize,
-            oti.encoding_symbol_length as usize,
-            oti.raptorq_scheme_specific.as_ref().unwrap(),
-        );
-        let shards = encoder.encode(&buffer)?;
-        Ok(shards)
+        assert!(oti.scheme_specific.is_some());
+
+        if let Some(SchemeSpecific::RaptorQ(scheme)) = oti.scheme_specific.as_ref() {
+            let encoder = fec::raptorq::RaptorQEncoder::new(
+                nb_source_symbols,
+                oti.max_number_of_parity_symbols as usize,
+                oti.encoding_symbol_length as usize,
+                scheme,
+            );
+
+            let shards = encoder.encode(&buffer)?;
+            Ok(shards)
+        } else {
+            return Err(FluteError::new("Scheme specific for Raptorq not defined"));
+        }
     }
 
     fn create_shards_raptor(
@@ -140,7 +146,8 @@ impl Block {
     ) -> Result<Vec<Box<dyn FecShard>>> {
         assert!(nb_source_symbols <= oti.maximum_source_block_length as usize);
         assert!(nb_source_symbols <= block_length as usize);
-        assert!(oti.raptor_scheme_specific.is_some());
+        assert!(oti.scheme_specific.is_some());
+
         let encoder = fec::raptor::RaptorEncoder::new(
             nb_source_symbols,
             oti.max_number_of_parity_symbols as usize,

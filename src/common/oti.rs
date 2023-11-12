@@ -159,6 +159,19 @@ impl RaptorSchemeSpecific {
 }
 
 ///
+/// Scheme Specific information
+///
+#[derive(Clone, Debug)]
+pub enum SchemeSpecific {
+    /// if `fec_encoding_id` is `FECEncodingID::ReedSolomonGF2M`
+    ReedSolomon(ReedSolomonGF2MSchemeSpecific),
+    /// if `fec_encoding_id` is `FECEncodingID::RaptorQ`
+    RaptorQ(RaptorQSchemeSpecific),
+    /// if `fec_encoding_id` is `FECEncodingID::Raptor`
+    Raptor(RaptorSchemeSpecific),
+}
+
+///
 /// FEC Object Transmission Information
 /// Contains the parameters using the build the blocks and FEC for the objects transmission
 #[derive(Clone, Debug)]
@@ -174,12 +187,8 @@ pub struct Oti {
     pub encoding_symbol_length: u16,
     /// Maximum number of repairing symbols (FEC)
     pub max_number_of_parity_symbols: u32,
-    /// Optional, only if `fec_encoding_id` is `FECEncodingID::ReedSolomonGF2M`
-    pub reed_solomon_scheme_specific: Option<ReedSolomonGF2MSchemeSpecific>,
-    /// Optional, only if `fec_encoding_id` is `FECEncodingID::RaptorQ`
-    pub raptorq_scheme_specific: Option<RaptorQSchemeSpecific>,
-    /// Optional, only if `fec_encoding_id` is `FECEncodingID::Raptor`
-    pub raptor_scheme_specific: Option<RaptorSchemeSpecific>,
+    /// Optional, FEC scheme specific
+    pub scheme_specific: Option<SchemeSpecific>,
     /// If `true`, FTI is added to every ALC/LCT packets
     /// If `false`, FTI is only available inside the FDT
     pub inband_fti: bool,
@@ -226,9 +235,7 @@ impl Oti {
             maximum_source_block_length: maximum_source_block_length as u32,
             encoding_symbol_length: encoding_symbol_length,
             max_number_of_parity_symbols: 0,
-            reed_solomon_scheme_specific: None,
-            raptorq_scheme_specific: None,
-            raptor_scheme_specific: None,
+            scheme_specific: None,
             inband_fti: true,
         }
     }
@@ -279,9 +286,7 @@ impl Oti {
             maximum_source_block_length: maximum_source_block_length as u32,
             encoding_symbol_length: encoding_symbol_length,
             max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
-            reed_solomon_scheme_specific: None,
-            raptorq_scheme_specific: None,
-            raptor_scheme_specific: None,
+            scheme_specific: None,
             inband_fti: true,
         })
     }
@@ -332,9 +337,7 @@ impl Oti {
             maximum_source_block_length: maximum_source_block_length as u32,
             encoding_symbol_length: encoding_symbol_length,
             max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
-            reed_solomon_scheme_specific: None,
-            raptorq_scheme_specific: None,
-            raptor_scheme_specific: None,
+            scheme_specific: None,
             inband_fti: true,
         })
     }
@@ -392,13 +395,11 @@ impl Oti {
             maximum_source_block_length: maximum_source_block_length as u32,
             encoding_symbol_length: encoding_symbol_length,
             max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
-            reed_solomon_scheme_specific: None,
-            raptorq_scheme_specific: Some(RaptorQSchemeSpecific {
+            scheme_specific: Some(SchemeSpecific::RaptorQ(RaptorQSchemeSpecific {
                 source_blocks_length: 0,
                 sub_blocks_length: sub_blocks_length,
                 symbol_alignment: symbol_alignment,
-            }),
-            raptor_scheme_specific: None,
+            })),
             inband_fti: true,
         })
     }
@@ -456,13 +457,11 @@ impl Oti {
             maximum_source_block_length: maximum_source_block_length as u32,
             encoding_symbol_length: encoding_symbol_length,
             max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
-            reed_solomon_scheme_specific: None,
-            raptorq_scheme_specific: None,
-            raptor_scheme_specific: Some(RaptorSchemeSpecific {
+            scheme_specific: Some(SchemeSpecific::Raptor(RaptorSchemeSpecific {
                 source_blocks_length: 0,
                 sub_blocks_length: sub_blocks_length,
                 symbol_alignment: symbol_alignment,
-            }),
+            })),
             inband_fti: true,
         })
     }
@@ -523,18 +522,18 @@ impl Oti {
     fn scheme_specific_info(&self) -> Option<String> {
         match self.fec_encoding_id {
             FECEncodingID::NoCode => None,
-            FECEncodingID::ReedSolomonGF2M => match self.reed_solomon_scheme_specific.as_ref() {
-                Some(scheme) => Some(scheme.scheme_specific()),
-                None => None,
+            FECEncodingID::ReedSolomonGF2M => match self.scheme_specific.as_ref() {
+                Some(SchemeSpecific::ReedSolomon(scheme)) => Some(scheme.scheme_specific()),
+                _ => None,
             },
             FECEncodingID::ReedSolomonGF28 => None,
-            FECEncodingID::RaptorQ => match self.raptorq_scheme_specific.as_ref() {
-                Some(scheme) => Some(scheme.scheme_specific()),
-                None => None,
+            FECEncodingID::RaptorQ => match self.scheme_specific.as_ref() {
+                Some(SchemeSpecific::RaptorQ(scheme)) => Some(scheme.scheme_specific()),
+                _ => None,
             },
-            FECEncodingID::Raptor => match self.raptor_scheme_specific.as_ref() {
-                Some(scheme) => Some(scheme.scheme_specific()),
-                None => None,
+            FECEncodingID::Raptor => match self.scheme_specific.as_ref() {
+                Some(SchemeSpecific::Raptor(scheme)) => Some(scheme.scheme_specific()),
+                _ => None,
             },
             FECEncodingID::ReedSolomonGF28UnderSpecified => None,
         }

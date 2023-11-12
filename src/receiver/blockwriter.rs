@@ -162,6 +162,10 @@ impl BlockWriter {
         }
     }
 
+    pub fn left(&self) -> usize {
+        self.bytes_left
+    }
+
     pub fn is_completed(&self) -> bool {
         self.bytes_left == 0
     }

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema
+xmlns="urn:3GPP:metadata:2005:MBMS:FLUTE:FDT"
+xmlns:xs="http://www.w3.org/2001/XMLSchema"
+targetNamespace="urn:3GPP:metadata:2005:MBMS:FLUTE:FDT"
+elementFormDefault="qualified">
+<xs:complexType name="MBMS-Session-Identity-Expiry-Type">
+<xs:simpleContent>
+<xs:extension base="MBMS-Session-Identity-Type">
+<xs:attribute name="value" type="xs:unsignedInt" use="required"/>
+</xs:extension>
+</xs:simpleContent>
+</xs:complexType>
+<xs:simpleType name="MBMS-Session-Identity-Type">
+<xs:restriction base="xs:unsignedByte"/>
+</xs:simpleType>
+<xs:simpleType name="groupIdType">
+<xs:restriction base="xs:string"></xs:restriction>
+</xs:simpleType>
+</xs:schema>

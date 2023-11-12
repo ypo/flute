@@ -1,4 +1,5 @@
 use super::objectdesc::{create_fdt_cache_control, ObjectDesc};
+use crate::common::oti::SchemeSpecific;
 use crate::common::{fdtinstance, oti, partition};
 use crate::error::{FluteError, Result};
 use std::sync::RwLock;
@@ -8,6 +9,7 @@ use std::time::SystemTime;
 struct TransferInfo {
     transferring: bool,
     transfer_count: u32,
+    total_nb_transfer: u64,
     last_transfer: Option<SystemTime>,
 }
 
@@ -54,7 +56,7 @@ impl FileDesc {
             );
 
             if oti.fec_encoding_id == oti::FECEncodingID::RaptorQ {
-                if oti.raptorq_scheme_specific.is_none() {
+                if oti.scheme_specific.is_none() {
                     return Err(FluteError::new(
                         "FEC RaptorQ is selected, however scheme parameters are not defined",
                     ));
@@ -68,10 +70,11 @@ impl FileDesc {
                     ))
                 })?;
 
-                let scheme = oti.raptorq_scheme_specific.as_mut().unwrap();
-                scheme.source_blocks_length = nb_blocks;
+                if let SchemeSpecific::RaptorQ(scheme) = oti.scheme_specific.as_mut().unwrap() {
+                    scheme.source_blocks_length = nb_blocks;
+                }
             } else if oti.fec_encoding_id == oti::FECEncodingID::Raptor {
-                if oti.raptor_scheme_specific.is_none() {
+                if oti.scheme_specific.is_none() {
                     return Err(FluteError::new(
                         "FEC Raptor is selected, however scheme parameters are not defined",
                     ));
@@ -85,8 +88,9 @@ impl FileDesc {
                     ))
                 })?;
 
-                let scheme = oti.raptor_scheme_specific.as_mut().unwrap();
-                scheme.source_blocks_length = nb_blocks;
+                if let SchemeSpecific::Raptor(scheme) = oti.scheme_specific.as_mut().unwrap() {
+                    scheme.source_blocks_length = nb_blocks;
+                }
             }
         }
 
@@ -100,8 +104,14 @@ impl FileDesc {
                 transferring: false,
                 transfer_count: 0,
                 last_transfer: None,
+                total_nb_transfer: 0,
             }),
         })
+    }
+
+    pub fn _total_nb_transfer(&self) -> u64 {
+        let info = self.transfer_info.read().unwrap();
+        info.total_nb_transfer
     }
 
     pub fn transfer_started(&self) {
@@ -120,6 +130,7 @@ impl FileDesc {
         assert!(info.transferring == true);
         info.transferring = false;
         info.transfer_count += 1;
+        info.total_nb_transfer += 1;
         info.last_transfer = Some(now);
     }
 

@@ -1,8 +1,8 @@
 use super::receiver::{Config, Receiver};
 use super::tsifilter::TSIFilter;
 use super::writer::ObjectWriterBuilder;
-use super::UDPEndpoint;
 use crate::common::alc;
+use crate::common::udpendpoint::UDPEndpoint;
 use crate::tools::error::Result;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -43,7 +43,8 @@ impl MultiReceiver {
     /// ```
     /// // Receive objects from Transport Session 1
     /// use flute::receiver::writer::ObjectWriterBufferBuilder;
-    /// use flute::receiver::{MultiReceiver, UDPEndpoint};
+    /// use flute::receiver::{MultiReceiver};
+    /// use flute::core::UDPEndpoint;
     /// use std::rc::Rc;
     ///
     /// let tsi: u64 = 1;

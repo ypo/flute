@@ -1,6 +1,10 @@
 use super::AlcCodec;
 use crate::{
-    common::{alc, lct, oti, pkt},
+    common::{
+        alc, lct,
+        oti::{self, SchemeSpecific},
+        pkt,
+    },
     error::FluteError,
 };
 
@@ -31,18 +35,19 @@ impl AlcCodec for AlcRaptorQ {
         let transfer_header: u64 =
             (transfer_length << 24) | (oti.encoding_symbol_length as u64 & 0xFFFF);
 
-        assert!(oti.raptorq_scheme_specific.is_some());
-        let raptorq = oti.raptorq_scheme_specific.as_ref().unwrap();
-
-        let padding: u16 = 0;
-
-        data.extend(ext_header.to_be_bytes());
-        data.extend(transfer_header.to_be_bytes());
-        data.push(raptorq.source_blocks_length);
-        data.extend(raptorq.sub_blocks_length.to_be_bytes());
-        data.push(raptorq.symbol_alignment);
-        data.extend(padding.to_be_bytes());
-        lct::inc_hdr_len(data, len);
+        assert!(oti.scheme_specific.is_some());
+        if let SchemeSpecific::RaptorQ(raptorq) = oti.scheme_specific.as_ref().unwrap() {
+            let padding: u16 = 0;
+            data.extend(ext_header.to_be_bytes());
+            data.extend(transfer_header.to_be_bytes());
+            data.push(raptorq.source_blocks_length);
+            data.extend(raptorq.sub_blocks_length.to_be_bytes());
+            data.push(raptorq.symbol_alignment);
+            data.extend(padding.to_be_bytes());
+            lct::inc_hdr_len(data, len);
+        } else {
+            assert!(false);
+        }
     }
 
     fn get_fti(
@@ -94,13 +99,11 @@ impl AlcCodec for AlcRaptorQ {
             maximum_source_block_length: maximum_source_block_length as u32,
             encoding_symbol_length: symbol_size,
             max_number_of_parity_symbols: 0, // Unknown for RaptorQ
-            reed_solomon_scheme_specific: None,
-            raptorq_scheme_specific: Some(oti::RaptorQSchemeSpecific {
+            scheme_specific: Some(SchemeSpecific::RaptorQ(oti::RaptorQSchemeSpecific {
                 source_blocks_length: z,
                 sub_blocks_length: n,
                 symbol_alignment: al,
-            }),
-            raptor_scheme_specific: None,
+            })),
             inband_fti: true,
         };
 
@@ -125,6 +128,11 @@ impl AlcCodec for AlcRaptorQ {
         pkt: &alc::AlcPkt,
         _oti: &oti::Oti,
     ) -> crate::error::Result<alc::PayloadID> {
+        self.get_fec_inline_payload_id(pkt)
+    }
+
+    fn get_fec_inline_payload_id(&self, pkt: &alc::AlcPkt) -> crate::error::Result<alc::PayloadID> {
+
         let data = &pkt.data[pkt.data_alc_header_offset..pkt.data_payload_offset];
         let arr: [u8; 4] = match data.try_into() {
             Ok(arr) => arr,

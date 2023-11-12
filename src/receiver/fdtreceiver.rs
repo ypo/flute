@@ -1,5 +1,6 @@
+use super::objectreceiver;
 use super::writer::ObjectWriterBuilder;
-use super::{objectreceiver, UDPEndpoint};
+use crate::common::udpendpoint::UDPEndpoint;
 use crate::common::{alc, fdtinstance::FdtInstance, lct};
 use crate::{receiver::writer::ObjectMetadata, tools};
 use crate::{receiver::writer::ObjectWriter, tools::error::Result};
@@ -74,7 +75,10 @@ impl FdtReceiver {
                 endpoint,
                 tsi,
                 &lct::TOI_FDT,
+                Some(fdt_id),
                 fdt_builder,
+                true,
+                now,
             ))),
             inner: inner.clone(),
             fdt_instance: None,
@@ -158,6 +162,11 @@ impl FdtReceiver {
 
         self.get_server_time(now) > expires
     }
+
+    pub fn get_expiration_time(&self) -> Option<SystemTime> {
+        let inner = self.inner.borrow();
+        return inner.expires;
+    }
 }
 
 impl FdtWriterBuilder {
@@ -173,6 +182,7 @@ impl ObjectWriterBuilder for FdtWriterBuilder {
         _tsi: &u64,
         _toi: &u128,
         _meta: Option<&ObjectMetadata>,
+        _now: std::time::SystemTime,
     ) -> Box<dyn ObjectWriter> {
         Box::new(FdtWriter {
             inner: self.inner.clone(),
@@ -189,7 +199,15 @@ impl ObjectWriterBuilder for FdtWriterBuilder {
     ) {
     }
 
-    fn fdt_received(&self, _endpoint: &UDPEndpoint, _tsi: &u64, _fdt_xml: &str) {}
+    fn fdt_received(
+        &self,
+        _endpoint: &UDPEndpoint,
+        _tsi: &u64,
+        _fdt_xml: &str,
+        _expires: std::time::SystemTime,
+        _now: std::time::SystemTime,
+    ) {
+    }
 }
 
 impl ObjectWriter for FdtWriter {

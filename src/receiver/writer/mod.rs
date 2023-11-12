@@ -12,6 +12,7 @@
 
 use std::time::Duration;
 
+use crate::common::udpendpoint::UDPEndpoint;
 use crate::tools::error::Result;
 
 ///
@@ -29,6 +30,8 @@ pub struct ObjectMetadata {
     pub content_type: Option<String>,
     /// Object cache duration hint
     pub cache_duration: Option<Duration>,
+    /// List of groups
+    pub groups: Option<Vec<String>>,
 }
 
 ///
@@ -42,6 +45,7 @@ pub trait ObjectWriterBuilder {
         tsi: &u64,
         toi: &u128,
         meta: Option<&ObjectMetadata>,
+        now: std::time::SystemTime,
     ) -> Box<dyn ObjectWriter>;
     /// Update cache duration of an object
     fn set_cache_duration(
@@ -53,7 +57,14 @@ pub trait ObjectWriterBuilder {
         duration: &Duration,
     );
     /// Called when an FDT is received
-    fn fdt_received(&self, endpoint: &UDPEndpoint, tsi: &u64, fdt_xml: &str);
+    fn fdt_received(
+        &self,
+        endpoint: &UDPEndpoint,
+        tsi: &u64,
+        fdt_xml: &str,
+        expires: std::time::SystemTime,
+        now: std::time::SystemTime,
+    );
 }
 
 ///
@@ -90,5 +101,3 @@ pub use objectwriterbuffer::ObjectWriterBufferBuilder;
 
 pub use objectwriterfs::ObjectWriterFS;
 pub use objectwriterfs::ObjectWriterFSBuilder;
-
-use super::UDPEndpoint;

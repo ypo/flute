@@ -63,9 +63,7 @@ impl AlcCodec for AlcNoCode {
             maximum_source_block_length,
             encoding_symbol_length,
             max_number_of_parity_symbols: 0,
-            reed_solomon_scheme_specific: None,
-            raptorq_scheme_specific: None,
-            raptor_scheme_specific: None,
+            scheme_specific: None,
             inband_fti: true,
         };
 
@@ -77,6 +75,10 @@ impl AlcCodec for AlcNoCode {
         pkt: &alc::AlcPkt,
         _oti: &oti::Oti,
     ) -> crate::error::Result<alc::PayloadID> {
+        self.get_fec_inline_payload_id(pkt)
+    }
+
+    fn get_fec_inline_payload_id(&self, pkt: &alc::AlcPkt) -> crate::error::Result<alc::PayloadID> {
         let data = &pkt.data[pkt.data_alc_header_offset..pkt.data_payload_offset];
         let arr: [u8; 4] = match data.try_into() {
             Ok(arr) => arr,

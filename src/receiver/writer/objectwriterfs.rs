@@ -1,7 +1,7 @@
 use super::{ObjectMetadata, ObjectWriter, ObjectWriterBuilder};
 use crate::{
+    common::udpendpoint::UDPEndpoint,
     error::{FluteError, Result},
-    receiver::UDPEndpoint,
 };
 use std::{cell::RefCell, io::Write};
 
@@ -33,6 +33,7 @@ impl ObjectWriterBuilder for ObjectWriterFSBuilder {
         _tsi: &u64,
         _toi: &u128,
         meta: Option<&ObjectMetadata>,
+        _now: std::time::SystemTime,
     ) -> Box<dyn ObjectWriter> {
         let obj = Box::new(ObjectWriterFS {
             dest: self.dest.clone(),
@@ -55,7 +56,15 @@ impl ObjectWriterBuilder for ObjectWriterFSBuilder {
     ) {
     }
 
-    fn fdt_received(&self, _endpoint: &UDPEndpoint, _tsi: &u64, _fdt_xml: &str) {}
+    fn fdt_received(
+        &self,
+        _endpoint: &UDPEndpoint,
+        _tsi: &u64,
+        _fdt_xml: &str,
+        _expires: std::time::SystemTime,
+        _now: std::time::SystemTime,
+    ) {
+    }
 }
 
 ///

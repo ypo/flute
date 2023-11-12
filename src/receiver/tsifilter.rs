@@ -1,4 +1,4 @@
-use super::UDPEndpoint;
+use crate::common::udpendpoint::UDPEndpoint;
 
 struct TSI {
     endpoints: std::collections::HashMap<UDPEndpoint, u64>,
