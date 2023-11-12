@@ -18,6 +18,8 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
+    - name: Install xmllint
+      run: sudo apt-get install -y libxml2-utils
     - name: Build
       run: cargo build --verbose
     - name: Run tests
