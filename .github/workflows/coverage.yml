@@ -14,7 +14,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
       - name: Install xmllint
-        run: apt-get install -y libxml2-utils
+        run: |
+          apt-get update
+          apt-get install -y libxml2-utils
 
       - name: Generate code coverage
         run: |
