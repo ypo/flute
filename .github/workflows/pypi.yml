@@ -30,33 +30,33 @@ jobs:
           name: wheels
           path: dist
 
-  windows:
-    runs-on: windows-latest
-    name: windows (${{ matrix.platform.target }})
-    strategy:
-      matrix:
-        platform:
-          - target: x64
-            interpreter: 3.7 3.8 3.9 3.10 3.11 pypy3.8 pypy3.9
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-          architecture: ${{ matrix.platform.target }}
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: ${{ matrix.platform.target }}
-          args: --all-features --release --out dist -i ${{ matrix.platform.interpreter }}
-      - name: Upload wheels
-        uses: actions/upload-artifact@v3
-        with:
-          name: wheels
-          path: dist
+  #windows:
+  #  runs-on: windows-latest
+  #  name: windows (${{ matrix.platform.target }})
+  #  strategy:
+  #    matrix:
+  #      platform:
+  #        - target: x64
+  #          interpreter: 3.7 3.8 3.9 3.10 3.11 pypy3.8 pypy3.9
+  #  steps:
+  #    - uses: actions/checkout@v3
+  #    - uses: actions/setup-python@v4
+  #      with:
+  #        python-version: '3.11'
+  #        architecture: ${{ matrix.platform.target }}
+  #    - uses: actions-rs/toolchain@v1
+  #      with:
+  #        toolchain: stable
+  #    - name: Build wheels
+  #      uses: PyO3/maturin-action@v1
+  #      with:
+  #        target: ${{ matrix.platform.target }}
+  #        args: --all-features --release --out dist -i ${{ matrix.platform.interpreter }}
+  #    - name: Upload wheels
+  #      uses: actions/upload-artifact@v3
+  #      with:
+  #        name: wheels
+  #        path: dist
 
   release:
     name: Release
