@@ -232,6 +232,11 @@ impl Sender {
         self.fdt.allocate_toi()
     }
 
+    /// Convert current FDT to XML
+    pub fn fdt_xml_data(&self, now: SystemTime) -> Result<Vec<u8>> {
+        self.fdt.to_xml(now)
+    }
+
     /// Read the next ALC/LCT packet
     /// return None if there is no new packet to be transferred
     /// ALC/LCT packet should be encapsulated into a UDP/IP payload and transferred via UDP/multicast

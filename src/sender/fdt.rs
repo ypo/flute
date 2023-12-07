@@ -373,7 +373,7 @@ impl Fdt {
         self.complete = Some(true)
     }
 
-    fn to_xml(&self, now: SystemTime) -> Result<Vec<u8>> {
+    pub fn to_xml(&self, now: SystemTime) -> Result<Vec<u8>> {
         let mut buffer = ToFmtWrite(Vec::new());
         let mut writer = quick_xml::Writer::new_with_indent(&mut buffer, b' ', 2);
 
@@ -479,6 +479,7 @@ mod tests {
 
         fdt.add_object(obj1).unwrap();
         fdt.add_object(obj2).unwrap();
+        fdt.groups = Some(vec!("Group1".to_owned(), "Group2".to_owned()));
         fdt
     }
 
