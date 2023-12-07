@@ -224,13 +224,15 @@ pub struct FdtInstance {
     pub delimiter: Option<u8>,
 
     #[serde(
-        rename = "Group",
+        rename = "mbms2005:Group",
+        alias = "Group",
         skip_serializing_if = "Option::is_none"
     )]
     pub group: Option<Vec<String>>,
 
     #[serde(
-        rename = "MBMS-Session-Identity-Expiry",
+        rename = "mbms2005:MBMS-Session-Identity-Expiry",
+        alias = "MBMS-Session-Identity-Expiry",
         skip_serializing_if = "Option::is_none"
     )]
     pub mbms_session_identity_expiry: Option<Vec<MBMSSessionIdentityExpiry>>,
@@ -303,11 +305,16 @@ pub struct File {
     #[serde(alias = "delimiter")]
     pub delimiter2: Option<u8>,
 
-    #[serde(rename = "Group", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "mbms2005:Group",
+        alias = "Group",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub group: Option<Vec<String>>,
 
     #[serde(
-        rename = "MBMS-Session-Identity",
+        rename = "mbms2005:MBMS-Session-Identity",
+        alias = "MBMS-Session-Identity",
         skip_serializing_if = "Option::is_none"
     )]
     pub mbms_session_identity: Option<Vec<u8>>,
