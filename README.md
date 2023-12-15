@@ -33,6 +33,7 @@ Transfer files over a UDP/IP network
 use flute::sender::Sender;
 use flute::sender::ObjectDesc;
 use flute::sender::Cenc;
+use flute::core::UDPEndpoint;
 use std::net::UdpSocket;
 use std::time::SystemTime;
 
@@ -44,11 +45,12 @@ udp_socket.connect("224.0.0.1:3400").expect("Connection failed");
 let tsi = 1;
 let oti = Default::default();
 let config = Default::default();
-let mut sender = Sender::new(tsi, &oti, &config);
+let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_string(), 3400);
+let mut sender = Sender::new(endpoint, tsi, &oti, &config);
 
 // Add object(s) (files) to the FLUTE sender
 let obj = ObjectDesc::create_from_buffer(b"hello world", "text/plain",
-&url::Url::parse("file:///hello.txt").unwrap(), 1, None, None, Cenc::Null, true, None, true).unwrap();
+&url::Url::parse("file:///hello.txt").unwrap(), 1, None, None, None, Cenc::Null, true, None, true).unwrap();
 sender.add_object(obj);
 
 // Always call publish after adding objects
@@ -66,7 +68,8 @@ while let Some(pkt) = sender.read(SystemTime::now()) {
 Receive files from a UDP/IP network
 
 ```rust
-use flute::receiver::{writer, MultiReceiver, UDPEndpoint};
+use flute::receiver::{writer, MultiReceiver};
+use flute::core::UDPEndpoint;
 use std::net::UdpSocket;
 use std::time::SystemTime;
 use std::rc::Rc;
@@ -109,11 +112,13 @@ used to configure Forward Error Correction (FEC) encoding in the FLUTE protocol.
 ```rust
 use flute::sender::Oti;
 use flute::sender::Sender;
+use flute::core::UDPEndpoint;
 
 // Reed Solomon 2^8 with encoding blocks composed of
 // 60 source symbols and 4 repair symbols of 1424 bytes per symbol
+let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_string(), 3400);
 let oti = Oti::new_reed_solomon_rs28(1424, 60, 4).unwrap();
-let mut sender = Sender::new(1, &oti, &Default::default());
+let mut sender = Sender::new(endpoint, 1, &oti, &Default::default());
 ```
 
 ## Content Encoding (CENC)
@@ -141,6 +146,7 @@ To configure the multiplexing, use the `Config` struct as follows:
 ```rust
 use flute::sender::Sender;
 use flute::sender::Config;
+use flute::core::UDPEndpoint;
 
 let config = Config {
     // Transfer a maximum of 3 files in parallel
@@ -150,7 +156,8 @@ let config = Config {
     ..Default::default()
 };
 
-let mut sender = Sender::new(1, &Default::default(), &config);
+let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_string(), 3400);
+let mut sender = Sender::new(endpoint, 1, &Default::default(), &config);
 
 ```
 
