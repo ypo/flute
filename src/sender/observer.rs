@@ -40,7 +40,7 @@ impl ObserverList {
         self.0
             .write()
             .unwrap()
-            .retain(|a| a.as_ref() as *const _ != s.as_ref() as *const _)
+            .retain(|a| !std::ptr::eq(a.as_ref() as *const _, s.as_ref() as *const _))
     }
 
     pub fn dispatch(&self, event: &Event, now: std::time::SystemTime) {
