@@ -1,3 +1,4 @@
+use std::io::Read;
 use std::sync::Arc;
 
 use super::filedesc;
@@ -19,12 +20,22 @@ pub struct BlockEncoder {
     read_end: bool,
     source_size_transferred: usize,
     nb_pkt_sent: usize,
+    fd: Option<std::fs::File>,
 }
 
 use super::block::Block;
 
 impl BlockEncoder {
-    pub fn new(file: Arc<filedesc::FileDesc>, block_multiplex_windows: usize) -> BlockEncoder {
+    pub fn new(
+        file: Arc<filedesc::FileDesc>,
+        block_multiplex_windows: usize,
+    ) -> Result<BlockEncoder> {
+        let mut fd = None;
+        if let (None, Some(path)) = (file.object.content.as_ref(), file.object.path.as_ref()) {
+            log::info!("Open file {:?}", path);
+            fd = Some(std::fs::File::open(path)?);
+        }
+
         let mut block = BlockEncoder {
             file,
             curr_content_offset: 0,
@@ -39,9 +50,10 @@ impl BlockEncoder {
             read_end: false,
             source_size_transferred: 0,
             nb_pkt_sent: 0,
+            fd: fd,
         };
         block.block_partitioning();
-        block
+        Ok(block)
     }
 
     pub fn read(&mut self) -> Option<pkt::Pkt> {
@@ -121,6 +133,11 @@ impl BlockEncoder {
 
     fn read_block(&mut self) -> Result<()> {
         assert!(self.read_end == false);
+
+        if self.fd.is_some() {
+            return self.read_fd_block();
+        }
+
         if self.file.object.content.is_none() {
             self.read_end = true;
             return Ok(());
@@ -154,6 +171,40 @@ impl BlockEncoder {
             self.read_end
         );
 
+        Ok(())
+    }
+
+    fn read_fd_block(&mut self) -> Result<()> {
+        let fd = self.fd.as_mut().unwrap();
+
+        log::info!("Read block nb {}", self.curr_sbn);
+        let oti = &self.file.oti;
+        let block_length = match self.curr_sbn as u64 {
+            value if value < self.nb_a_large => self.a_large,
+            _ => self.a_small,
+        };
+        let mut buffer: Vec<u8> =
+            vec![0; block_length as usize * oti.encoding_symbol_length as usize];
+        let result = match fd.read(&mut buffer) {
+            Ok(s) => s,
+            Err(e) => {
+                log::error!("Fail to read file {:?}", e.to_string());
+                self.read_end = true;
+                return Ok(());
+            }
+        };
+
+        if result == 0 {
+            self.read_end = true;
+            return Ok(());
+        }
+
+        buffer.truncate(result);
+
+        let block = Block::new_from_buffer(self.curr_sbn, &buffer, block_length, &oti)?;
+        self.blocks.push(block);
+        self.curr_sbn += 1;
+        self.curr_content_offset += buffer.len() as u64;
         Ok(())
     }
 

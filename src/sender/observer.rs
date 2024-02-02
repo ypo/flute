@@ -42,7 +42,7 @@ impl ObserverList {
             .unwrap()
             .retain(|a| !std::ptr::eq(a.as_ref() as *const _, s.as_ref() as *const _))
     }
-
+    
     pub fn dispatch(&self, event: &Event, now: std::time::SystemTime) {
         let lock = self.0.read().unwrap();
 

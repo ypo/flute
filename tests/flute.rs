@@ -1,52 +1,98 @@
 mod tests {
     use flute::core::UDPEndpoint;
     use rand::RngCore;
+    use std::io::Write;
     use std::rc::Rc;
 
     use flute::receiver;
     use flute::sender;
 
     pub fn init() {
-        std::env::set_var("RUST_LOG", "debug");
+        // std::env::set_var("RUST_LOG", "debug");
         env_logger::builder().is_test(true).try_init().ok();
     }
 
     fn create_sender(
-        buffer: &[u8],
-        content_location: &url::Url,
-        content_type: &str,
+        objects: Vec<Box<sender::ObjectDesc>>,
         oti: &sender::Oti,
-        object_oti: Option<&sender::Oti>,
-        cenc: sender::Cenc,
-        inband_cenc: bool,
+        fdt_cenc: sender::Cenc,
         sender_config: Option<sender::Config>,
     ) -> Box<sender::Sender> {
         let config = sender_config.unwrap_or(sender::Config {
-            fdt_cenc: cenc,
+            fdt_cenc: fdt_cenc,
             ..Default::default()
         });
         let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_owned(), 5000);
         let mut sender = Box::new(sender::Sender::new(endpoint, 1, &oti, &config));
-        sender
-            .add_object(
-                sender::ObjectDesc::create_from_buffer(
-                    buffer,
-                    content_type,
-                    content_location,
-                    1,
-                    None,
-                    None,
-                    None,
-                    cenc,
-                    inband_cenc,
-                    object_oti.map(|e| e.clone()),
-                    true,
-                )
-                .unwrap(),
-            )
-            .unwrap();
+
+        for obj in objects {
+            sender.add_object(obj).unwrap();
+        }
         sender.publish(std::time::SystemTime::now()).unwrap();
         sender
+    }
+
+    fn create_object(
+        transfer_file_size: usize,
+        content_type: &str,
+        cenc: sender::Cenc,
+        inband_cenc: bool,
+        object_oti: Option<&sender::Oti>,
+    ) -> (Box<sender::ObjectDesc>, Vec<u8>) {
+        let (buffer, content_location) = create_file_buffer(transfer_file_size);
+        (
+            sender::ObjectDesc::create_from_buffer(
+                &buffer,
+                &content_type,
+                &content_location,
+                1,
+                None,
+                None,
+                None,
+                cenc,
+                inband_cenc,
+                object_oti.map(|e| e.clone()),
+                true,
+            )
+            .unwrap(),
+            buffer,
+        )
+    }
+
+    fn create_temp_file_object(
+        transfer_file_size: usize,
+        content_type: &str,
+        cenc: sender::Cenc,
+        inband_cenc: bool,
+        object_oti: Option<&sender::Oti>,
+    ) -> (Box<sender::ObjectDesc>, Vec<u8>) {
+        let (buffer, content_location) = create_file_buffer(transfer_file_size);
+        let file_path = std::env::temp_dir().join("flute_object_test.bin");
+        let mut file = std::fs::File::create(&file_path).unwrap();
+        file.write_all(&buffer).unwrap();
+        (
+            sender::ObjectDesc::create_from_file(
+                &file_path,
+                Some(&content_location),
+                &content_type,
+                false,
+                1,
+                None,
+                None,
+                None,
+                cenc,
+                inband_cenc,
+                object_oti.map(|e| e.clone()),
+                true,
+            )
+            .unwrap(),
+            buffer,
+        )
+    }
+
+    fn delete_temp_file() {
+        let file_path = std::env::temp_dir().join("flute_object_test.bin");
+        std::fs::remove_file(file_path).ok();
     }
 
     fn run(sender: &mut sender::Sender, receiver: &mut receiver::MultiReceiver) {
@@ -136,27 +182,43 @@ mod tests {
         inband_cenc: bool,
         sender_config: Option<sender::Config>,
         transfer_file_size: usize,
+        temp_file: bool,
     ) {
         let content_type = "application/octet-stream";
-        let (input_file_buffer, input_content_location) = create_file_buffer(transfer_file_size);
+
+        let (obj, input_file_buffer) = match temp_file {
+            true => create_temp_file_object(
+                transfer_file_size,
+                content_type,
+                cenc,
+                inband_cenc,
+                object_oti,
+            ),
+            _ => create_object(
+                transfer_file_size,
+                content_type,
+                cenc,
+                inband_cenc,
+                object_oti,
+            ),
+        };
+
+        let input_content_location = obj.content_location.clone();
+
         let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new());
         let mut receiver = receiver::MultiReceiver::new(output.clone(), None, false);
-        let mut sender = create_sender(
-            &input_file_buffer,
-            &input_content_location,
-            content_type,
-            &oti,
-            object_oti,
-            cenc,
-            inband_cenc,
-            sender_config,
-        );
+        let mut sender = create_sender(vec![obj], &oti, cenc, sender_config);
 
         if with_loss {
             run_loss(&mut sender, &mut receiver)
         } else {
             run(&mut sender, &mut receiver);
         }
+
+        if temp_file {
+            delete_temp_file();
+        }
+
         check_output(
             &input_file_buffer,
             &input_content_location,
@@ -176,6 +238,37 @@ mod tests {
             true,
             None,
             100000,
+            false,
+        );
+    }
+
+    #[test]
+    pub fn test_receiver_no_code_temp_file() {
+        init();
+        test_receiver_with_oti(
+            &sender::Oti::new_no_code(1400, 64),
+            None,
+            false,
+            sender::Cenc::Null,
+            true,
+            None,
+            100000,
+            true,
+        );
+    }
+
+    #[test]
+    pub fn test_receiver_no_code_large_temp_file() {
+        init();
+        test_receiver_with_oti(
+            &sender::Oti::new_no_code(1400, 64),
+            None,
+            false,
+            sender::Cenc::Null,
+            true,
+            None,
+            100000000,
+            true,
         );
     }
 
@@ -194,6 +287,7 @@ mod tests {
                 ..Default::default()
             }),
             100000,
+            false,
         );
     }
 
@@ -208,6 +302,7 @@ mod tests {
             true,
             None,
             100000,
+            false,
         );
     }
 
@@ -222,6 +317,7 @@ mod tests {
             true,
             None,
             100000,
+            false,
         );
     }
 
@@ -236,6 +332,7 @@ mod tests {
             true,
             None,
             100000,
+            false,
         );
     }
 
@@ -244,14 +341,32 @@ mod tests {
         crate::tests::init();
         let oti: sender::Oti =
             sender::Oti::new_reed_solomon_rs28_under_specified(1400, 64, 20).unwrap();
-        test_receiver_with_oti(&oti, None, true, sender::Cenc::Null, true, None, 100000);
+        test_receiver_with_oti(
+            &oti,
+            None,
+            true,
+            sender::Cenc::Null,
+            true,
+            None,
+            100000,
+            false,
+        );
     }
 
     #[test]
     pub fn test_receiver_reed_solomon_gf28() {
         crate::tests::init();
         let oti: sender::Oti = sender::Oti::new_reed_solomon_rs28(1400, 64, 20).unwrap();
-        test_receiver_with_oti(&oti, None, true, sender::Cenc::Null, true, None, 100000);
+        test_receiver_with_oti(
+            &oti,
+            None,
+            true,
+            sender::Cenc::Null,
+            true,
+            None,
+            100000,
+            false,
+        );
     }
 
     #[test]
@@ -267,6 +382,7 @@ mod tests {
             true,
             None,
             100000,
+            false,
         );
     }
 
@@ -275,21 +391,48 @@ mod tests {
         crate::tests::init();
         let mut oti: sender::Oti = sender::Oti::new_reed_solomon_rs28(1400, 64, 20).unwrap();
         oti.inband_fti = false;
-        test_receiver_with_oti(&oti, None, true, sender::Cenc::Null, true, None, 100000);
+        test_receiver_with_oti(
+            &oti,
+            None,
+            true,
+            sender::Cenc::Null,
+            true,
+            None,
+            100000,
+            false,
+        );
     }
 
     #[test]
     pub fn test_receiver_raptorq() {
         crate::tests::init();
         let oti: sender::Oti = sender::Oti::new_raptorq(1400, 64, 20, 1, 4).unwrap();
-        test_receiver_with_oti(&oti, None, true, sender::Cenc::Null, true, None, 100000);
+        test_receiver_with_oti(
+            &oti,
+            None,
+            true,
+            sender::Cenc::Null,
+            true,
+            None,
+            100000,
+            false,
+        );
     }
 
     #[test]
     pub fn test_receiver_raptor() {
         crate::tests::init();
         let oti: sender::Oti = sender::Oti::new_raptor(1400, 64, 20, 1, 4).unwrap();
-        test_receiver_with_oti(&oti, None, true, sender::Cenc::Null, true, None, 100000);
+        test_receiver_with_oti(
+            &oti,
+            None,
+            true,
+            sender::Cenc::Null,
+            true,
+            None,
+            100000,
+            false,
+        );
     }
 
     #[test]
@@ -297,7 +440,16 @@ mod tests {
         crate::tests::init();
         let mut oti: sender::Oti = sender::Oti::new_raptorq(1400, 64, 20, 1, 4).unwrap();
         oti.inband_fti = false;
-        test_receiver_with_oti(&oti, None, true, sender::Cenc::Null, true, None, 100000);
+        test_receiver_with_oti(
+            &oti,
+            None,
+            true,
+            sender::Cenc::Null,
+            true,
+            None,
+            100000,
+            false,
+        );
     }
 
     #[test]
@@ -305,14 +457,32 @@ mod tests {
         crate::tests::init();
         let mut oti: sender::Oti = Default::default();
         oti.inband_fti = false;
-        test_receiver_with_oti(&oti, None, false, sender::Cenc::Null, true, None, 100000);
+        test_receiver_with_oti(
+            &oti,
+            None,
+            false,
+            sender::Cenc::Null,
+            true,
+            None,
+            100000,
+            false,
+        );
     }
 
     #[test]
     pub fn test_receiver_outband_cenc() {
         crate::tests::init();
         let oti: sender::Oti = Default::default();
-        test_receiver_with_oti(&oti, None, false, sender::Cenc::Null, false, None, 100000);
+        test_receiver_with_oti(
+            &oti,
+            None,
+            false,
+            sender::Cenc::Null,
+            false,
+            None,
+            100000,
+            false,
+        );
     }
 
     #[test]
@@ -320,7 +490,16 @@ mod tests {
         crate::tests::init();
         let mut oti: sender::Oti = Default::default();
         oti.inband_fti = false;
-        test_receiver_with_oti(&oti, None, false, sender::Cenc::Null, false, None, 100000);
+        test_receiver_with_oti(
+            &oti,
+            None,
+            false,
+            sender::Cenc::Null,
+            false,
+            None,
+            100000,
+            false,
+        );
     }
 
     #[test]
@@ -328,18 +507,14 @@ mod tests {
         crate::tests::init();
 
         let oti: sender::Oti = Default::default();
-        let (input_file_buffer, input_content_location) = create_file_buffer(100000);
         let content_type = "application/octet-stream";
+        let (obj, _) = create_object(100000, content_type, sender::Cenc::Null, true, None);
         let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new());
         let mut receiver = receiver::MultiReceiver::new(output.clone(), None, false);
         let mut sender = create_sender(
-            &input_file_buffer,
-            &input_content_location,
-            content_type,
+            vec![obj],
             &oti,
-            None,
             sender::Cenc::Null,
-            true,
             Some(sender::Config {
                 fdt_duration: std::time::Duration::from_secs(30),
                 fdt_inband_sct: false,
@@ -395,6 +570,7 @@ mod tests {
             true,
             None,
             0,
+            false,
         );
     }
 }

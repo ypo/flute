@@ -3,9 +3,11 @@ use base64::Engine;
 use super::compress;
 use super::toiallocator::Toi;
 use crate::common::{fdtinstance, lct, oti};
+use crate::error::FluteError;
 use crate::tools;
 use crate::tools::error::Result;
 use std::ffi::OsStr;
+use std::io::{BufReader, Read};
 use std::sync::Arc;
 use std::time::SystemTime;
 
@@ -96,6 +98,7 @@ impl ObjectDesc {
         path: &std::path::Path,
         content_location: Option<&url::Url>,
         content_type: &str,
+        cache_in_ram: bool,
         max_transfer_count: u32,
         carousel_delay: Option<std::time::Duration>,
         cache_control: Option<CacheControl>,
@@ -105,7 +108,6 @@ impl ObjectDesc {
         oti: Option<oti::Oti>,
         md5: bool,
     ) -> Result<Box<ObjectDesc>> {
-        let content = std::fs::read(path)?;
         let content_location = match content_location {
             Some(cl) => cl.clone(),
             None => url::Url::parse(&format!(
@@ -118,20 +120,37 @@ impl ObjectDesc {
             .unwrap_or(url::Url::parse("file:///").unwrap()),
         };
 
-        ObjectDesc::create_with_content(
-            content,
-            Some(path.to_path_buf()),
-            content_type.to_string(),
-            content_location,
-            max_transfer_count,
-            carousel_delay,
-            cache_control,
-            groups,
-            cenc,
-            inband_cenc,
-            oti,
-            md5,
-        )
+        if cache_in_ram {
+            let content = std::fs::read(path)?;
+            Self::create_with_content(
+                content,
+                Some(path.to_path_buf()),
+                content_type.to_string(),
+                content_location,
+                max_transfer_count,
+                carousel_delay,
+                cache_control,
+                groups,
+                cenc,
+                inband_cenc,
+                oti,
+                md5,
+            )
+        } else {
+            Self::create_with_path(
+                path.to_path_buf(),
+                content_type.to_string(),
+                content_location,
+                max_transfer_count,
+                carousel_delay,
+                cache_control,
+                groups,
+                cenc,
+                inband_cenc,
+                oti,
+                md5,
+            )
+        }
     }
 
     /// Return an `ObjectDesc` from a buffer
@@ -217,5 +236,70 @@ impl ObjectDesc {
             groups,
             toi: None,
         }))
+    }
+
+    fn create_with_path(
+        path: std::path::PathBuf,
+        content_type: String,
+        content_location: url::Url,
+        max_transfer_count: u32,
+        carousel_delay: Option<std::time::Duration>,
+        cache_control: Option<CacheControl>,
+        groups: Option<Vec<String>>,
+        cenc: lct::Cenc,
+        inband_cenc: bool,
+        oti: Option<oti::Oti>,
+        md5: bool,
+    ) -> Result<Box<ObjectDesc>> {
+        if cenc != lct::Cenc::Null {
+            return Err(FluteError::new(
+                "Compressed object is not compatible with file path",
+            ));
+        }
+        let file = std::fs::File::open(path.clone())?;
+        let transfer_length = file.metadata()?.len();
+
+        let md5 = match md5 {
+            // https://www.rfc-editor.org/rfc/rfc2616#section-14.15
+            true => Some(
+                base64::engine::general_purpose::STANDARD.encode(Self::compute_file_md5(&file).0),
+            ),
+            false => None,
+        };
+
+        Ok(Box::new(ObjectDesc {
+            content_location: content_location,
+            path: Some(path.to_path_buf()),
+            content: None,
+            content_type: content_type,
+            content_length: transfer_length as u64,
+            transfer_length: transfer_length as u64,
+            cenc: cenc,
+            inband_cenc: inband_cenc,
+            md5: md5,
+            attributes: None,
+            oti: oti,
+            max_transfer_count,
+            carousel_delay,
+            cache_control,
+            groups,
+            toi: None,
+        }))
+    }
+
+    fn compute_file_md5(file: &std::fs::File) -> md5::Digest {
+        let mut reader = BufReader::new(file);
+        let mut context = md5::Context::new();
+        let mut buffer = vec![0; 102400];
+
+        loop {
+            let count = reader.read(&mut buffer).unwrap();
+            if count == 0 {
+                break;
+            }
+            context.consume(&buffer[0..count]);
+        }
+
+        context.compute()
     }
 }

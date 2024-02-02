@@ -1,7 +1,7 @@
 use super::filedesc::FileDesc;
-use super::objectdesc;
 use super::observer::ObserverList;
 use super::toiallocator::{Toi, ToiAllocator};
+use super::{objectdesc, ObjectDesc};
 use crate::common::{fdtinstance::FdtInstance, lct, oti};
 use crate::sender::observer;
 use crate::sender::TOIMaxLength;
@@ -185,6 +185,13 @@ impl Fdt {
         self.files.insert(filedesc.toi, filedesc.clone());
         self.files_transfer_queue.push_back(filedesc);
         Ok(toi)
+    }
+
+    pub fn get_objects_in_fdt(&self) -> std::collections::HashMap<u128, &ObjectDesc> {
+        self.files
+            .iter()
+            .map(|obj| (obj.0.clone(), obj.1.object.as_ref()))
+            .collect()
     }
 
     pub fn inc_toi(&mut self) {
@@ -479,7 +486,7 @@ mod tests {
 
         fdt.add_object(obj1).unwrap();
         fdt.add_object(obj2).unwrap();
-        fdt.groups = Some(vec!("Group1".to_owned(), "Group2".to_owned()));
+        fdt.groups = Some(vec!["Group1".to_owned(), "Group2".to_owned()]);
         fdt
     }
 

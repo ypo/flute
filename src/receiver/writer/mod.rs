@@ -32,6 +32,8 @@ pub struct ObjectMetadata {
     pub cache_duration: Option<Duration>,
     /// List of groups
     pub groups: Option<Vec<String>>,
+    /// Object MD5
+    pub md5: Option<String>,
 }
 
 ///

@@ -95,15 +95,20 @@ impl SenderSession {
                     self.tsi,
                     file.toi,
                     file.fdt_id,
-                    now
+                    now,
                 ));
             }
         }
 
-        self.encoder = Some(BlockEncoder::new(
-            self.file.as_ref().unwrap().clone(),
-            self.interleave_blocks,
-        ));
+        let block_encoder =
+            BlockEncoder::new(self.file.as_ref().unwrap().clone(), self.interleave_blocks);
+        if block_encoder.is_err() {
+            log::error!("Fail to open Block Encoder");
+            self.release_file(fdt, now);
+            return;
+        }
+
+        self.encoder = block_encoder.ok();
     }
 
     fn release_file(&mut self, fdt: &mut Fdt, now: SystemTime) {
@@ -118,6 +123,5 @@ impl SenderSession {
         {
             self.logger = None;
         }
-        
     }
 }

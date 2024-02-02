@@ -1,7 +1,7 @@
 use super::fdt::Fdt;
 use super::observer::ObserverList;
 use super::sendersession::SenderSession;
-use super::{objectdesc, Subscriber, Toi};
+use super::{objectdesc, ObjectDesc, Subscriber, Toi};
 use crate::common::{alc, lct, oti, Profile};
 use crate::core::UDPEndpoint;
 use crate::tools::error::Result;
@@ -235,6 +235,11 @@ impl Sender {
     /// Convert current FDT to XML
     pub fn fdt_xml_data(&self, now: SystemTime) -> Result<Vec<u8>> {
         self.fdt.to_xml(now)
+    }
+
+    /// Get List of objects inside the FDT
+    pub fn get_objects_in_fdt(&self) -> std::collections::HashMap<u128, &ObjectDesc> {
+        self.fdt.get_objects_in_fdt()
     }
 
     /// Read the next ALC/LCT packet

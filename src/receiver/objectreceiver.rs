@@ -314,6 +314,7 @@ impl ObjectReceiver {
                 true => None,
                 false => Some(groups),
             },
+            md5: self.content_md5.clone(),
         });
 
         self.init_blocks_partitioning();

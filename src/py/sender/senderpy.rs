@@ -79,6 +79,7 @@ impl Sender {
             std::path::Path::new(filepath),
             content_location.as_ref(),
             content_type,
+            true,
             1,
             None,
             None,

@@ -41,6 +41,7 @@ fn main() {
             path,
             None,
             "application/octet-stream",
+            true,
             1,
             None,
             None,
