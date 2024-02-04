@@ -170,7 +170,7 @@ FLUTE sender can be configured with multiple queues, each having a different pri
 Files in higher priority queues are always transferred before files in lower priority queues.
 Transfer of files in lower priority queues is paused while there are files to be transferred in higher priority queues.
 
-//!```rust
+```rust
 use flute::sender::Sender;
 use flute::sender::Config;
 use flute::sender::PriorityQueue;
@@ -201,7 +201,7 @@ sender.add_object(PriorityQueue::LOW, low_priority_obj);
 
 // Put Object to the high priority queue
 sender.add_object(PriorityQueue::HIGHEST, high_priority_obj);
-```rust
+```
 
 # Python bindings
 

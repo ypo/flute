@@ -170,7 +170,7 @@
 //! Files in higher priority queues are always transferred before files in lower priority queues.  
 //! Transfer of files in lower priority queues is paused while there are files to be transferred in higher priority queues.  
 //!
-//! //!```rust
+//!```rust
 //! use flute::sender::Sender;
 //! use flute::sender::Config;
 //! use flute::sender::PriorityQueue;
