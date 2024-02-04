@@ -65,13 +65,13 @@ impl Config {
     }
 
     #[getter]
-    pub fn get_multiplex_files(&self) -> PyResult<u8> {
-        Ok(self.0.multiplex_files)
+    pub fn get_multiplex_files(&self) -> PyResult<u32> {
+        Ok(self.0.priority_queues.get(&0).unwrap().multiplex_files)
     }
 
     #[setter]
-    pub fn set_multiplex_files(&mut self, value: u8) -> PyResult<()> {
-        self.0.multiplex_files = value;
+    pub fn set_multiplex_files(&mut self, value: u32) -> PyResult<()> {
+        self.0.priority_queues.get_mut(&0).unwrap().multiplex_files = value;
         Ok(())
     }
 

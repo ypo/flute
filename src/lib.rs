@@ -49,10 +49,10 @@
 //! let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_string(), 3400);
 //! let mut sender = Sender::new(endpoint, tsi, &oti, &config);
 //!
-//! // Add object(s) (files) to the FLUTE sender
+//! // Add object(s) (files) to the FLUTE sender (priority queue 0)
 //! let obj = ObjectDesc::create_from_buffer(b"hello world", "text/plain",
 //! &url::Url::parse("file:///hello.txt").unwrap(), 1, None, None, None, Cenc::Null, true, None, true).unwrap();
-//! sender.add_object(obj);
+//! sender.add_object(0, obj);
 //!
 //! // Always call publish after adding objects
 //! sender.publish(SystemTime::now());
@@ -147,19 +147,60 @@
 //!```rust
 //! use flute::sender::Sender;
 //! use flute::sender::Config;
+//! use flute::sender::PriorityQueue;
 //! use flute::core::UDPEndpoint;
 //!
-//! let config = Config {
-//!     // Transfer a maximum of 3 files in parallel
-//!     multiplex_files: 3,
+//! let mut config = Config {
 //!     // Interleave a maximum of 3 blocks within each file
 //!     interleave_blocks: 3,
 //!     ..Default::default()
 //! };
 //!
+//! // Interleave a maximum of 3 files in priority queue '0'
+//! config.set_priority_queue(PriorityQueue::HIGHEST, PriorityQueue::new(3));
+//!
 //! let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_string(), 3400);
 //! let mut sender = Sender::new(endpoint, 1, &Default::default(), &config);
 //!
+//!```
+//!
+//! # Priority Queues
+//!
+//! FLUTE sender can be configured with multiple queues, each having a different priority level.  
+//! Files in higher priority queues are always transferred before files in lower priority queues.  
+//! Transfer of files in lower priority queues is paused while there are files to be transferred in higher priority queues.  
+//!
+//! //!```rust
+//! use flute::sender::Sender;
+//! use flute::sender::Config;
+//! use flute::sender::PriorityQueue;
+//! use flute::core::UDPEndpoint;
+//!
+//! // Create a default configuration
+//! let mut config = Default::default();
+//!
+//! // Configure the HIGHEST priority queue with a capacity of 3 simultaneous file transfer
+//! config.set_priority_queue(PriorityQueue::HIGHEST, PriorityQueue::new(3));
+//!
+//! // Configure the LOW priority queue with a capacity of 1 file transfer at a time
+//! config.set_priority_queue(PriorityQueue::LOW, PriorityQueue::new(1));
+//!
+//! let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_string(), 3400);
+//! let mut sender = Sender::new(endpoint, 1, &Default::default(), &config);
+//!
+//! // Create an ObjectDesc for a low priority file
+//! let low_priority_obj = ObjectDesc::create_from_buffer(b"low priority", "text/plain",
+//! &url::Url::parse("file:///low_priority.txt").unwrap(), 1, None, None, None, Cenc::Null, true, None, true).unwrap();
+//! 
+//! // Create an ObjectDesc for a high priority file
+//! let high_priority_obj = ObjectDesc::create_from_buffer(b"high priority", "text/plain",
+//! &url::Url::parse("file:///high_priority.txt").unwrap(), 1, None, None, None, Cenc::Null, true, None, true).unwrap();
+//!
+//! // Put Object to the low priority queue
+//! sender.add_object(PriorityQueue::LOW, low_priority_obj);
+//! 
+//! // Put Object to the high priority queue
+//! sender.add_object(PriorityQueue::HIGHEST, high_priority_obj);
 //!```
 
 #![deny(missing_docs)]

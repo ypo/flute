@@ -15,6 +15,7 @@ struct TransferInfo {
 
 #[derive(Debug)]
 pub struct FileDesc {
+    pub priority: u32,
     pub object: Box<ObjectDesc>,
     pub oti: oti::Oti,
     pub toi: u128,
@@ -25,6 +26,7 @@ pub struct FileDesc {
 
 impl FileDesc {
     pub fn new(
+        priority: u32,
         object: Box<ObjectDesc>,
         default_oti: &oti::Oti,
         toi: &u128,
@@ -95,6 +97,7 @@ impl FileDesc {
         }
 
         Ok(FileDesc {
+            priority,
             object,
             oti,
             toi: toi.clone(),
@@ -147,7 +150,11 @@ impl FileDesc {
         info.transferring
     }
 
-    pub fn should_transfer_now(&self, now: SystemTime) -> bool {
+    pub fn should_transfer_now(&self, priority: u32, now: SystemTime) -> bool {
+        if self.priority != priority {
+            return false;
+        }
+
         let info = self.transfer_info.read().unwrap();
         if self.object.max_transfer_count > info.transfer_count {
             return true;

@@ -12,6 +12,7 @@ use std::time::SystemTime;
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct SenderSession {
+    priority: u32,
     endpoint: UDPEndpoint,
     tsi: u64,
     file: Option<Arc<FileDesc>>,
@@ -25,6 +26,7 @@ pub struct SenderSession {
 
 impl SenderSession {
     pub fn new(
+        priority: u32,
         tsi: u64,
         interleave_blocks: usize,
         transfer_fdt_only: bool,
@@ -32,6 +34,7 @@ impl SenderSession {
         endpoint: UDPEndpoint,
     ) -> SenderSession {
         SenderSession {
+            priority,
             endpoint,
             tsi,
             file: None,
@@ -80,7 +83,7 @@ impl SenderSession {
         if self.transfer_fdt_only {
             self.file = fdt.get_next_fdt_transfer(now);
         } else {
-            self.file = fdt.get_next_file_transfer(now);
+            self.file = fdt.get_next_file_transfer(self.priority, now);
         }
         if self.file.is_none() {
             return;

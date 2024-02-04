@@ -163,7 +163,7 @@ impl Fdt {
         ret
     }
 
-    pub fn add_object(&mut self, obj: Box<objectdesc::ObjectDesc>) -> Result<u128> {
+    pub fn add_object(&mut self, priority: u32, obj: Box<objectdesc::ObjectDesc>) -> Result<u128> {
         if self.complete == Some(true) {
             return Err(FluteError::new(
                 "FDT is complete, no new object should be added",
@@ -179,7 +179,7 @@ impl Fdt {
             }
         };
 
-        let filedesc = Arc::new(FileDesc::new(obj, &self.oti, &toi, None, false)?);
+        let filedesc = Arc::new(FileDesc::new(priority, obj, &self.oti, &toi, None, false)?);
 
         assert!(self.files.contains_key(&filedesc.toi) == false);
         self.files.insert(filedesc.toi, filedesc.clone());
@@ -261,6 +261,7 @@ impl Fdt {
             true,
         )?;
         let filedesc = Arc::new(FileDesc::new(
+            0,
             obj,
             &self.oti,
             &lct::TOI_FDT,
@@ -315,7 +316,7 @@ impl Fdt {
         }
 
         match &self.current_fdt_transfer {
-            Some(value) if value.should_transfer_now(now) => {
+            Some(value) if value.should_transfer_now(0, now) => {
                 log::debug!("TSI={} Start transmission of FDT", self._tsi);
                 value.transfer_started();
                 Some(value.clone())
@@ -324,12 +325,16 @@ impl Fdt {
         }
     }
 
-    pub fn get_next_file_transfer(&mut self, now: SystemTime) -> Option<Arc<FileDesc>> {
+    pub fn get_next_file_transfer(
+        &mut self,
+        priority: u32,
+        now: SystemTime,
+    ) -> Option<Arc<FileDesc>> {
         let (index, _) = self
             .files_transfer_queue
             .iter()
             .enumerate()
-            .find(|(_, item)| item.should_transfer_now(now))?;
+            .find(|(_, item)| item.should_transfer_now(priority, now))?;
 
         let file = self.files_transfer_queue.remove(index).unwrap();
         log::info!(
@@ -484,8 +489,8 @@ mod tests {
         )
         .unwrap();
 
-        fdt.add_object(obj1).unwrap();
-        fdt.add_object(obj2).unwrap();
+        fdt.add_object(0, obj1).unwrap();
+        fdt.add_object(0, obj2).unwrap();
         fdt.groups = Some(vec!["Group1".to_owned(), "Group2".to_owned()]);
         fdt
     }

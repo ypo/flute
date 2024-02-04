@@ -52,7 +52,7 @@ fn main() {
             true,
         )
         .unwrap();
-        sender.add_object(obj).unwrap();
+        sender.add_object(0, obj).unwrap();
     }
 
     log::info!("Publish FDT update");

@@ -26,6 +26,7 @@ pub use observer::Event;
 pub use observer::FileInfo;
 pub use observer::Subscriber;
 pub use sender::Config;
+pub use sender::PriorityQueue;
 pub use sender::Sender;
 pub use sender::TOIMaxLength;
 pub use toiallocator::Toi;

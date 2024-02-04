@@ -26,7 +26,7 @@ mod tests {
         let mut sender = Box::new(sender::Sender::new(endpoint, 1, &oti, &config));
 
         for obj in objects {
-            sender.add_object(obj).unwrap();
+            sender.add_object(0, obj).unwrap();
         }
         sender.publish(std::time::SystemTime::now()).unwrap();
         sender
@@ -283,7 +283,10 @@ mod tests {
             true,
             Some(sender::Config {
                 interleave_blocks: 1,
-                multiplex_files: 0,
+                priority_queues: std::collections::BTreeMap::from([(
+                    0,
+                    sender::PriorityQueue { multiplex_files: 0 },
+                )]),
                 ..Default::default()
             }),
             100000,

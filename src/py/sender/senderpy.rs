@@ -50,7 +50,7 @@ impl Sender {
         .map_err(|e| PyTypeError::new_err(e.0.to_string()))?;
 
         self.0
-            .add_object(object)
+            .add_object(0, object)
             .map_err(|e| PyTypeError::new_err(e.0.to_string()))
     }
 
@@ -92,7 +92,7 @@ impl Sender {
         .map_err(|e| PyTypeError::new_err(e.0.to_string()))?;
 
         self.0
-            .add_object(object)
+            .add_object(0, object)
             .map_err(|e| PyTypeError::new_err(e.0.to_string()))
     }
 
