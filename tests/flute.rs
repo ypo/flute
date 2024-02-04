@@ -1,5 +1,6 @@
 mod tests {
     use flute::core::UDPEndpoint;
+    use flute::sender::PriorityQueue;
     use rand::RngCore;
     use std::io::Write;
     use std::rc::Rc;
@@ -575,5 +576,57 @@ mod tests {
             0,
             false,
         );
+    }
+
+    #[test]
+    fn test_priority_queues() {
+        let content_type = "application/octet-stream";
+
+        let oti = sender::Oti::new_no_code(1400, 64);
+
+        let (high_priority_obj, high_priority_buffer) =
+            create_object(1024, content_type, sender::Cenc::Null, true, Some(&oti));
+
+        let (low_priority_obj, low_priority_buffer) =
+            create_object(1024, content_type, sender::Cenc::Null, true, Some(&oti));
+
+        let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new());
+        let mut receiver = receiver::MultiReceiver::new(output.clone(), None, false);
+
+        let mut sender_config: sender::Config = Default::default();
+        sender_config.set_priority_queue(PriorityQueue::HIGHEST, PriorityQueue::new(3));
+        sender_config.set_priority_queue(PriorityQueue::LOW, PriorityQueue::new(3));
+
+        let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_owned(), 5000);
+        let mut sender = Box::new(sender::Sender::new(endpoint, 1, &oti, &sender_config));
+
+        sender
+            .add_object(PriorityQueue::LOW, low_priority_obj)
+            .unwrap();
+        sender
+            .add_object(PriorityQueue::HIGHEST, high_priority_obj)
+            .unwrap();
+        sender.publish(std::time::SystemTime::now()).unwrap();
+
+        run(&mut sender, &mut receiver);
+
+        let output_session = output.objects.borrow();
+        assert!(output_session.len() == 2);
+
+        // Verify that file transferred in high priority queue is received before file in low priority queue
+
+        let high_priority_output_object = output_session[0].as_ref().borrow();
+        let high_priority_output_file_buffer: &[u8] = high_priority_output_object.data.as_ref();
+
+        let low_priority_output_object = output_session[1].as_ref().borrow();
+        let low_priority_output_file_buffer: &[u8] = low_priority_output_object.data.as_ref();
+
+        assert!(high_priority_output_object.complete == true);
+        assert!(high_priority_output_object.error == false);
+        assert!(high_priority_output_file_buffer.eq(&high_priority_buffer));
+
+        assert!(low_priority_output_object.complete == true);
+        assert!(low_priority_output_object.error == false);
+        assert!(low_priority_output_file_buffer.eq(&low_priority_buffer));
     }
 }
