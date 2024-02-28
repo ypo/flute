@@ -125,5 +125,34 @@ class SenderReceiverTestCase(TestCase):
         assert(success == True)
         assert(flute_sender.nb_objects() == 0)
 
+
+    def test_lct(self):
+        from flute import sender, receiver
+
+        print("------- test_lct--------")
+
+        tsi = 1234
+
+        sender_config = sender.Config()
+        oti = sender.Oti.new_no_code(1400, 64)
+        flute_sender = sender.Sender(tsi, oti, sender_config)
+
+        receiver_writer = receiver.ObjectWriterBuilder.new_buffer()
+        receiver_config = receiver.Config()
+        udp_endpoint = receiver.UDPEndpoint("224.0.0.1", 1234)
+        flute_receiver = receiver.Receiver(udp_endpoint, tsi, receiver_writer, receiver_config)
+
+        buf = bytes(b'hello world')
+        flute_sender.add_object_from_buffer(buf, "text", "file://hello.txt", None)
+        flute_sender.publish()
+
+        pkt = flute_sender.read()
+        lct = receiver.LCTHeader(bytes(pkt))
+        assert(lct.cci == 0)
+        assert(lct.tsi == 1234)
+        assert(lct.toi == 0)
+        assert(lct.sbn == 0)
+        assert(lct.esi == 0)
+
 if __name__ == '__main__':
     unittest.main()
