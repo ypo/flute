@@ -16,17 +16,6 @@ impl Config {
     }
 
     #[getter]
-    fn get_max_objects_completed(&self) -> PyResult<Option<usize>> {
-        Ok(self.0.max_objects_completed)
-    }
-
-    #[setter]
-    fn set_max_objects_completed(&mut self, value: Option<usize>) -> PyResult<()> {
-        self.0.max_objects_completed = value;
-        Ok(())
-    }
-
-    #[getter]
     fn get_max_objects_error(&self) -> PyResult<usize> {
         Ok(self.0.max_objects_error)
     }

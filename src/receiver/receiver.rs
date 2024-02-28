@@ -19,13 +19,6 @@ use std::time::SystemTime;
 ///
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Config {
-    /// Max number of successfully completed objects that the receiver is keeping track of.
-    /// Packets received for an object that is already completed are discarded.  
-    ///
-    /// `None` to keep track of an infinite number of objects.
-    /// Should be set to `None` if objects are transmitted in a carousel to avoid multiple reconstruction
-    ///
-    pub max_objects_completed: Option<usize>,
     /// Max number of objects with error that the receiver is keeping track of.
     /// Packets received for an object in error state are discarded
     pub max_objects_error: usize,
@@ -44,7 +37,6 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            max_objects_completed: Some(100),
             max_objects_error: 0,
             session_timeout: None,
             object_timeout: Some(Duration::from_secs(10)),
@@ -165,7 +157,7 @@ impl Receiver {
                 if duration.gt(object_timeout) {
                     log::warn!(
                         "Object Expired ! tsi={} toi={} state : {:?} 
-                        location: {:?} attached={:?} blocks completed={}/{} duration={:?} max_duration={:?} 
+                        location: {:?} attached={:?} blocks completed={}/{} last activity={:?} max={:?} 
                         transfer_length={:?} byte_left={:?}",
                         object.tsi,
                         object.toi,
@@ -323,7 +315,9 @@ impl Receiver {
             }
             self.fdt_current.push_front(fdt_current);
             self.attach_latest_fdt_to_objects(now);
+            self.gc_object_completed();
             self.update_expiration_date_of_completed_objects_using_latest_fdt(now);
+            
 
             if self.fdt_current.len() > 10 {
                 self.fdt_current.pop_back();
@@ -424,10 +418,7 @@ impl Receiver {
 
     fn push_obj(&mut self, pkt: &alc::AlcPkt, now: SystemTime) -> Result<()> {
         if self.objects_completed.contains_key(&pkt.lct.toi) {
-            self.gc_object_completed(now);
-            if self.objects_completed.contains_key(&pkt.lct.toi) {
                 return Ok(());
-            }
         }
         if self.objects_error.contains(&pkt.lct.toi) {
 
@@ -492,7 +483,6 @@ impl Receiver {
                                 content_location: obj.content_location.as_ref().unwrap().clone(),
                             },
                         );
-                        self.gc_object_completed(now);
                     } else {
                         log::error!("No cache expiration date for {:?}", obj.content_location);
                     }
@@ -517,33 +507,34 @@ impl Receiver {
         }
     }
 
-    fn gc_object_completed(&mut self, now: SystemTime) {
+    fn gc_object_completed(&mut self) {
 
-        if let Some(fdt) = self.fdt_current.front_mut() {
-            if let Some(instance) = fdt.fdt_instance() {
-                if let Some(true) = instance.full_fdt {
-                    return;
-                }
-            } 
-        }
+        let current_fdt = match self.fdt_current.front_mut() {
+            Some(fdt) => fdt,
+            None => return
+        };
 
-        let before = self.objects_completed.len();
-        self.objects_completed
-            .retain(|_toi, meta| meta.expiration_date > now);
-        let after = self.objects_completed.len();
-        if before != after {
-            log::debug!("GC remove {} objects", before - after);
-        }
-
-        if self.config.max_objects_completed.is_none() {
+        let instance = match current_fdt.fdt_instance() {
+            Some(instance) => instance,
+            None => return
+        };
+        
+        if let Some(true) = instance.full_fdt {
             return;
         }
-
-        let max = self.config.max_objects_completed.unwrap();
-        while self.objects_completed.len() > max {
-            let (toi, _meta) = self.objects_completed.pop_first().unwrap();
-            self.objects.remove(&toi);
+             
+        
+        let before = self.objects_completed.len();
+        if let Some(files) = instance.file.as_ref() {
+            let current_tois: std::collections::HashSet<u128> = files.iter().map(|file| file.toi.parse().unwrap_or(0)).collect();
+            self.objects_completed
+            .retain(|toi, _meta| current_tois.contains(toi) );
         }
+        let after = self.objects_completed.len();
+        if before != after {
+            log::debug!("GC remove {} / {} objects", before - after, before);
+        }
+
     }
 
     fn gc_object_error(&mut self) {
@@ -578,9 +569,10 @@ impl Receiver {
                         is_attached = true;
                         if fdt_index != 0 {
                             log::warn!(
-                                "TSI={} TOI={} Attaching an object to an FDT that is not the latest (index={}) ",
+                                "TSI={} TOI={} CL={:?} Attaching an object to an FDT that is not the latest (index={}) ",
                                 self.tsi,
                                 obj.toi,
+                                obj.content_location,
                                 fdt_index
                             );
                         }

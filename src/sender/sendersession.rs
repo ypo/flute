@@ -66,6 +66,17 @@ impl SenderSession {
 
             assert!(self.file.is_some());
             let file = self.file.as_ref().unwrap();
+
+            if !self.transfer_fdt_only {
+                if file._total_nb_transfer() > 0 {
+                    if !fdt.is_added(file.toi) {
+                        log::debug!("File has already been transferred and is removed from the FDT, stop the transfer {}", file.object.content_location.to_string());
+                        self.release_file(fdt, now);
+                        continue;
+                    }
+                }
+            }
+
             let pkt = pkt.as_ref().unwrap();
             return Some(alc::new_alc_pkt(
                 &file.oti,
