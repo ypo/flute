@@ -19,7 +19,9 @@ jobs:
       with:
         toolchain: stable
     - name: Install xmllint
-      run: sudo apt-get install -y libxml2-utils
+    run: |
+        sudo apt update
+        sudo apt-get install -y libxml2-utils
     - name: Build
       run: cargo build --verbose
     - name: Run tests
