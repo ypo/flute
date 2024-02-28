@@ -227,7 +227,7 @@ impl Fdt {
             Some(_) => {}
             None => return false,
         };
-        self.fdt_transfer_queue.retain(|obj| obj.toi != toi);
+        self.files_transfer_queue.retain(|obj| obj.toi != toi);
         true
     }
 
