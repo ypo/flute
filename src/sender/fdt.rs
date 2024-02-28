@@ -338,8 +338,9 @@ impl Fdt {
 
         let file = self.files_transfer_queue.remove(index).unwrap();
         log::info!(
-            "Start transmission of {}",
-            file.object.content_location.as_str()
+            "Start transmission of {} toi={}",
+            file.object.content_location.as_str(),
+            file.toi
         );
 
         let evt = observer::Event::StartTransfer(observer::FileInfo { toi: file.toi });
@@ -368,8 +369,9 @@ impl Fdt {
             }
 
             log::info!(
-                "Stop transmission of {}",
-                file.object.content_location.as_str()
+                "Stop transmission of {} toi={}",
+                file.object.content_location.as_str(),
+                file.toi
             );
             if file.is_expired() == false {
                 log::debug!("Transfer file again");

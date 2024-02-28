@@ -191,7 +191,7 @@ pub fn parse_alc_pkt(data: &[u8]) -> Result<AlcPkt> {
     let data_alc_header_offset = lct_header.len;
     let data_payload_offset = fec_payload_id_block_length + lct_header.len;
 
-    let cenc = lct::get_ext(data.as_ref(), &lct_header, lct::Ext::Cenc)?;
+    let cenc = lct::get_ext(data.as_ref(), &lct_header, lct::Ext::Cenc as u8)?;
     let cenc = match cenc {
         Some(ext) => parse_cenc(ext).ok(),
         None => None,
@@ -199,7 +199,7 @@ pub fn parse_alc_pkt(data: &[u8]) -> Result<AlcPkt> {
 
     let mut fdt_info: Option<ExtFDT> = None;
     if lct_header.toi == lct::TOI_FDT {
-        let fdt = lct::get_ext(data.as_ref(), &lct_header, lct::Ext::Fdt)?;
+        let fdt = lct::get_ext(data.as_ref(), &lct_header, lct::Ext::Fdt as u8)?;
         fdt_info = match fdt {
             Some(ext) => parse_ext_fdt(ext)?,
             None => None,
@@ -221,7 +221,7 @@ pub fn parse_alc_pkt(data: &[u8]) -> Result<AlcPkt> {
 
 /// Get Sender Current Time (EXT_TIME)
 pub fn get_sender_current_time(pkt: &AlcPkt) -> Result<Option<SystemTime>> {
-    let ext = match lct::get_ext(pkt.data, &pkt.lct, lct::Ext::Time)? {
+    let ext = match lct::get_ext(pkt.data, &pkt.lct, lct::Ext::Time as u8)? {
         Some(res) => res,
         _ => return Ok(None),
     };

@@ -224,6 +224,18 @@ fn nb_bytes_64(n: u64, min: u32) -> u32 {
  *      described in [RFC3550].
  *
  */
+/// Inserts an LCT Header into the provided data vector.
+///
+/// # Arguments
+///
+/// * `data`: The vector where the LCT Header will be inserted.
+/// * `psi`: Protocol-Specific Indication.
+/// * `cci`: Congestion Control Information.
+/// * `tsi`: Transport Session Identifier.
+/// * `toi`: Transport Object Identifier.
+/// * `codepoint`: An opaque identifier passed to the packet payload decoder to convey information on the codec being used for the packet payload.
+/// * `close_object`: Indicates whether termination of transmission of packets for an object is imminent.
+/// * `close_session`: Indicates whether termination of transmission of packets for the session is imminent.
 pub fn push_lct_header(
     data: &mut Vec<u8>,
     psi: u8,
@@ -289,6 +301,14 @@ pub fn push_lct_header(
     data.extend(&toi_net[toi_net_start..]);
 }
 
+/// Increases the length of the LCT Header. 
+/// 
+/// Adding 1 to `val` increases the header length by 32 bits.
+///
+/// # Arguments
+///
+/// * `data`: The vector containing the LCT Header.
+/// * `val`: The increment value specifying by how many bits the header length should be increased.
 pub fn inc_hdr_len(data: &mut Vec<u8>, val: u8) {
     data[2] += val;
 }
@@ -390,7 +410,21 @@ pub fn parse_lct_header(data: &[u8]) -> Result<LCTHeader> {
     })
 }
 
-pub fn get_ext<'a>(data: &'a [u8], lct: &LCTHeader, ext: Ext) -> Result<Option<&'a [u8]>> {
+/// Retrieves the extension data from the LCT Packet.
+///
+/// # Arguments
+///
+/// * `data`: The LCT Packet data.
+/// * `lct`: The parsed LCT headers.
+/// * `ext`: The extension number.
+///
+/// # Returns
+///
+/// * `Some(&[u8])`: Bytes of the extension if found.
+/// * `None`: If the extension is not found.
+/// * `Err`: If the packet is malformed.
+///
+pub fn get_ext<'a>(data: &'a [u8], lct: &LCTHeader, ext: u8) -> Result<Option<&'a [u8]>> {
     let mut lct_ext_ext = &data[(lct.header_ext_offset as usize)..lct.len];
     while lct_ext_ext.len() >= 4 {
         let het = lct_ext_ext[0];

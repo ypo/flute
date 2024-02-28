@@ -219,12 +219,24 @@ pub use crate::tools::error;
 
 /// Core module with low-level function
 pub mod core {
-    pub use crate::common::alc::get_sender_current_time;
-    pub use crate::common::alc::parse_alc_pkt;
-    pub use crate::common::alc::parse_payload_id;
-    pub use crate::common::alc::AlcPkt;
-    pub use crate::common::alc::PayloadID;
-    pub use crate::common::lct::LCTHeader;
+
+    /// ALC packets
+    pub mod alc {
+        pub use crate::common::alc::get_sender_current_time;
+        pub use crate::common::alc::parse_alc_pkt;
+        pub use crate::common::alc::parse_payload_id;
+        pub use crate::common::alc::AlcPkt;
+        pub use crate::common::alc::PayloadID;
+    }
+
+    /// LCT packets
+    pub mod lct {
+        pub use crate::common::lct::LCTHeader;
+        pub use crate::common::lct::push_lct_header;
+        pub use crate::common::lct::inc_hdr_len;
+        pub use crate::common::lct::get_ext;
+    }
+
     pub use crate::common::udpendpoint::UDPEndpoint;
 }
 

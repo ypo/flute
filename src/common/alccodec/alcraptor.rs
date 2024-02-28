@@ -55,7 +55,7 @@ impl AlcCodec for AlcRaptor {
         data: &[u8],
         lct_header: &lct::LCTHeader,
     ) -> crate::error::Result<Option<(oti::Oti, u64)>> {
-        let fti = match lct::get_ext(data.as_ref(), &lct_header, lct::Ext::Fti)? {
+        let fti = match lct::get_ext(data.as_ref(), &lct_header, lct::Ext::Fti as u8)? {
             Some(fti) => fti,
             None => return Ok(None),
         };
