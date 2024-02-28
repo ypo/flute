@@ -14,7 +14,7 @@ pub enum ShardType {
 pub trait FecShard: Send + Sync + std::fmt::Debug {
     fn data(&self) -> &[u8];
     fn esi(&self) -> u32;
-    fn get_type(&self) -> ShardType;
+    fn _get_type(&self) -> ShardType;
 }
 
 #[derive(Debug)]
@@ -33,7 +33,7 @@ impl FecShard for DataFecShard {
         self.index
     }
 
-    fn get_type(&self) -> ShardType {
+    fn _get_type(&self) -> ShardType {
         self.shard_type
     }
 }

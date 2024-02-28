@@ -21,7 +21,7 @@ impl FecShard for RaptorFecShard {
     fn esi(&self) -> u32 {
         self.pkt.payload_id().encoding_symbol_id()
     }
-    fn get_type(&self) -> ShardType {
+    fn _get_type(&self) -> ShardType {
         self.shard_type
     }
 }
