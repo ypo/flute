@@ -102,8 +102,8 @@ impl Block {
         block_length: usize,
         buffer: &[u8],
     ) -> Result<Vec<Box<dyn FecShard>>> {
-        assert!(nb_source_symbols <= oti.maximum_source_block_length as usize);
-        assert!(nb_source_symbols <= block_length as usize);
+        debug_assert!(nb_source_symbols <= oti.maximum_source_block_length as usize);
+        debug_assert!(nb_source_symbols <= block_length as usize);
         let encoder = fec::rscodec::RSGalois8Codec::new(
             nb_source_symbols,
             oti.max_number_of_parity_symbols as usize,
@@ -119,9 +119,9 @@ impl Block {
         block_length: usize,
         buffer: &[u8],
     ) -> Result<Vec<Box<dyn FecShard>>> {
-        assert!(nb_source_symbols <= oti.maximum_source_block_length as usize);
-        assert!(nb_source_symbols <= block_length as usize);
-        assert!(oti.scheme_specific.is_some());
+        debug_assert!(nb_source_symbols <= oti.maximum_source_block_length as usize);
+        debug_assert!(nb_source_symbols <= block_length as usize);
+        debug_assert!(oti.scheme_specific.is_some());
 
         if let Some(SchemeSpecific::RaptorQ(scheme)) = oti.scheme_specific.as_ref() {
             let encoder = fec::raptorq::RaptorQEncoder::new(
@@ -144,9 +144,9 @@ impl Block {
         block_length: usize,
         buffer: &[u8],
     ) -> Result<Vec<Box<dyn FecShard>>> {
-        assert!(nb_source_symbols <= oti.maximum_source_block_length as usize);
-        assert!(nb_source_symbols <= block_length as usize);
-        assert!(oti.scheme_specific.is_some());
+        debug_assert!(nb_source_symbols <= oti.maximum_source_block_length as usize);
+        debug_assert!(nb_source_symbols <= block_length as usize);
+        debug_assert!(oti.scheme_specific.is_some());
 
         let encoder = fec::raptor::RaptorEncoder::new(
             nb_source_symbols,

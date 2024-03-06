@@ -68,7 +68,7 @@ impl std::io::Read for RingBuffer {
             buf[..max_size]
                 .copy_from_slice(&self.buffer[self.consumer..(self.consumer + max_size)]);
             self.consumer += max_size;
-            assert!(self.consumer <= self.buffer.len());
+            debug_assert!(self.consumer <= self.buffer.len());
 
             if self.consumer == self.buffer.len() {
                 self.consumer = 0;
@@ -83,8 +83,8 @@ impl std::io::Read for RingBuffer {
 
         buf[end_size..(end_size + left)].copy_from_slice(&self.buffer[..left]);
         self.consumer += left;
-        assert!(self.consumer <= self.producer);
-        assert!(self.consumer != self.buffer.len());
+        debug_assert!(self.consumer <= self.producer);
+        debug_assert!(self.consumer != self.buffer.len());
         Ok(max_size)
     }
 }
@@ -105,8 +105,8 @@ impl std::io::Write for RingBuffer {
                 .copy_from_slice(&buf[..max_size]);
 
             self.producer += max_size;
-            assert!(self.consumer > self.producer);
-            assert!(self.producer != self.buffer.len());
+            debug_assert!(self.consumer > self.producer);
+            debug_assert!(self.producer != self.buffer.len());
             return Ok(max_size);
         }
 
@@ -128,7 +128,7 @@ impl std::io::Write for RingBuffer {
         let left_size = max_size - end_size;
         self.buffer[..left_size].copy_from_slice(&buf[end_size..(end_size + left_size)]);
         self.producer += left_size;
-        assert!(self.producer < self.consumer);
+        debug_assert!(self.producer < self.consumer);
         Ok(max_size)
     }
 

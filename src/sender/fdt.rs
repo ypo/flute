@@ -181,7 +181,7 @@ impl Fdt {
 
         let filedesc = Arc::new(FileDesc::new(priority, obj, &self.oti, &toi, None, false)?);
 
-        assert!(self.files.contains_key(&filedesc.toi) == false);
+        debug_assert!(self.files.contains_key(&filedesc.toi) == false);
         self.files.insert(filedesc.toi, filedesc.clone());
         self.files_transfer_queue.push_back(filedesc);
         Ok(toi)
@@ -529,7 +529,7 @@ mod tests {
 
         let output_print = std::str::from_utf8(&output.stderr).expect("ascii to text went wrong ");
 
-        assert!(
+        debug_assert!(
             output.status.success(),
             "\n\nValidation failed\n\n{}\n\n",
             output_print

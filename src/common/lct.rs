@@ -443,7 +443,7 @@ pub fn get_ext<'a>(data: &'a [u8], lct: &LCTHeader, ext: u8) -> Result<Option<&'
             )));
         }
 
-        if het == ext as u8 {
+        if het == ext {
             return Ok(Some(&lct_ext_ext[..hel]));
         }
         lct_ext_ext = &lct_ext_ext[hel..];

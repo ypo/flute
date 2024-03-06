@@ -49,8 +49,8 @@ impl AlcCodec for AlcNoCode {
             return Err(FluteError::new("Wrong extension size"));
         }
 
-        assert!(fti[0] == lct::Ext::Fti as u8);
-        assert!(fti[1] == 4);
+        debug_assert!(fti[0] == lct::Ext::Fti as u8);
+        debug_assert!(fti[1] == 4);
 
         let transfer_length = u64::from_be_bytes(fti[2..10].as_ref().try_into().unwrap()) >> 16;
         let encoding_symbol_length = u16::from_be_bytes(fti[10..12].as_ref().try_into().unwrap());

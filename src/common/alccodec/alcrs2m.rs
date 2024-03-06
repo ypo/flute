@@ -40,7 +40,7 @@ impl AlcCodec for AlcRS2m {
             data.extend(max_n.to_be_bytes());
             lct::inc_hdr_len(data, 4);
         } else {
-            assert!(false);
+            debug_assert!(false);
         }
     }
 
@@ -58,8 +58,8 @@ impl AlcCodec for AlcRS2m {
             return Err(FluteError::new("Wrong extension size"));
         }
 
-        assert!(fti[0] == lct::Ext::Fti as u8);
-        assert!(fti[1] == 4);
+        debug_assert!(fti[0] == lct::Ext::Fti as u8);
+        debug_assert!(fti[1] == 4);
 
         let transfer_length =
             u64::from_be_bytes(fti[0..8].as_ref().try_into().unwrap()) & 0xFFFFFFFFFFFF;

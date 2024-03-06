@@ -133,7 +133,7 @@ pub fn new_alc_pkt(
     );
 
     if pkt.toi == lct::TOI_FDT {
-        assert!(pkt.fdt_id.is_some());
+        debug_assert!(pkt.fdt_id.is_some());
 
         let version = match profile {
             Profile::RFC6726 => 2,
@@ -336,7 +336,7 @@ fn push_sct(data: &mut Vec<u8>, time: std::time::SystemTime) {
 }
 
 fn parse_sct(ext: &[u8]) -> Result<Option<std::time::SystemTime>> {
-    assert!(ext.len() >= 4);
+    debug_assert!(ext.len() >= 4);
     let use_bits_hi = ext[2];
     let sct_hi = (use_bits_hi >> 7) & 1;
     let sct_low = (use_bits_hi >> 6) & 1;

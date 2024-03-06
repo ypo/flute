@@ -35,7 +35,7 @@ impl AlcCodec for AlcRaptor {
         let transfer_header: u64 =
             (transfer_length << 24) | (oti.encoding_symbol_length as u64 & 0xFFFF);
 
-        assert!(oti.scheme_specific.is_some());
+            debug_assert!(oti.scheme_specific.is_some());
         if let SchemeSpecific::Raptor(raptor) = oti.scheme_specific.as_ref().unwrap() {
             let padding: u16 = 0;
             data.extend(ext_header.to_be_bytes());
@@ -46,7 +46,7 @@ impl AlcCodec for AlcRaptor {
             data.extend(padding.to_be_bytes());
             lct::inc_hdr_len(data, len);
         } else {
-            assert!(false);
+            debug_assert!(false);
         }
     }
 

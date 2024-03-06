@@ -65,7 +65,7 @@ impl BlockEncoder {
                     log::debug!("Empty file ? Send a pkt containing close object flag");
                     self.nb_pkt_sent += 1;
 
-                    assert!(self.file.object.transfer_length == 0);
+                    debug_assert!(self.file.object.transfer_length == 0);
                     return Some(pkt::Pkt {
                         payload: Vec::new(),
                         transfer_length: self.file.object.transfer_length,

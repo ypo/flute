@@ -141,8 +141,8 @@ impl ObjectReceiver {
     }
 
     fn push_to_block(&mut self, pkt: &alc::AlcPkt, now: std::time::SystemTime) -> Result<()> {
-        assert!(self.oti.is_some());
-        assert!(self.transfer_length.is_some());
+        debug_assert!(self.oti.is_some());
+        debug_assert!(self.transfer_length.is_some());
         let payload_id = alc::parse_payload_id(pkt, self.oti.as_ref().unwrap())?;
         log::debug!(
             "toi={} sbn={} esi={} meta={:?}",
@@ -153,7 +153,7 @@ impl ObjectReceiver {
         );
 
         if self.transfer_length.unwrap() == 0 {
-            assert!(self.block_writer.is_none());
+            debug_assert!(self.block_writer.is_none());
             self.complete(now);
             return Ok(());
         }
@@ -231,7 +231,7 @@ impl ObjectReceiver {
         now: std::time::SystemTime,
         server_time: std::time::SystemTime,
     ) -> bool {
-        assert!(self.toi != lct::TOI_FDT);
+        debug_assert!(self.toi != lct::TOI_FDT);
         if self.fdt_instance_id.is_some() {
             return false;
         }
@@ -252,7 +252,7 @@ impl ObjectReceiver {
         if self.oti.is_none() {
             self.oti = fdt.get_oti_for_file(file);
             if self.oti.is_some() {
-                assert!(self.transfer_length.is_none());
+                debug_assert!(self.transfer_length.is_none());
                 self.transfer_length = Some(file.get_transfer_length());
             }
         }
@@ -349,7 +349,7 @@ impl ObjectReceiver {
             now,
         );
 
-        assert!(self.block_writer.is_none());
+        debug_assert!(self.block_writer.is_none());
         self.object_writer = Some(ObjectWriterSession {
             writer: object_writer,
             state: ObjectWriterSessionState::Idle,
@@ -390,7 +390,7 @@ impl ObjectReceiver {
             return Ok(());
         }
 
-        assert!(self.block_writer.is_some());
+        debug_assert!(self.block_writer.is_some());
         let mut sbn = sbn_start as usize;
         let writer = self.block_writer.as_mut().unwrap();
         while sbn < self.blocks.len() {
@@ -521,7 +521,7 @@ impl ObjectReceiver {
         }
 
         self.oti = pkt.oti.clone();
-        assert!(self.transfer_length.is_none());
+        debug_assert!(self.transfer_length.is_none());
         self.transfer_length = pkt.transfer_length;
 
         if pkt.transfer_length.is_none() {
@@ -532,7 +532,7 @@ impl ObjectReceiver {
 
         if self.cenc.is_none() {
             log::warn!("Cenc is unknown ?");
-            assert!(self.toi != lct::TOI_FDT);
+            debug_assert!(self.toi != lct::TOI_FDT);
             return;
         }
     }
@@ -561,7 +561,7 @@ impl ObjectReceiver {
             return;
         }
 
-        assert!(self.blocks.is_empty());
+        debug_assert!(self.blocks.is_empty());
         let oti = self.oti.as_ref().unwrap();
 
         let (a_large, a_small, nb_a_large, nb_blocks) = partition::block_partitioning(

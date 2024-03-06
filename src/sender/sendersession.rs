@@ -64,7 +64,7 @@ impl SenderSession {
                 continue;
             }
 
-            assert!(self.file.is_some());
+            debug_assert!(self.file.is_some());
             let file = self.file.as_ref().unwrap();
 
             if !self.transfer_fdt_only {

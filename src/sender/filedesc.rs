@@ -130,7 +130,7 @@ impl FileDesc {
 
     pub fn transfer_done(&self, now: SystemTime) {
         let mut info = self.transfer_info.write().unwrap();
-        assert!(info.transferring == true);
+        debug_assert!(info.transferring == true);
         info.transferring = false;
         info.transfer_count += 1;
         info.total_nb_transfer += 1;

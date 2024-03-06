@@ -44,8 +44,8 @@ impl AlcCodec for AlcRS28 {
             return Err(FluteError::new("Wrong extension size"));
         }
 
-        assert!(fti[0] == lct::Ext::Fti as u8);
-        assert!(fti[1] == 3);
+        debug_assert!(fti[0] == lct::Ext::Fti as u8);
+        debug_assert!(fti[1] == 3);
 
         let transfer_length =
             u64::from_be_bytes(fti[0..8].as_ref().try_into().unwrap()) & 0xFFFFFFFFFFFF;

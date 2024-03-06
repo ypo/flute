@@ -199,7 +199,7 @@ impl Receiver {
 
     /// Push ALC/LCT packets to the `Receiver`
     pub fn push(&mut self, alc_pkt: &alc::AlcPkt, now: std::time::SystemTime) -> Result<()> {
-        assert!(self.tsi == alc_pkt.lct.tsi);
+        debug_assert!(self.tsi == alc_pkt.lct.tsi);
         self.last_activity = Instant::now();
 
         if alc_pkt.lct.close_session {
@@ -470,7 +470,7 @@ impl Receiver {
                     );
 
                     if obj.cache_expiration_date.is_some() {
-                        assert!(obj.content_location.is_some());
+                        debug_assert!(obj.content_location.is_some());
                         log::debug!(
                             "Insert {:?} for a duration of {:?}",
                             obj.content_location,

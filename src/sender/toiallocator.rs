@@ -36,7 +36,7 @@ impl ToiAllocator {
         {
             let mut db = allocator.toi_reserved.lock().unwrap();
             let success = db.insert(toi);
-            assert!(success);
+            debug_assert!(success);
         }
 
         Arc::new(Toi {
@@ -48,7 +48,7 @@ impl ToiAllocator {
     pub fn release(&self, toi: u128) {
         let mut db = self.toi_reserved.lock().unwrap();
         let success = db.remove(&toi);
-        assert!(success);
+        debug_assert!(success);
     }
 
     pub fn contains(&self, toi: &u128) -> bool {

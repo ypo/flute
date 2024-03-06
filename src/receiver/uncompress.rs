@@ -23,7 +23,7 @@ impl DecompressGzip {
     pub fn new(pkt: &[u8]) -> DecompressGzip {
         let mut ring = RingBuffer::new(pkt.len() * 2);
         let result = ring.write(pkt).unwrap();
-        assert!(result == pkt.len());
+        debug_assert!(result == pkt.len());
         DecompressGzip {
             decoder: GzDecoder::new(ring),
         }
@@ -51,7 +51,7 @@ impl DecompressDeflate {
     pub fn new(pkt: &[u8]) -> DecompressDeflate {
         let mut ring = RingBuffer::new(pkt.len() * 2);
         let result = ring.write(pkt).unwrap();
-        assert!(result == pkt.len());
+        debug_assert!(result == pkt.len());
         DecompressDeflate {
             decoder: DeflateDecoder::new(ring),
         }
@@ -79,7 +79,7 @@ impl DecompressZlib {
     pub fn new(pkt: &[u8]) -> DecompressZlib {
         let mut ring = RingBuffer::new(pkt.len() * 2);
         let result = ring.write(pkt).unwrap();
-        assert!(result == pkt.len());
+        debug_assert!(result == pkt.len());
         DecompressZlib {
             decoder: ZlibDecoder::new(ring),
         }

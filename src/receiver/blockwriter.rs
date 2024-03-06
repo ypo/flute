@@ -68,7 +68,7 @@ impl BlockWriter {
         if self.sbn != sbn {
             return Ok(false);
         }
-        assert!(block.completed);
+        debug_assert!(block.completed);
         let data = block.source_block()?;
 
         // Detect the size of the last symbol
@@ -83,7 +83,7 @@ impl BlockWriter {
             self.decode_write_pkt(data, writer)?;
         }
 
-        assert!(data.len() <= self.bytes_left);
+        debug_assert!(data.len() <= self.bytes_left);
         self.bytes_left -= data.len();
 
         self.sbn += 1;
@@ -108,7 +108,7 @@ impl BlockWriter {
     }
 
     fn init_decoder(&mut self, data: &[u8]) {
-        assert!(self.decoder.is_none());
+        debug_assert!(self.decoder.is_none());
         self.decoder = match self.cenc {
             lct::Cenc::Null => None,
             lct::Cenc::Zlib => Some(Box::new(DecompressZlib::new(data))),

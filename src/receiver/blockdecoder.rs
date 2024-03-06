@@ -129,7 +129,7 @@ impl BlockDecoder {
     }
 
     pub fn push(&mut self, pkt: &alc::AlcPkt, payload_id: &alc::PayloadID) {
-        assert!(self.initialized);
+        debug_assert!(self.initialized);
 
         if self.completed {
             return;
