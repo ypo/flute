@@ -42,6 +42,7 @@ pub struct ObjectReceiver {
     oti: Option<oti::Oti>,
     cache: Vec<Box<alc::AlcPktCache>>,
     cache_size: usize,
+    max_size_allocated: usize,
     blocks: Vec<BlockDecoder>,
     blocks_variable_size: bool,
     pub transfer_length: Option<u64>,
@@ -59,6 +60,8 @@ pub struct ObjectReceiver {
     last_activity: Instant,
     pub cache_expiration_date: Option<SystemTime>,
     pub content_location: Option<url::Url>,
+    nb_allocated_blocks: usize,
+    total_allocated_blocks_size: usize,
 
     #[cfg(feature = "opentelemetry")]
     logger: ObjectReceiverLogger,
@@ -72,6 +75,7 @@ impl ObjectReceiver {
         _fdt_instance_id: Option<u32>,
         object_writer_builder: Rc<dyn ObjectWriterBuilder>,
         enable_md5_check: bool,
+        max_size_allocated: usize,
         _now: SystemTime,
     ) -> ObjectReceiver {
         log::debug!("Create new Object Receiver with toi {}", toi);
@@ -80,6 +84,7 @@ impl ObjectReceiver {
             oti: None,
             cache: Vec::new(),
             cache_size: 0,
+            max_size_allocated,
             blocks: Vec::new(),
             transfer_length: None,
             cenc: None,
@@ -100,6 +105,8 @@ impl ObjectReceiver {
             last_activity: Instant::now(),
             cache_expiration_date: None,
             content_location: None,
+            nb_allocated_blocks: 0,
+            total_allocated_blocks_size: 0,
             #[cfg(feature = "opentelemetry")]
             logger: ObjectReceiverLogger::new(endpoint, tsi, toi.clone(), _fdt_instance_id, _now),
         }
@@ -132,7 +139,8 @@ impl ObjectReceiver {
         self.push_from_cache(now);
 
         if self.oti.is_none() {
-            self.cache(pkt);
+            self.cache(pkt)
+                .unwrap_or_else(|_| self.error("Fail to push pkt to cache"));
             return;
         }
 
@@ -144,6 +152,7 @@ impl ObjectReceiver {
         debug_assert!(self.oti.is_some());
         debug_assert!(self.transfer_length.is_some());
         let payload_id = alc::parse_payload_id(pkt, self.oti.as_ref().unwrap())?;
+        let nb_blocks = self.blocks.len();
         log::debug!(
             "toi={} sbn={} esi={} meta={:?}",
             self.toi,
@@ -197,6 +206,24 @@ impl ObjectReceiver {
                 ) as usize,
             };
 
+            if self.nb_allocated_blocks >= 2
+                && self.total_allocated_blocks_size + block_length > self.max_size_allocated
+            {
+                log::error!(
+                    "NB Allocated blocks={}/{} total_allocated={}/{} block_length={}",
+                    self.nb_allocated_blocks,
+                    nb_blocks,
+                    self.total_allocated_blocks_size,
+                    self.max_size_allocated,
+                    block_length,
+                );
+
+                self.state = State::Error;
+                return Err(FluteError::new(
+                    "Maximum number of blocks allocated is reached",
+                ));
+            }
+
             log::debug!("Init block {} with length {}", payload_id.sbn, block_length);
             match block.init(oti, source_block_length, block_length, payload_id.sbn) {
                 Ok(_) => {}
@@ -205,6 +232,8 @@ impl ObjectReceiver {
                     return Err(FluteError::new("Fail to init source block decoder"));
                 }
             }
+            self.nb_allocated_blocks += 1;
+            self.total_allocated_blocks_size += block_length;
 
             #[cfg(feature = "opentelemetry")]
             block.op_init(
@@ -408,6 +437,9 @@ impl ObjectReceiver {
                 break;
             }
             sbn += 1;
+            debug_assert!(self.total_allocated_blocks_size >= block.block_size);
+            self.total_allocated_blocks_size -= block.block_size;
+            self.nb_allocated_blocks -= 1;
             block.deallocate();
 
             if writer.is_completed() {
@@ -537,17 +569,25 @@ impl ObjectReceiver {
         }
     }
 
-    fn cache(&mut self, pkt: &alc::AlcPkt) {
+    fn cache(&mut self, pkt: &alc::AlcPkt) -> Result<()> {
         if self.cache_size == 0 {
             log::warn!(
-                "TSI={} TOI={} Packet with FTI received before the FDT",
+                "TSI={} TOI={} Packet without FTI received before the FDT",
                 self.tsi,
                 self.toi
             );
         }
 
+        if self.cache_size >= self.max_size_allocated {
+            return Err(FluteError::new("Pkt cache is full"));
+        }
+
+        match self.cache_size.checked_add(pkt.data.len()) {
+            Some(_) => Ok(()),
+            None => Err(FluteError::new("add overflow")),
+        }?;
         self.cache.push(Box::new(pkt.to_cache()));
-        self.cache_size += pkt.data.len()
+        Ok(())
     }
 
     ///  Block Partitioning Algorithm
@@ -617,6 +657,14 @@ impl Drop for ObjectReceiver {
                     self.content_location.as_ref().map(|u| u.to_string())
                 );
                 self.error("Drop object in open state, pkt missing ?");
+            } else if object_writer.state == ObjectWriterSessionState::Error {
+                log::error!(
+                    "Drop object received with state {:?} TOI={} Endpoint={:?} Content-Location={:?}",
+                    object_writer.state,
+                    self.toi,
+                    self.endpoint,
+                    self.content_location.as_ref().map(|u| u.to_string())
+                );
             }
         }
     }

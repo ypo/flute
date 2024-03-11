@@ -132,7 +132,7 @@ impl BlockEncoder {
     }
 
     fn read_block(&mut self) -> Result<()> {
-        assert!(self.read_end == false);
+        debug_assert!(self.read_end == false);
 
         if self.fd.is_some() {
             return self.read_fd_block();

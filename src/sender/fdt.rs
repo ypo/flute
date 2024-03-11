@@ -529,7 +529,7 @@ mod tests {
 
         let output_print = std::str::from_utf8(&output.stderr).expect("ascii to text went wrong ");
 
-        debug_assert!(
+        assert!(
             output.status.success(),
             "\n\nValidation failed\n\n{}\n\n",
             output_print

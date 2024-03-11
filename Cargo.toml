@@ -32,7 +32,7 @@ pyo3 = { version = "0.20", features = ["extension-module"], optional = true }
 pyo3-log = { version = "0.9", optional = true }
 raptorq = "1.7"
 raptor-code = "1.0.5"
-opentelemetry = { version = "0.21", optional = true  }
+opentelemetry = { version = "0.22", optional = true  }
 rand = "0.8"
 
 [dev-dependencies]

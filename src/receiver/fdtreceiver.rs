@@ -78,6 +78,7 @@ impl FdtReceiver {
                 Some(fdt_id),
                 fdt_builder,
                 true,
+                1024 * 1024,
                 now,
             ))),
             inner: inner.clone(),

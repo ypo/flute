@@ -19,6 +19,7 @@ use crate::tools::error::Result;
 pub struct BlockDecoder {
     pub completed: bool,
     pub initialized: bool,
+    pub block_size: usize,
     decoder: Option<Box<dyn FecDecoder>>,
     #[cfg(feature = "opentelemetry")]
     telemetry_ctx: Option<opentelemetry::Context>,
@@ -30,6 +31,7 @@ impl BlockDecoder {
             completed: false,
             initialized: false,
             decoder: None,
+            block_size: 0,
             #[cfg(feature = "opentelemetry")]
             telemetry_ctx: None,
         }
@@ -113,6 +115,7 @@ impl BlockDecoder {
         }
 
         self.initialized = true;
+        self.block_size = block_size;
         Ok(())
     }
 
@@ -126,6 +129,7 @@ impl BlockDecoder {
 
     pub fn deallocate(&mut self) {
         self.decoder = None;
+        self.block_size = 0;
     }
 
     pub fn push(&mut self, pkt: &alc::AlcPkt, payload_id: &alc::PayloadID) {

@@ -28,6 +28,8 @@ pub struct Config {
     /// Objects expire if no data has been received before this timeout
     /// `None` Objects never expires, not recommended as object that are not fully reconstructed might continue to consume memory for an finite amount of time.
     pub object_timeout: Option<Duration>,
+    /// Maximum cache size that can be allocated to received an object. Default is 10MB.
+    pub object_max_cache_size: Option<usize>,
     /// Enable MD5 check of the received objects. Default `true`
     pub enable_md5_check: bool,
     /// CHeck if FDT is already received
@@ -40,6 +42,7 @@ impl Default for Config {
             max_objects_error: 0,
             session_timeout: None,
             object_timeout: Some(Duration::from_secs(10)),
+            object_max_cache_size: None,
             enable_md5_check: true,
             check_fdt_received: true
         }
@@ -503,7 +506,8 @@ impl Receiver {
                 self.tsi,
                 toi
             );
-            self.objects.remove(&toi);
+            let _success = self.objects.remove(&toi);
+            debug_assert!(_success.is_some());
         }
     }
 
@@ -552,6 +556,7 @@ impl Receiver {
             None,
             self.writer.clone(),
             self.config.enable_md5_check,
+            self.config.object_max_cache_size.unwrap_or(10 * 1024 * 1024),
             now
         ));
 
@@ -585,7 +590,7 @@ impl Receiver {
         }
 
         if is_attached == false {
-            log::warn!("Object received before the FDT");
+            log::warn!("Object received before the FDT TSI={} TOI={}", self.tsi, toi);
         }
 
         self.objects.insert(toi.clone(), obj);
