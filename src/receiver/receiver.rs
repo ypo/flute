@@ -74,8 +74,19 @@ pub struct Receiver {
 }
 
 impl Receiver {
-    /// Return a new `Receiver`
     ///
+    /// Create a new FLUTE Receiver
+    /// # Arguments
+    ///
+    /// * `endpoint` - The `UDPEndpoint` from where the data are received.
+    /// * `tsi` - The Transport Session Identifier of this FLUTE Session.
+    /// * `writer` - An `ObjectWriterBuilder` used for writing received objects.
+    /// * `config` - Configuration for the `Receiver`.
+    ///
+    /// # Returns
+    ///
+    /// A new `Receiver` instance.
+    /// 
     pub fn new(
         endpoint: &UDPEndpoint,
         tsi: u64,
@@ -97,9 +108,14 @@ impl Receiver {
         }
     }
 
+    /// Check if the receiver is expired.
     ///
-    /// Check is the receiver is expired
-    /// true -> the receiver should be destroyed to free the resources
+    /// This method checks whether the receiver is expired and returns `true` if it is.
+    /// This indicates that the receiver should be destroyed.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the receiver is expired, otherwise `false`.
     ///
     pub fn is_expired(&self) -> bool {
         if self.config.session_timeout.is_none() {
@@ -112,22 +128,39 @@ impl Receiver {
             .gt(self.config.session_timeout.as_ref().unwrap())
     }
 
+    /// Get the number of objects being received.
     ///
-    /// Number of objects that are we are receiving
+    /// This method returns the number of objects that are currently being received by the `Receiver`.
+    ///
+    /// # Returns
+    ///
+    /// The number of objects being received.
     ///
     pub fn nb_objects(&self) -> usize {
         self.objects.len()
     }
 
+    /// Get the number of objects in error state.
     ///
-    /// Number objects in error state
+    /// This method returns the number of objects that are currently in an error state
+    /// in the `Receiver`.
+    ///
+    /// # Returns
+    ///
+    /// The number of objects in error state.
     ///
     pub fn nb_objects_error(&self) -> usize {
         self.objects_error.len()
     }
 
+    /// Free objects that timed out.
     ///
-    /// Free objects after `object_timeout`
+    /// This method performs cleanup operations on the `Receiver`, freeing objects that
+    /// have timed out.
+    ///
+    /// # Arguments
+    ///
+    /// * `now` - The current `SystemTime` to use for time-related operations.
     ///
     pub fn cleanup(&mut self, now: std::time::SystemTime) {
         self.cleanup_objects();
@@ -187,10 +220,23 @@ impl Receiver {
         }
     }
 
-    /// Push data to the `Receiver`
+    /// Push an ALC/LCT packet to the `Receiver`.
+    ///
+    /// This method is used to push data (the payload of a UDP/IP packet) to the `Receiver`.
     ///
     /// # Arguments
-    /// * `data`- Payload of the UDP/IP packet.
+    ///
+    /// * `data` - The payload of the UDP/IP packet.
+    /// * `now` - The current `SystemTime` to use for time-related operations.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` indicating success (`Ok`) or an error (`Err`).
+    ///
+    /// # Errors
+    ///
+    /// Returns as error if the packet is not a valid
+    ///
     pub fn push_data(&mut self, data: &[u8], now: std::time::SystemTime) -> Result<()> {
         let alc = alc::parse_alc_pkt(data)?;
         if alc.lct.tsi != self.tsi {
@@ -200,7 +246,19 @@ impl Receiver {
         self.push(&alc, now)
     }
 
-    /// Push ALC/LCT packets to the `Receiver`
+    /// Push ALC/LCT packets to the `Receiver`.
+    ///
+    /// This method is used to push ALC/LCT packets to the `Receiver`.
+    ///
+    /// # Arguments
+    ///
+    /// * `alc_pkt` - The ALC/LCT packet to push.
+    /// * `now` - The current `SystemTime` to use for time-related operations.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` indicating success (`Ok`) or an error (`Err`).
+    ///
     pub fn push(&mut self, alc_pkt: &alc::AlcPkt, now: std::time::SystemTime) -> Result<()> {
         debug_assert!(self.tsi == alc_pkt.lct.tsi);
         self.last_activity = Instant::now();

@@ -33,12 +33,12 @@ impl MultiReceiver {
     /// Creates a new `MultiReceiver` instance, which allows receiving multiple interlaced FLUTE sessions.
     ///
     /// # Arguments
-    /// if `None`, all Transport Session are accepted
     ///
     /// * `writer` - Responsible to write object to its final destination.
     ///
     /// * `config` - Configuration of the FLUTE `Receiver`. if `None`, default `Config` will be used
     ///
+    /// * `enable_tsi_filtering` - Enable TSI filter mechanism
     /// # Example
     /// ```
     /// // Receive objects from Transport Session 1
@@ -99,9 +99,9 @@ impl MultiReceiver {
     /// Accept a TSI session for a given endpoint and TSI
     ///
     /// # Arguments
-    /// * `maddendpointr` - Add the TSI filter for this endpoint.
+    /// * `endpoint` - Add the TSI filter for this endpoint.
     ///
-    /// * `param` - tsi The TSI value to filter.
+    /// * `tsi` - tsi The TSI value to filter.
     ///
     pub fn add_listen_tsi(&mut self, endpoint: UDPEndpoint, tsi: u64) {
         if self.enable_tsi_filtering == false {
@@ -118,7 +118,7 @@ impl MultiReceiver {
     /// # Arguments
     /// * `endpoint` - remove the TSI filter for this endpoint.
     ///
-    /// * `param` - The TSI value to remove the filter for.
+    /// * `tsi` - The TSI value to remove the filter for.
     ///
     pub fn remove_listen_tsi(&mut self, endpoint: &UDPEndpoint, tsi: u64) {
         self.tsifilter.remove(endpoint, tsi);
@@ -139,12 +139,24 @@ impl MultiReceiver {
         self.tsifilter.remove_endpoint_bypass(endpoint);
     }
 
+    /// Push an ALC/LCT packet to the `Receiver`.
     ///
-    /// Push a ALC/LCT packet to the receiver.
-    /// Returns as error the the packet is not a valid ALC/LCT format
+    /// This method is used to push an ALC/LCT packet (the payload of a UDP/IP packet)
+    /// to the `Receiver`.
     ///
     /// # Arguments
-    /// * `pkt`- Payload of the UDP/IP packet.
+    ///
+    /// * `endpoint` - The `UDPEndpoint` from where the packet is received.
+    /// * `pkt` - The payload of the UDP/IP packet.
+    /// * `now` - The current `SystemTime` to use for time-related operations.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` indicating success (`Ok`) or an error (`Err`).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the packet is not valid or the receiver is in an error state.
     ///
     pub fn push(
         &mut self,
