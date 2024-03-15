@@ -275,12 +275,12 @@ impl Fdt {
     }
 
     fn current_fdt_will_expire(&self, now: SystemTime) -> bool {
-        if self.current_fdt_transfer.is_none() || self.last_publish.is_none() {
-            return true;
-        }
-
         if !self.fdt_transfer_queue.is_empty() {
             return false;
+        }
+
+        if self.current_fdt_transfer.is_none() || self.last_publish.is_none() {
+            return true;
         }
 
         let duration = now
