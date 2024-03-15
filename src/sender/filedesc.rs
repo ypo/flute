@@ -112,7 +112,7 @@ impl FileDesc {
         })
     }
 
-    pub fn _total_nb_transfer(&self) -> u64 {
+    pub fn total_nb_transfer(&self) -> u64 {
         let info = self.transfer_info.read().unwrap();
         info.total_nb_transfer
     }

@@ -231,6 +231,11 @@ impl Fdt {
         true
     }
 
+    pub fn nb_transfers(&mut self, toi: u128) -> Option<u64> {
+        let obj = self.files.get(&toi)?;
+        Some(obj.total_nb_transfer())
+    }
+
     pub fn nb_objects(&self) -> usize {
         if self.files.len() > 100 {
             let uri: Vec<String> = self
