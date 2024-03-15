@@ -227,7 +227,6 @@ impl Oti {
     ///
     /// * `maximum_source_block_length`: A `u16` value representing the maximum length of a source block in bytes.
     /// A source block is a contiguous portion of the original data that is encoded using the FEC Scheme.  
-
     pub fn new_no_code(encoding_symbol_length: u16, maximum_source_block_length: u16) -> Oti {
         Oti {
             fec_encoding_id: FECEncodingID::NoCode,

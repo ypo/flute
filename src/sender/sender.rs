@@ -72,7 +72,7 @@ impl PriorityQueue {
 pub struct Config {
     /// Max duration of the FDT before expiration.
     pub fdt_duration: std::time::Duration,
-    /// Repeat duration of the FDT in the carousel
+    /// Repeat rate of the FDT in the carousel
     pub fdt_carousel: std::time::Duration,
     /// First FDT ID.
     pub fdt_start_id: u32,
@@ -288,8 +288,13 @@ impl Sender {
     ///
     /// After calling this function, a call to `publish()` to publish your modifications
     ///
-    /// Warning, if the object is being transferred, the transfer is not canceled
+    /// Warning, if the object has not been transferred at least once and is being transferred
+    /// the transfer is not canceled
     ///
+    /// # Arguments
+    /// 
+    /// * `toi` - TOI of the Object.
+    /// 
     /// # Returns
     ///
     /// `true`if the object has been removed from the FDT
@@ -297,7 +302,24 @@ impl Sender {
         self.fdt.remove_object(toi)
     }
 
-    /// Number of objects signalled in the FDT
+    /// Return the number of times an object has been transferred,
+    /// or None if the object is not in the FDT anymore.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `toi` - TOI of the Object.
+    /// 
+    /// # Returns
+    /// 
+    /// * `Some(count)` - The number of times the object has been transferred, if it is found in the FDT.
+    /// * `None` - If the object with the specified `toi` is not present in the FDT.
+    /// 
+    pub fn nb_transfers(&mut self, toi: u128) -> Option<u64> {
+        self.fdt.nb_transfers(toi)
+    }
+
+
+    /// Number of objects available in the FDT
     pub fn nb_objects(&self) -> usize {
         self.fdt.nb_objects()
     }
@@ -311,7 +333,7 @@ impl Sender {
 
     /// Inform that the FDT is complete, no new object should be added after this call
     /// You must not call `add_object()`after
-    /// After calling this function, a call to `publish()` to publish your modifications
+    /// After calling this function, a call to `publish()` is required to publish your modifications
     pub fn set_complete(&mut self) {
         self.fdt.set_complete();
     }
