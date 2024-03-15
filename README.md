@@ -175,9 +175,11 @@ use flute::sender::Sender;
 use flute::sender::Config;
 use flute::sender::PriorityQueue;
 use flute::core::UDPEndpoint;
+use flute::sender::ObjectDesc;
+use flute::sender::Cenc;
 
 // Create a default configuration
-let mut config = Default::default();
+let mut config: flute::sender::Config = Default::default();
 
 // Configure the HIGHEST priority queue with a capacity of 3 simultaneous file transfer
 config.set_priority_queue(PriorityQueue::HIGHEST, PriorityQueue::new(3));
