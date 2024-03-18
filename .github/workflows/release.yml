@@ -1,4 +1,4 @@
-name: Crates.io
+name: Release
 
 on: workflow_dispatch
 
