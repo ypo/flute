@@ -51,7 +51,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 241 commits contributed to the release over the course of 464 calendar days.
+ - 2 commits contributed to the release.
+ - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Set version 1.2 after Raptorq breaking change ([`5719200`](https://github.com/ypo/flute/commit/57192005fc1ec2396b599fcf458993bb24a55e0b))
+    - #22 Generate release based on tag ([`ab49cb8`](https://github.com/ypo/flute/commit/ab49cb8addbfc7fc8ac265c90be49a26a1305404))
+</details>
+
+## 1.1.9 (2024-03-18)
+
+### Chore
+
+ - <csr-id-14bd095a9f1f9e48e565e01781897741599e7ff5/> Release flute version 1.1.7
+ - <csr-id-8e9263bcb7f92b27e63ecf270f28cc3534ac04a8/> Release flute version 1.1.6
+ - <csr-id-17a085017d754128958d708c2b5a8e6f24bad4ca/> Release flute version 1.1.5
+ - <csr-id-d676b05a14b6817d023f5ae61e5f83b8f5a13c00/> Release flute version 1.1.4
+ - <csr-id-546ee5ae76b5ebb661b4db29c5a58458b0c663d7/> Release flute version 1.1.3
+ - <csr-id-b9362271956991c2cce617ddfc3cccd394b20c90/> Release flute version 1.1.1
+ - <csr-id-aa99ae6ab25c54ec71b3d5dae67b362b2212e191/> Release flute version 1.1.0
+ - <csr-id-82246ab5a3c396b460842e2c4c7cf64610cc9a9e/> Release flute version 1.0.4
+ - <csr-id-5990ecbea3c0c5d0c1b0e3712f981a05e25435a7/> Release flute version 1.0.3
+ - <csr-id-c12f73094a909c7fc9f16bfd9365ba230acb2984/> Release flute version 1.0.2
+ - <csr-id-4c9f024f3331c3a09b94f4264259338bbbb023ab/> Release {{crate_name}} version {{version}}
+ - <csr-id-5d082392ae2f7daecd6abd913a93bd97abb5eef4/> Release {{crate_name}} version {{version}}
+ - <csr-id-2714bf48117c907cebe5af39d81e40b8445e5ce3/> Release {{crate_name}} version {{version}}
+ - <csr-id-59e59ef9e48cbd415bec75a8164ef348ea393d21/> Release {{crate_name}} version {{version}}
+ - <csr-id-7d2a059290b8914f1004ac6253b7d1c5532a7686/> Release {{crate_name}} version {{version}}
+ - <csr-id-40b082d9cda70b1aa3638dfff55d73e9eea2738e/> Release {{crate_name}} version {{version}}
+ - <csr-id-2c751f136b73bafa780846cd534fbb846074f189/> Release {{crate_name}} version {{version}}
+ - <csr-id-d07ab4a9d81c6cbe376ed9acdcafd0536ae5b588/> Release {{crate_name}} version {{version}}
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 242 commits contributed to the release over the course of 464 calendar days.
  - 18 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -62,6 +104,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - V1.1.9 ([`180b72b`](https://github.com/ypo/flute/commit/180b72b924f2326908ed26653ce21ddfcfdbf878))
     - Script to create a release ([`3f0ec8f`](https://github.com/ypo/flute/commit/3f0ec8f5f46e572cc8fe3c6039e5b3b48c098881))
     - Create release ([`561d358`](https://github.com/ypo/flute/commit/561d358e74bf7f5d90637e93e2f9a0887ce3b49b))
     - Fix action name ([`301578e`](https://github.com/ypo/flute/commit/301578e9b5860e545405ad0b2ba008fcfdeaa576))
