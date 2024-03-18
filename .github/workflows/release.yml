@@ -1,6 +1,10 @@
 name: Release
 
-on: workflow_dispatch
+on:
+  push:
+    # Sequence of patterns matched against refs/tags
+    tags:
+      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
 
 env:
   CARGO_TERM_COLOR: always
@@ -20,7 +24,5 @@ jobs:
         with:
           tag_name: ${{ github.ref }}
           release_name: Release ${{ github.ref }}
-          body: |
-            Changes in this Release
           draft: false
           prerelease: false
