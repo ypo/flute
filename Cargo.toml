@@ -30,7 +30,7 @@ flate2 = "1.0"
 md5 = "0.7"
 pyo3 = { version = "0.20", features = ["extension-module"], optional = true }
 pyo3-log = { version = "0.9", optional = true }
-raptorq = "1.8"
+raptorq = "2.0"
 raptor-code = "1.0.6"
 opentelemetry = { version = "0.22", optional = true  }
 rand = "0.8"

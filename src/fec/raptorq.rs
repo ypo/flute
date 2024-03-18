@@ -50,14 +50,14 @@ impl FecEncoder for RaptorQEncoder {
     fn encode(&self, data: &[u8]) -> crate::error::Result<Vec<Box<dyn FecShard>>> {
         let symbol_aligned = data.len() % self.config.symbol_size() as usize;
         let encoder = match data.len() % self.config.symbol_size() as usize {
-            0 => raptorq::SourceBlockEncoder::new2(0, &self.config.clone(), data),
+            0 => raptorq::SourceBlockEncoder::new(0, &self.config.clone(), data),
             _ => {
                 let mut data = data.to_vec();
                 data.resize(
                     data.len() + (self.config.symbol_size() as usize - symbol_aligned),
                     0,
                 );
-                raptorq::SourceBlockEncoder::new2(0, &self.config.clone(), &data)
+                raptorq::SourceBlockEncoder::new(0, &self.config.clone(), &data)
             }
         };
 
@@ -105,7 +105,7 @@ impl RaptorQDecoder {
         );
 
         let block_length = nb_source_symbols as u64 * encoding_symbol_length as u64;
-        let decoder = raptorq::SourceBlockDecoder::new2(sbn as u8, &config, block_length);
+        let decoder = raptorq::SourceBlockDecoder::new(sbn as u8, &config, block_length);
         RaptorQDecoder {
             decoder,
             data: None,
