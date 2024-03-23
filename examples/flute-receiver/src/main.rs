@@ -2,10 +2,11 @@ use flute::{
     core::UDPEndpoint,
     receiver::{writer, MultiReceiver},
 };
-use std::{net::UdpSocket, rc::Rc};
+use std::rc::Rc;
+
+mod msocket;
 
 fn main() {
-    std::env::set_var("RUST_LOG", "info");
     env_logger::builder().try_init().ok();
 
     let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_string(), 3400);
@@ -26,20 +27,19 @@ fn main() {
         std::process::exit(-1);
     }
 
-    log::info!("Create UDP Socket");
-    let udp_socket = UdpSocket::bind(format!(
-        "{}/{}",
-        endpoint.destination_group_address, endpoint.port
-    ))
-    .expect("Fail to bind");
-
     log::info!("Create FLUTE, write objects to {:?}", dest_dir);
+
     let writer = Rc::new(writer::ObjectWriterFSBuilder::new(dest_dir).unwrap());
     let mut receiver = MultiReceiver::new(writer, None, false);
 
+    // Receive from 224.0.0.1:3400 on 127.0.0.1 (lo) interface
+    let socket = msocket::MSocket::new(&endpoint, Some("127.0.0.1"), false)
+        .expect("Fail to create Multicast Socket");
+
     let mut buf = [0; 2048];
     loop {
-        let (n, _src) = udp_socket
+        let (n, _src) = socket
+            .sock
             .recv_from(&mut buf)
             .expect("Failed to receive data");
 
