@@ -121,7 +121,7 @@ impl FecDecoder for RaptorQDecoder {
         }
 
         let pkt = raptorq::EncodingPacket::new(
-            raptorq::PayloadId::new(self.sbn as u8, esi as u32),
+            raptorq::PayloadId::new(self.sbn as u8, esi),
             encoding_symbol.to_vec(),
         );
 

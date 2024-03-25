@@ -35,15 +35,14 @@ impl ObjectWriterBuilder for ObjectWriterFSBuilder {
         meta: Option<&ObjectMetadata>,
         _now: std::time::SystemTime,
     ) -> Box<dyn ObjectWriter> {
-        let obj = Box::new(ObjectWriterFS {
+        Box::new(ObjectWriterFS {
             dest: self.dest.clone(),
             inner: RefCell::new(ObjectWriterFSInner {
                 destination: None,
                 writer: None,
             }),
-            meta: meta.map(|m| m.clone()),
-        });
-        obj
+            meta: meta.cloned(),
+        })
     }
 
     fn set_cache_duration(
@@ -98,8 +97,8 @@ impl ObjectWriter for ObjectWriterFS {
         let meta = self.meta.as_ref().unwrap();
         let content_location_path = meta.content_location.path();
         let relative_path = content_location_path
-            .strip_prefix("/")
-            .unwrap_or_else(|| content_location_path);
+            .strip_prefix('/')
+            .unwrap_or(content_location_path);
         let destination = self.dest.join(relative_path);
         log::info!(
             "Create destination {:?} {:?} {:?}",

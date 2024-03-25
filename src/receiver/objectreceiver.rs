@@ -99,7 +99,7 @@ impl ObjectReceiver {
             block_writer: None,
             fdt_instance_id: None,
             tsi,
-            toi: toi.clone(),
+            toi: *toi,
             endpoint: endpoint.clone(),
             meta: None,
             last_activity: Instant::now(),
@@ -168,7 +168,7 @@ impl ObjectReceiver {
         }
 
         if payload_id.sbn as usize >= self.blocks.len() {
-            if self.blocks_variable_size == false {
+            if !self.blocks_variable_size {
                 return Err(FluteError::new(format!(
                     "SBN {} > max SBN {}",
                     payload_id.sbn,
@@ -176,7 +176,7 @@ impl ObjectReceiver {
                 )));
             }
             self.blocks
-                .resize_with(payload_id.sbn as usize + 1, || BlockDecoder::new());
+                .resize_with(payload_id.sbn as usize + 1, BlockDecoder::new);
         }
 
         let block = &mut self.blocks[payload_id.sbn as usize];
@@ -184,13 +184,13 @@ impl ObjectReceiver {
             return Ok(());
         }
 
-        if block.initialized == false {
-            let source_block_length = payload_id.source_block_length.unwrap_or_else(|| {
+        if !block.initialized {
+            let source_block_length = payload_id.source_block_length.unwrap_or(
                 match payload_id.sbn < self.nb_a_large as u32 {
                     true => self.a_large as u32,
                     _ => self.a_small as u32,
-                }
-            });
+                },
+            );
 
             let oti = self.oti.as_ref().unwrap();
 
@@ -200,7 +200,7 @@ impl ObjectReceiver {
                     self.a_large,
                     self.a_small,
                     self.nb_a_large,
-                    self.transfer_length.as_ref().unwrap().clone(),
+                    *self.transfer_length.as_ref().unwrap(),
                     oti.encoding_symbol_length as u64,
                     payload_id.sbn,
                 ) as usize,
@@ -312,10 +312,9 @@ impl ObjectReceiver {
             None => vec![],
         };
 
-        match file.group.as_ref() {
-            Some(group) => groups.append(&mut group.iter().map(|g| g.clone()).collect()),
-            None => {}
-        };
+        if let Some(group) = file.group.as_ref() {
+            groups.append(&mut group.to_vec())
+        }
 
         #[cfg(feature = "opentelemetry")]
         let _span = self.logger.fdt_attached();
@@ -386,14 +385,12 @@ impl ObjectReceiver {
 
         let object_writer = self.object_writer.as_mut().unwrap();
 
-        match object_writer.writer.open() {
-            Err(_) => {
-                log::error!("Fail to open destination for {:?}", self.meta);
-                self.error("Fail to create destination on storage");
-                return;
-            }
-            _ => {}
+        if object_writer.writer.open().is_err() {
+            log::error!("Fail to open destination for {:?}", self.meta);
+            self.error("Fail to create destination on storage");
+            return;
         };
+
         let transfer_length = self.transfer_length.unwrap();
         if transfer_length != 0 {
             self.block_writer = Some(BlockWriter::new(
@@ -423,7 +420,7 @@ impl ObjectReceiver {
         let mut sbn = sbn_start as usize;
         let writer = self.block_writer.as_mut().unwrap();
         while sbn < self.blocks.len() {
-            let block = &mut self.blocks[sbn as usize];
+            let block = &mut self.blocks[sbn];
             if !block.completed {
                 break;
             }
@@ -509,15 +506,11 @@ impl ObjectReceiver {
             return;
         }
 
-        while !self.cache.is_empty() {
-            let item = self.cache.pop().unwrap();
+        while let Some(item) = self.cache.pop() {
             let pkt = item.to_pkt();
-            match self.push_to_block(&pkt, now) {
-                Err(_) => {
-                    self.error("Fail to push block");
-                    break;
-                }
-                _ => {}
+            if self.push_to_block(&pkt, now).is_err() {
+                self.error("Fail to push block");
+                break;
             }
         }
         self.cache_size = 0;
@@ -565,7 +558,6 @@ impl ObjectReceiver {
         if self.cenc.is_none() {
             log::warn!("Cenc is unknown ?");
             debug_assert!(self.toi != lct::TOI_FDT);
-            return;
         }
     }
 
@@ -639,7 +631,7 @@ impl ObjectReceiver {
             self.toi
         );
         self.blocks
-            .resize_with(nb_blocks as usize, || BlockDecoder::new());
+            .resize_with(nb_blocks as usize, BlockDecoder::new);
     }
 }
 

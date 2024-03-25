@@ -14,7 +14,7 @@ pub fn system_time_to_ntp(time: SystemTime) -> Result<u64> {
     let seconds_utc = duration.as_secs();
     let submicro = duration.subsec_micros();
 
-    let seconds_ntp = seconds_utc as u64 + 2208988800u64;
+    let seconds_ntp = seconds_utc + 2208988800u64;
     let fraction = (((submicro as u128) * (1u128 << 32)) / 1000000u128) as u32;
     Ok((seconds_ntp << 32) | (fraction as u64))
 }

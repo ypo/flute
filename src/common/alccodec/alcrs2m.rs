@@ -49,7 +49,7 @@ impl AlcCodec for AlcRS2m {
         data: &[u8],
         lct_header: &lct::LCTHeader,
     ) -> crate::error::Result<Option<(oti::Oti, u64)>> {
-        let fti = match lct::get_ext(data.as_ref(), &lct_header, lct::Ext::Fti as u8)? {
+        let fti = match lct::get_ext(data, lct_header, lct::Ext::Fti as u8)? {
             Some(fti) => fti,
             None => return Ok(None),
         };
@@ -109,7 +109,7 @@ impl AlcCodec for AlcRS2m {
         |     Source Block Number (32-m                  | Enc. Symb. ID |
         +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
          */
-        let header: u32 = (sbn << m) | (esi as u32) & 0xFF;
+        let header: u32 = (sbn << m) | esi & 0xFF;
         data.extend(header.to_be_bytes());
     }
 
@@ -154,7 +154,7 @@ impl AlcCodec for AlcRS2m {
         &self,
         _pkt: &alc::AlcPkt,
     ) -> crate::error::Result<alc::PayloadID> {
-        return Err(FluteError::new("not supported"));
+        Err(FluteError::new("not supported"))
     }
 
     fn fec_payload_id_block_length(&self) -> usize {

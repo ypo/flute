@@ -1,5 +1,5 @@
 use super::{ObjectMetadata, ObjectWriter, ObjectWriterBuilder};
-use crate::{tools::error::Result, common::udpendpoint::UDPEndpoint};
+use crate::{common::udpendpoint::UDPEndpoint, tools::error::Result};
 use std::{cell::RefCell, rc::Rc};
 
 ///
@@ -41,6 +41,12 @@ impl ObjectWriterBufferBuilder {
     }
 }
 
+impl Default for ObjectWriterBufferBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ObjectWriterBuilder for ObjectWriterBufferBuilder {
     fn new_object_writer(
         &self,
@@ -54,7 +60,7 @@ impl ObjectWriterBuilder for ObjectWriterBufferBuilder {
             complete: false,
             error: false,
             data: Vec::new(),
-            meta: meta.map(|m| m.clone()),
+            meta: meta.cloned(),
         }));
 
         let obj_wrapper = Box::new(ObjectWriterBufferWrapper { inner: obj.clone() });

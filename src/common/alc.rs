@@ -62,8 +62,8 @@ impl<'a> AlcPkt<'a> {
             lct: self.lct.clone(),
             oti: self.oti.clone(),
             transfer_length: self.transfer_length,
-            cenc: self.cenc.clone(),
-            server_time: self.server_time.clone(),
+            cenc: self.cenc,
+            server_time: self.server_time,
             data_alc_header_offset: self.data_alc_header_offset,
             data_payload_offset: self.data_payload_offset,
             data: self.data.to_vec(),
@@ -78,8 +78,8 @@ impl<'a> AlcPktCache {
             lct: self.lct.clone(),
             oti: self.oti.clone(),
             transfer_length: self.transfer_length,
-            cenc: self.cenc.clone(),
-            server_time: self.server_time.clone(),
+            cenc: self.cenc,
+            server_time: self.server_time,
             data_alc_header_offset: self.data_alc_header_offset,
             data_payload_offset: self.data_payload_offset,
             data: self.data.as_ref(),
@@ -96,7 +96,7 @@ pub fn new_alc_pkt_close_session(cci: &u128, tsi: u64) -> Vec<u8> {
     lct::push_lct_header(
         &mut data,
         0,
-        &cci,
+        cci,
         tsi,
         &0u128,
         oti.fec_encoding_id as u8,
@@ -124,7 +124,7 @@ pub fn new_alc_pkt(
     lct::push_lct_header(
         &mut data,
         0,
-        &cci,
+        cci,
         tsi,
         &pkt.toi,
         oti.fec_encoding_id as u8,
@@ -191,7 +191,7 @@ pub fn parse_alc_pkt(data: &[u8]) -> Result<AlcPkt> {
     let data_alc_header_offset = lct_header.len;
     let data_payload_offset = fec_payload_id_block_length + lct_header.len;
 
-    let cenc = lct::get_ext(data.as_ref(), &lct_header, lct::Ext::Cenc as u8)?;
+    let cenc = lct::get_ext(data, &lct_header, lct::Ext::Cenc as u8)?;
     let cenc = match cenc {
         Some(ext) => parse_cenc(ext).ok(),
         None => None,
@@ -199,7 +199,7 @@ pub fn parse_alc_pkt(data: &[u8]) -> Result<AlcPkt> {
 
     let mut fdt_info: Option<ExtFDT> = None;
     if lct_header.toi == lct::TOI_FDT {
-        let fdt = lct::get_ext(data.as_ref(), &lct_header, lct::Ext::Fdt as u8)?;
+        let fdt = lct::get_ext(data, &lct_header, lct::Ext::Fdt as u8)?;
         fdt_info = match fdt {
             Some(ext) => parse_ext_fdt(ext)?,
             None => None,
@@ -210,9 +210,9 @@ pub fn parse_alc_pkt(data: &[u8]) -> Result<AlcPkt> {
         lct: lct_header,
         oti: fti.as_ref().map(|fti| fti.0.clone()),
         transfer_length: fti.map(|fti| fti.1),
-        cenc: cenc,
+        cenc,
         server_time: None,
-        data: data.as_ref(),
+        data,
         data_alc_header_offset,
         data_payload_offset,
         fdt_info,
@@ -363,7 +363,7 @@ fn parse_sct(ext: &[u8]) -> Result<Option<std::time::SystemTime>> {
     };
 
     let ntp: u64 = ((ntp_seconds as u64) << 32) | (ntp_faction as u64);
-    tools::ntp_to_system_time(ntp).map(|op| Some(op))
+    tools::ntp_to_system_time(ntp).map(Some)
 }
 
 fn push_payload(data: &mut Vec<u8>, pkt: &Pkt) {

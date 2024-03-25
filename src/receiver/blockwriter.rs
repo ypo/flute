@@ -40,7 +40,7 @@ impl BlockWriter {
         BlockWriter {
             sbn: 0,
             bytes_left: transfer_length,
-            cenc: cenc,
+            cenc,
             decoder: None,
             buffer: Vec::new(),
             md5_context: match md5 {
@@ -56,7 +56,7 @@ impl BlockWriter {
     }
 
     pub fn get_md5(&self) -> Option<&str> {
-        self.md5.as_ref().map(|m| m.as_str())
+        self.md5.as_deref()
     }
 
     pub fn write(
@@ -119,7 +119,9 @@ impl BlockWriter {
     }
 
     fn write_pkt_cenc_null(&mut self, data: &[u8], writer: &dyn ObjectWriter) {
-        self.md5_context.as_mut().map(|ctx| ctx.consume(data));
+        if let Some(ctx) = self.md5_context.as_mut() {
+            ctx.consume(data)
+        }
         writer.write(data);
     }
 
@@ -155,9 +157,10 @@ impl BlockWriter {
                 return Ok(());
             }
 
-            self.md5_context
-                .as_mut()
-                .map(|ctx| ctx.consume(&self.buffer[..size]));
+            if let Some(ctx) = self.md5_context.as_mut() {
+                ctx.consume(&self.buffer[..size])
+            }
+
             writer.write(&self.buffer[..size]);
         }
     }

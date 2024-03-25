@@ -35,7 +35,7 @@ impl AlcCodec for AlcRS28 {
         data: &[u8],
         lct_header: &lct::LCTHeader,
     ) -> crate::error::Result<Option<(oti::Oti, u64)>> {
-        let fti = match lct::get_ext(data.as_ref(), &lct_header, lct::Ext::Fti as u8)? {
+        let fti = match lct::get_ext(data, lct_header, lct::Ext::Fti as u8)? {
             Some(fti) => fti,
             None => return Ok(None),
         };
@@ -78,7 +78,7 @@ impl AlcCodec for AlcRS28 {
         let sbn = pkt.sbn & 0xFFFFFF;
         let esi = pkt.esi & 0xFF;
 
-        let header: u32 = (sbn << 8) | (esi as u32) & 0xFF;
+        let header: u32 = (sbn << 8) | esi & 0xFF;
         data.extend(header.to_be_bytes());
     }
 

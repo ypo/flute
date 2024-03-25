@@ -53,11 +53,7 @@ impl SenderSession {
                 self.get_next(fdt, now);
             }
 
-            if self.encoder.is_none() {
-                return None;
-            }
-
-            let encoder = self.encoder.as_mut().unwrap();
+            let encoder = self.encoder.as_mut()?;
             let pkt = encoder.read();
             if pkt.is_none() {
                 self.release_file(fdt, now);
@@ -68,12 +64,10 @@ impl SenderSession {
             let file = self.file.as_ref().unwrap();
 
             if !self.transfer_fdt_only {
-                if file.total_nb_transfer() > 0 {
-                    if !fdt.is_added(file.toi) {
-                        log::debug!("File has already been transferred and is removed from the FDT, stop the transfer {}", file.object.content_location.to_string());
-                        self.release_file(fdt, now);
-                        continue;
-                    }
+                if file.total_nb_transfer() > 0 && !fdt.is_added(file.toi) {
+                    log::debug!("File has already been transferred and is removed from the FDT, stop the transfer {}", file.object.content_location.to_string());
+                    self.release_file(fdt, now);
+                    continue;
                 }
             }
 
@@ -126,10 +120,10 @@ impl SenderSession {
     }
 
     fn release_file(&mut self, fdt: &mut Fdt, now: SystemTime) {
-        match &self.file {
-            Some(file) => fdt.transfer_done(file.clone(), now),
-            _ => {}
+        if let Some(file) = &self.file {
+            fdt.transfer_done(file.clone(), now)
         };
+
         self.file = None;
         self.encoder = None;
 

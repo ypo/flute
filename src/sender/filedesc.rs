@@ -53,7 +53,7 @@ impl FileDesc {
 
             let (_, _, _, nb_blocks) = partition::block_partitioning(
                 oti.maximum_source_block_length as u64,
-                object.transfer_length as u64,
+                object.transfer_length,
                 oti.encoding_symbol_length as u64,
             );
 
@@ -100,7 +100,7 @@ impl FileDesc {
             priority,
             object,
             oti,
-            toi: toi.clone(),
+            toi: *toi,
             fdt_id,
             sender_current_time,
             transfer_info: RwLock::new(TransferInfo {
@@ -121,16 +121,16 @@ impl FileDesc {
         let mut info = self.transfer_info.write().unwrap();
         info.transferring = true;
 
-        if info.transfer_count == self.object.max_transfer_count {
-            if self.object.carousel_delay.is_some() {
-                info.transfer_count = 0;
-            }
+        if info.transfer_count == self.object.max_transfer_count
+            && self.object.carousel_delay.is_some()
+        {
+            info.transfer_count = 0;
         }
     }
 
     pub fn transfer_done(&self, now: SystemTime) {
         let mut info = self.transfer_info.write().unwrap();
-        debug_assert!(info.transferring == true);
+        debug_assert!(info.transferring);
         info.transferring = false;
         info.transfer_count += 1;
         info.total_nb_transfer += 1;
@@ -185,21 +185,22 @@ impl FileDesc {
             content_md5: self.object.md5.clone(),
             fec_oti_fec_encoding_id: oti_attributes
                 .as_ref()
-                .map_or(None, |f| f.fec_oti_fec_encoding_id),
+                .and_then(|f| f.fec_oti_fec_encoding_id),
             fec_oti_fec_instance_id: oti_attributes
                 .as_ref()
-                .map_or(None, |f| f.fec_oti_fec_instance_id),
+                .and_then(|f| f.fec_oti_fec_instance_id),
             fec_oti_maximum_source_block_length: oti_attributes
                 .as_ref()
-                .map_or(None, |f| f.fec_oti_maximum_source_block_length),
+                .and_then(|f| f.fec_oti_maximum_source_block_length),
             fec_oti_encoding_symbol_length: oti_attributes
                 .as_ref()
-                .map_or(None, |f| f.fec_oti_encoding_symbol_length),
+                .map(|f| f.fec_oti_encoding_symbol_length)
+                .unwrap_or_default(),
             fec_oti_max_number_of_encoding_symbols: oti_attributes
                 .as_ref()
-                .map_or(None, |f| f.fec_oti_max_number_of_encoding_symbols),
+                .and_then(|f| f.fec_oti_max_number_of_encoding_symbols),
             fec_oti_scheme_specific_info: oti_attributes
-                .map_or(None, |f| f.fec_oti_scheme_specific_info),
+                .and_then(|f| f.fec_oti_scheme_specific_info),
             cache_control: self
                 .object
                 .cache_control

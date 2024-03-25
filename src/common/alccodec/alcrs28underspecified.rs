@@ -24,7 +24,7 @@ impl AlcCodec for AlcRS28UnderSpecified {
 
         let ext_header: u16 = (lct::Ext::Fti as u16) << 8 | 4u16;
         let transfer_header_fec_id: u64 = (transfer_length << 16) | oti.fec_instance_id as u64;
-        let esl: u16 = oti.encoding_symbol_length as u16;
+        let esl: u16 = oti.encoding_symbol_length;
         let sbl: u16 = ((oti.maximum_source_block_length) & 0xFFFF) as u16;
         let mne: u16 = (oti.max_number_of_parity_symbols + oti.maximum_source_block_length) as u16;
 
@@ -41,7 +41,7 @@ impl AlcCodec for AlcRS28UnderSpecified {
         data: &[u8],
         lct_header: &lct::LCTHeader,
     ) -> crate::error::Result<Option<(oti::Oti, u64)>> {
-        let fti = match lct::get_ext(data.as_ref(), &lct_header, lct::Ext::Fti as u8)? {
+        let fti = match lct::get_ext(data, lct_header, lct::Ext::Fti as u8)? {
             Some(fti) => fti,
             None => return Ok(None),
         };
@@ -62,7 +62,7 @@ impl AlcCodec for AlcRS28UnderSpecified {
 
         let oti = oti::Oti {
             fec_encoding_id: oti::FECEncodingID::ReedSolomonGF28UnderSpecified,
-            fec_instance_id: fec_instance_id,
+            fec_instance_id,
             maximum_source_block_length: maximum_source_block_length as u32,
             encoding_symbol_length,
             max_number_of_parity_symbols: num_encoding_symbols as u32
@@ -83,7 +83,7 @@ impl AlcCodec for AlcRS28UnderSpecified {
             |      Source Block Length      |       Encoding Symbol ID      |
             +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         */
-        let sbn = pkt.sbn as u32;
+        let sbn = pkt.sbn;
         let source_block_length = pkt.source_block_length as u16;
         let esi = pkt.esi as u16;
 

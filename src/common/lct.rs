@@ -121,7 +121,7 @@ fn nb_bytes_128(cci: &u128, min: u32) -> u32 {
         return 2;
     }
 
-    return min;
+    min
 }
 
 fn nb_bytes_64(n: u64, min: u32) -> u32 {
@@ -141,7 +141,7 @@ fn nb_bytes_64(n: u64, min: u32) -> u32 {
         return 2;
     }
 
-    return min;
+    min
 }
 
 /**
@@ -276,11 +276,11 @@ pub fn push_lct_header(
         | ((hdr_len as u32) << 8)
         | (b as u32) << 16
         | (a as u32) << 17
-        | (h as u32) << 20
-        | (o as u32) << 21
-        | (s as u32) << 23
+        | (h) << 20
+        | (o) << 21
+        | (s) << 23
         | (psi as u32) << 24
-        | (c as u32) << 26
+        | (c) << 26
         | (v as u32) << 28;
 
     data.extend(lct_header.to_be_bytes());
@@ -301,15 +301,15 @@ pub fn push_lct_header(
     data.extend(&toi_net[toi_net_start..]);
 }
 
-/// Increases the length of the LCT Header. 
-/// 
+/// Increases the length of the LCT Header.
+///
 /// Adding 1 to `val` increases the header length by 32 bits.
 ///
 /// # Arguments
 ///
 /// * `data`: The vector containing the LCT Header.
 /// * `val`: The increment value specifying by how many bits the header length should be increased.
-pub fn inc_hdr_len(data: &mut Vec<u8>, val: u8) {
+pub fn inc_hdr_len(data: &mut [u8], val: u8) {
     data[2] += val;
 }
 
@@ -382,7 +382,7 @@ pub fn parse_lct_header(data: &[u8]) -> Result<LCTHeader> {
     }
 
     if header_ext_offset > len as u32 {
-        return Err(FluteError::new(format!("EXT offset outside LCT header",)));
+        return Err(FluteError::new("EXT offset outside LCT header"));
     }
 
     let mut cci: [u8; 16] = [0; 16]; // Store up to 128 bits
@@ -429,7 +429,7 @@ pub fn get_ext<'a>(data: &'a [u8], lct: &LCTHeader, ext: u8) -> Result<Option<&'
     while lct_ext_ext.len() >= 4 {
         let het = lct_ext_ext[0];
         let hel = match het {
-            het if het >= 128 => 4 as usize,
+            het if het >= 128 => 4_usize,
             _ => (lct_ext_ext[1] << 2) as usize,
         };
 

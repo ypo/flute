@@ -207,7 +207,7 @@ impl Receiver {
                         object.transfer_length,
                         object.byte_left()
                     );
-                    Some(key.clone())
+                    Some(*key)
                 } else {
                     None
                 }
@@ -277,8 +277,7 @@ impl Receiver {
     fn is_fdt_received(&self, fdt_instance_id: u32) -> bool {
         self.fdt_current
             .iter()
-            .find(|fdt| fdt.fdt_id == fdt_instance_id)
-            .is_some()
+            .any(|fdt| fdt.fdt_id == fdt_instance_id)
     }
 
     fn push_fdt_obj(&mut self, alc_pkt: &alc::AlcPkt, now: std::time::SystemTime) -> Result<()> {
@@ -398,7 +397,7 @@ impl Receiver {
         for obj in &mut self.objects {
             let success = obj.1.attach_fdt(fdt_id, fdt_instance, now, server_time);
             if success {
-                check_state.push(obj.0.clone());
+                check_state.push(*obj.0);
             }
         }
 
@@ -423,7 +422,7 @@ impl Receiver {
             let files_toi: std::collections::HashMap<u128, Option<&String>> = files.iter().map(|f| (f.toi.parse().unwrap_or_default(), f.content_md5.as_ref())).collect();
             let remove_candidates: std::collections::HashMap<u128, ObjectCompletedMeta> = self.objects_completed.iter().filter_map(|(toi, meta)| match  files_toi.contains_key(toi) {
                 true => None, 
-                false => Some((toi.clone(), meta.clone()))
+                false => Some((*toi, meta.clone()))
             }).collect();
             
             if !remove_candidates.is_empty() {
@@ -435,7 +434,7 @@ impl Receiver {
                         self.writer.set_cache_duration(
                             &self.endpoint,
                             &self.tsi,
-                            &toi,
+                            toi,
                             &meta.content_location,
                             &duration,
                         );
@@ -620,8 +619,7 @@ impl Receiver {
 
 
         let mut is_attached = false;
-        let mut fdt_index = 0;
-        for fdt in &mut self.fdt_current.iter_mut() {
+        for (fdt_index, fdt) in (&mut self.fdt_current.iter_mut()).enumerate() {
             let fdt_id = fdt.fdt_id;
             let server_time = fdt.get_server_time(now);
             fdt.update_expired_state(now);
@@ -644,14 +642,13 @@ impl Receiver {
                     }
                 }
             }
-            fdt_index += 1;
         }
 
-        if is_attached == false {
+        if !is_attached {
             log::warn!("Object received before the FDT TSI={} TOI={}", self.tsi, toi);
         }
 
-        self.objects.insert(toi.clone(), obj);
+        self.objects.insert(*toi, obj);
     }
 }
 
@@ -672,7 +669,7 @@ impl Drop for Receiver {
                         self.writer.set_cache_duration(
                             &self.endpoint,
                             &self.tsi,
-                            &obj.0,
+                            obj.0,
                             &obj.1.content_location,
                             &duration,
                         );

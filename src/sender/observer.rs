@@ -27,9 +27,7 @@ pub struct ObserverList(Arc<RwLock<Vec<Arc<dyn Subscriber>>>>);
 
 impl ObserverList {
     pub fn new() -> Self {
-        ObserverList {
-            0: Arc::new(RwLock::new(Vec::new())),
-        }
+        ObserverList(Arc::new(RwLock::new(Vec::new())))
     }
 
     pub fn subscribe(&mut self, s: Arc<dyn Subscriber>) {
@@ -42,7 +40,7 @@ impl ObserverList {
             .unwrap()
             .retain(|a| !std::ptr::eq(a.as_ref() as *const _, s.as_ref() as *const _))
     }
-    
+
     pub fn dispatch(&self, event: &Event, now: std::time::SystemTime) {
         let lock = self.0.read().unwrap();
 

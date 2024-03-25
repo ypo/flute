@@ -22,13 +22,13 @@ pub struct RSGalois8Codec {
 impl RSCodecParam {
     fn create_shards(&self, data: &[u8]) -> Result<Vec<Vec<u8>>> {
         let mut shards: Vec<Vec<u8>> = data
-            .chunks(self.encoding_symbol_length as usize)
+            .chunks(self.encoding_symbol_length)
             .map(|chunck| chunck.to_vec())
             .collect();
 
         let last = shards.last_mut().unwrap();
-        if last.len() < self.encoding_symbol_length as usize {
-            last.resize(self.encoding_symbol_length as usize, 0)
+        if last.len() < self.encoding_symbol_length {
+            last.resize(self.encoding_symbol_length, 0)
         }
         if shards.len() != self.nb_source_symbols {
             return Err(FluteError::new(format!(
@@ -39,7 +39,7 @@ impl RSCodecParam {
         }
 
         for _ in 0..self.nb_parity_symbols {
-            shards.push(vec![0; self.encoding_symbol_length as usize]);
+            shards.push(vec![0; self.encoding_symbol_length]);
         }
         Ok(shards)
     }

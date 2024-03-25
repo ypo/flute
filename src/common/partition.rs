@@ -74,7 +74,7 @@ pub fn block_length(a_large: u64, a_small: u64, nb_a_large: u64, l: u64, e: u64,
     }
 
     let l = l - (nb_a_large * large_block_size);
-    let sbn = sbn as u64 - nb_a_large;
+    let sbn = sbn - nb_a_large;
     let small_size = (sbn + 1) * small_block_size;
     if small_size <= l {
         return small_block_size;

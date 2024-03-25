@@ -50,7 +50,7 @@ impl BlockEncoder {
             read_end: false,
             source_size_transferred: 0,
             nb_pkt_sent: 0,
-            fd: fd,
+            fd,
         };
         block.block_partitioning();
         Ok(block)
@@ -77,7 +77,7 @@ impl BlockEncoder {
                         inband_cenc: self.file.object.inband_cenc,
                         close_object: true,
                         source_block_length: 0,
-                        sender_current_time: self.file.sender_current_time.clone(),
+                        sender_current_time: self.file.sender_current_time,
                     });
                 }
 
@@ -116,7 +116,7 @@ impl BlockEncoder {
                 close_object: self.source_size_transferred
                     >= self.file.object.transfer_length as usize,
                 source_block_length: block.nb_source_symbols as u32,
-                sender_current_time: self.file.sender_current_time.clone(),
+                sender_current_time: self.file.sender_current_time,
             });
         }
     }
@@ -132,7 +132,7 @@ impl BlockEncoder {
     }
 
     fn read_block(&mut self) -> Result<()> {
-        debug_assert!(self.read_end == false);
+        debug_assert!(!self.read_end);
 
         if self.fd.is_some() {
             return self.read_fd_block();
@@ -159,7 +159,7 @@ impl BlockEncoder {
         }
 
         let buffer = &content.as_slice()[offset_start..offset_end];
-        let block = Block::new_from_buffer(self.curr_sbn, buffer, block_length, &oti)?;
+        let block = Block::new_from_buffer(self.curr_sbn, buffer, block_length, oti)?;
         self.blocks.push(block);
         self.curr_sbn += 1;
         self.read_end = offset_end == content.len();
@@ -201,7 +201,7 @@ impl BlockEncoder {
 
         buffer.truncate(result);
 
-        let block = Block::new_from_buffer(self.curr_sbn, &buffer, block_length, &oti)?;
+        let block = Block::new_from_buffer(self.curr_sbn, &buffer, block_length, oti)?;
         self.blocks.push(block);
         self.curr_sbn += 1;
         self.curr_content_offset += buffer.len() as u64;

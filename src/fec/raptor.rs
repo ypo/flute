@@ -17,7 +17,7 @@ impl RaptorEncoder {
 
 impl FecEncoder for RaptorEncoder {
     fn encode(&self, data: &[u8]) -> Result<Vec<Box<dyn super::FecShard>>> {
-        let mut encoder = raptor_code::SourceBlockEncoder::new(&data, self.nb_source_symbols);
+        let mut encoder = raptor_code::SourceBlockEncoder::new(data, self.nb_source_symbols);
         let nb_source_symbols = encoder.nb_source_symbols() as usize;
         let n = nb_source_symbols + self.nb_parity_symbols;
 

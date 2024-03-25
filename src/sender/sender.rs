@@ -59,9 +59,7 @@ impl PriorityQueue {
     /// * `multiplex_files` - The maximum number of files that can be interleaved in this priority queue.
     ///
     pub fn new(multiplex_files: u32) -> Self {
-        PriorityQueue {
-            multiplex_files: multiplex_files,
-        }
+        PriorityQueue { multiplex_files }
     }
 }
 
@@ -292,9 +290,9 @@ impl Sender {
     /// the transfer is not canceled
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `toi` - TOI of the Object.
-    /// 
+    ///
     /// # Returns
     ///
     /// `true`if the object has been removed from the FDT
@@ -304,20 +302,19 @@ impl Sender {
 
     /// Return the number of times an object has been transferred,
     /// or None if the object is not in the FDT anymore.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `toi` - TOI of the Object.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Some(count)` - The number of times the object has been transferred, if it is found in the FDT.
     /// * `None` - If the object with the specified `toi` is not present in the FDT.
-    /// 
+    ///
     pub fn nb_transfers(&mut self, toi: u128) -> Option<u64> {
         self.fdt.nb_transfers(toi)
     }
-
 
     /// Number of objects available in the FDT
     pub fn nb_objects(&self) -> usize {

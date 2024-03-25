@@ -104,7 +104,7 @@ impl MultiReceiver {
     /// * `tsi` - tsi The TSI value to filter.
     ///
     pub fn add_listen_tsi(&mut self, endpoint: UDPEndpoint, tsi: u64) {
-        if self.enable_tsi_filtering == false {
+        if !self.enable_tsi_filtering {
             log::warn!("TSI filtering is disabled");
         }
 
@@ -127,7 +127,7 @@ impl MultiReceiver {
     /// Accepts all TSI sessions for a given endpoint   
     pub fn add_listen_all_tsi(&mut self, endpoint: UDPEndpoint) {
         log::info!("Listen all TSI for {:?}", endpoint);
-        if self.enable_tsi_filtering == false {
+        if !self.enable_tsi_filtering {
             log::warn!("TSI filtering is disabled");
         }
 
@@ -227,7 +227,7 @@ impl MultiReceiver {
         }
 
         self.alc_receiver.retain(|_, v| !v.is_expired());
-        for (_, receiver) in &mut self.alc_receiver {
+        for receiver in &mut self.alc_receiver.values_mut() {
             receiver.cleanup(now);
         }
 
@@ -249,7 +249,7 @@ impl MultiReceiver {
                     &key.endpoint,
                     key.tsi,
                     self.writer.clone(),
-                    self.config.clone(),
+                    self.config,
                 ))
             })
             .as_mut()

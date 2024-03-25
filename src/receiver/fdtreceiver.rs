@@ -90,17 +90,14 @@ impl FdtReceiver {
     }
 
     pub fn push(&mut self, pkt: &alc::AlcPkt, now: std::time::SystemTime) {
-        match alc::get_sender_current_time(pkt) {
-            Ok(Some(res)) => {
-                if res < now {
-                    self.sender_current_time_late = true;
-                    self.sender_current_time_offset = Some(now.duration_since(res).unwrap())
-                } else {
-                    self.sender_current_time_late = false;
-                    self.sender_current_time_offset = Some(res.duration_since(now).unwrap())
-                }
+        if let Ok(Some(res)) = alc::get_sender_current_time(pkt) {
+            if res < now {
+                self.sender_current_time_late = true;
+                self.sender_current_time_offset = Some(now.duration_since(res).unwrap())
+            } else {
+                self.sender_current_time_late = false;
+                self.sender_current_time_offset = Some(res.duration_since(now).unwrap())
             }
-            _ => {}
         }
 
         if let Some(obj) = self.obj.as_mut() {
@@ -133,7 +130,7 @@ impl FdtReceiver {
         if self.fdt_instance.is_none() {
             let inner = self.inner.borrow();
             let instance = inner.fdt.as_ref();
-            self.fdt_instance = instance.map(|f| f.clone())
+            self.fdt_instance = instance.cloned();
         }
         self.fdt_instance.as_ref()
     }
@@ -166,7 +163,7 @@ impl FdtReceiver {
 
     pub fn get_expiration_time(&self) -> Option<SystemTime> {
         let inner = self.inner.borrow();
-        return inner.expires;
+        inner.expires
     }
 }
 

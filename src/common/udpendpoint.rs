@@ -24,7 +24,7 @@ impl UDPEndpoint {
         Self {
             source_address: src,
             destination_group_address: dest,
-            port: port,
+            port,
         }
     }
 

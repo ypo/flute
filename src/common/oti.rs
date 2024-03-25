@@ -56,7 +56,7 @@ pub struct ReedSolomonGF2MSchemeSpecific {
 ///
 /// RaptorQ Scheme Specific parameters
 /// <https://www.rfc-editor.org/rfc/rfc6330.html#section-3.3.3>
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct RaptorQSchemeSpecific {
     /// The number of source blocks (Z): 8-bit unsigned integer.  
     pub source_blocks_length: u8,
@@ -206,16 +206,6 @@ impl Default for ReedSolomonGF2MSchemeSpecific {
     }
 }
 
-impl Default for RaptorQSchemeSpecific {
-    fn default() -> Self {
-        RaptorQSchemeSpecific {
-            source_blocks_length: 0,
-            sub_blocks_length: 0,
-            symbol_alignment: 0,
-        }
-    }
-}
-
 impl Oti {
     /// Creates and returns an instance of the `Oti` using the Forward Error Correction (FEC) Scheme `NoCode`.
     ///
@@ -232,7 +222,7 @@ impl Oti {
             fec_encoding_id: FECEncodingID::NoCode,
             fec_instance_id: 0,
             maximum_source_block_length: maximum_source_block_length as u32,
-            encoding_symbol_length: encoding_symbol_length,
+            encoding_symbol_length,
             max_number_of_parity_symbols: 0,
             scheme_specific: None,
             inband_fti: true,
@@ -283,7 +273,7 @@ impl Oti {
             fec_encoding_id: FECEncodingID::ReedSolomonGF28,
             fec_instance_id: 0,
             maximum_source_block_length: maximum_source_block_length as u32,
-            encoding_symbol_length: encoding_symbol_length,
+            encoding_symbol_length,
             max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
             scheme_specific: None,
             inband_fti: true,
@@ -334,7 +324,7 @@ impl Oti {
             fec_encoding_id: FECEncodingID::ReedSolomonGF28UnderSpecified,
             fec_instance_id: 0,
             maximum_source_block_length: maximum_source_block_length as u32,
-            encoding_symbol_length: encoding_symbol_length,
+            encoding_symbol_length,
             max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
             scheme_specific: None,
             inband_fti: true,
@@ -392,12 +382,12 @@ impl Oti {
             fec_encoding_id: FECEncodingID::RaptorQ,
             fec_instance_id: 0,
             maximum_source_block_length: maximum_source_block_length as u32,
-            encoding_symbol_length: encoding_symbol_length,
+            encoding_symbol_length,
             max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
             scheme_specific: Some(SchemeSpecific::RaptorQ(RaptorQSchemeSpecific {
                 source_blocks_length: 0,
-                sub_blocks_length: sub_blocks_length,
-                symbol_alignment: symbol_alignment,
+                sub_blocks_length,
+                symbol_alignment,
             })),
             inband_fti: true,
         })
@@ -454,12 +444,12 @@ impl Oti {
             fec_encoding_id: FECEncodingID::Raptor,
             fec_instance_id: 0,
             maximum_source_block_length: maximum_source_block_length as u32,
-            encoding_symbol_length: encoding_symbol_length,
+            encoding_symbol_length,
             max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
             scheme_specific: Some(SchemeSpecific::Raptor(RaptorSchemeSpecific {
                 source_blocks_length: 0,
-                sub_blocks_length: sub_blocks_length,
-                symbol_alignment: symbol_alignment,
+                sub_blocks_length,
+                symbol_alignment,
             })),
             inband_fti: true,
         })

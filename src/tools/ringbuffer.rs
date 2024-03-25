@@ -8,8 +8,7 @@ pub struct RingBuffer {
 
 impl RingBuffer {
     pub fn new(size: usize) -> Self {
-        let mut buffer = Vec::with_capacity(size);
-        buffer.resize(size, 0);
+        let buffer = vec![0; size];
         Self {
             buffer,
             producer: 0,
@@ -47,7 +46,7 @@ impl std::io::Read for RingBuffer {
         }
 
         if max_size == 0 {
-            if self.finish == true {
+            if self.finish {
                 return Ok(0);
             }
             return Err(std::io::Error::new(

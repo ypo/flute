@@ -23,7 +23,7 @@ impl AlcCodec for AlcNoCode {
         +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+*/
         let ext_header: u16 = (lct::Ext::Fti as u16) << 8 | 4u16;
         let transfer_header: u64 = transfer_length << 16;
-        let esl: u16 = oti.encoding_symbol_length as u16;
+        let esl: u16 = oti.encoding_symbol_length;
         let sbl_msb: u16 = ((oti.maximum_source_block_length >> 16) & 0xFFFF) as u16;
         let sbl_lsb: u16 = (oti.maximum_source_block_length & 0xFFFF) as u16;
 
@@ -40,7 +40,7 @@ impl AlcCodec for AlcNoCode {
         data: &[u8],
         lct_header: &lct::LCTHeader,
     ) -> crate::error::Result<Option<(oti::Oti, u64)>> {
-        let fti = match lct::get_ext(data.as_ref(), &lct_header, lct::Ext::Fti as u8)? {
+        let fti = match lct::get_ext(data, lct_header, lct::Ext::Fti as u8)? {
             Some(fti) => fti,
             None => return Ok(None),
         };
@@ -102,7 +102,7 @@ impl AlcCodec for AlcNoCode {
         |     Source Block Number  16 bits | Enc. Symb. ID  16 bits     |
         +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
          */
-        let header: u32 = ((sbn & 0xFFFF) << 16) | (esi as u32) & 0xFFFF;
+        let header: u32 = ((sbn & 0xFFFF) << 16) | esi & 0xFFFF;
         data.extend(header.to_be_bytes());
     }
 

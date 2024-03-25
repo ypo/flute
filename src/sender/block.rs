@@ -60,7 +60,7 @@ impl Block {
         Ok(Box::new(Block {
             sbn,
             read_index: 0,
-            shards: shards,
+            shards,
             nb_source_symbols,
         }))
     }
@@ -103,13 +103,13 @@ impl Block {
         buffer: &[u8],
     ) -> Result<Vec<Box<dyn FecShard>>> {
         debug_assert!(nb_source_symbols <= oti.maximum_source_block_length as usize);
-        debug_assert!(nb_source_symbols <= block_length as usize);
+        debug_assert!(nb_source_symbols <= block_length);
         let encoder = fec::rscodec::RSGalois8Codec::new(
             nb_source_symbols,
             oti.max_number_of_parity_symbols as usize,
             oti.encoding_symbol_length as usize,
         )?;
-        let shards = encoder.encode(&buffer)?;
+        let shards = encoder.encode(buffer)?;
         Ok(shards)
     }
 
@@ -120,7 +120,7 @@ impl Block {
         buffer: &[u8],
     ) -> Result<Vec<Box<dyn FecShard>>> {
         debug_assert!(nb_source_symbols <= oti.maximum_source_block_length as usize);
-        debug_assert!(nb_source_symbols <= block_length as usize);
+        debug_assert!(nb_source_symbols <= block_length);
         debug_assert!(oti.scheme_specific.is_some());
 
         if let Some(SchemeSpecific::RaptorQ(scheme)) = oti.scheme_specific.as_ref() {
@@ -131,10 +131,10 @@ impl Block {
                 scheme,
             );
 
-            let shards = encoder.encode(&buffer)?;
+            let shards = encoder.encode(buffer)?;
             Ok(shards)
         } else {
-            return Err(FluteError::new("Scheme specific for Raptorq not defined"));
+            Err(FluteError::new("Scheme specific for Raptorq not defined"))
         }
     }
 
@@ -145,14 +145,14 @@ impl Block {
         buffer: &[u8],
     ) -> Result<Vec<Box<dyn FecShard>>> {
         debug_assert!(nb_source_symbols <= oti.maximum_source_block_length as usize);
-        debug_assert!(nb_source_symbols <= block_length as usize);
+        debug_assert!(nb_source_symbols <= block_length);
         debug_assert!(oti.scheme_specific.is_some());
 
         let encoder = fec::raptor::RaptorEncoder::new(
             nb_source_symbols,
             oti.max_number_of_parity_symbols as usize,
         );
-        let shards = encoder.encode(&buffer)?;
+        let shards = encoder.encode(buffer)?;
         Ok(shards)
     }
 }

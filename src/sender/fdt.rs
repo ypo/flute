@@ -136,8 +136,8 @@ impl Fdt {
 
             file: Some(
                 self.files
-                    .iter()
-                    .map(|(_, desc)| desc.to_file_xml(now))
+                    .values()
+                    .map(|desc| desc.to_file_xml(now))
                     .collect(),
             ),
             xmlns_mbms_2005: None,
@@ -181,7 +181,7 @@ impl Fdt {
 
         let filedesc = Arc::new(FileDesc::new(priority, obj, &self.oti, &toi, None, false)?);
 
-        debug_assert!(self.files.contains_key(&filedesc.toi) == false);
+        debug_assert!(!self.files.contains_key(&filedesc.toi));
         self.files.insert(filedesc.toi, filedesc.clone());
         self.files_transfer_queue.push_back(filedesc);
         Ok(toi)
@@ -190,7 +190,7 @@ impl Fdt {
     pub fn get_objects_in_fdt(&self) -> std::collections::HashMap<u128, &ObjectDesc> {
         self.files
             .iter()
-            .map(|obj| (obj.0.clone(), obj.1.object.as_ref()))
+            .map(|obj| (*obj.0, obj.1.object.as_ref()))
             .collect()
     }
 
@@ -296,13 +296,8 @@ impl Fdt {
     }
 
     pub fn get_next_fdt_transfer(&mut self, now: SystemTime) -> Option<Arc<FileDesc>> {
-        if self.current_fdt_transfer.is_some() {
-            if self
-                .current_fdt_transfer
-                .as_ref()
-                .unwrap()
-                .is_transferring()
-            {
+        if let Some(current_fdt_transfer) = self.current_fdt_transfer.as_ref() {
+            if current_fdt_transfer.is_transferring() {
                 return None;
             }
         }
@@ -316,18 +311,14 @@ impl Fdt {
             self.current_fdt_transfer = self.fdt_transfer_queue.pop_front();
         }
 
-        if self.current_fdt_transfer.is_none() {
+        let current_fdt_transfer = self.current_fdt_transfer.as_ref()?;
+        if !current_fdt_transfer.should_transfer_now(0, now) {
             return None;
         }
 
-        match &self.current_fdt_transfer {
-            Some(value) if value.should_transfer_now(0, now) => {
-                log::debug!("TSI={} Start transmission of FDT", self._tsi);
-                value.transfer_started();
-                Some(value.clone())
-            }
-            _ => None,
-        }
+        log::debug!("TSI={} Start transmission of FDT", self._tsi);
+        current_fdt_transfer.transfer_started();
+        Some(current_fdt_transfer.clone())
     }
 
     pub fn get_next_file_transfer(
@@ -378,7 +369,7 @@ impl Fdt {
                 file.object.content_location.as_str(),
                 file.toi
             );
-            if file.is_expired() == false {
+            if !file.is_expired() {
                 log::debug!("Transfer file again");
                 self.files_transfer_queue.push_back(file);
             } else {

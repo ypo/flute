@@ -463,7 +463,7 @@ impl FdtInstance {
         let toi = toi.to_string();
         self.file
             .as_ref()
-            .and_then(|file| file.into_iter().find(|&file| file.toi == toi))
+            .and_then(|file| file.iter().find(|file| file.toi == toi))
     }
 
     pub fn get_oti_for_file(&self, file: &File) -> Option<oti::Oti> {
@@ -504,7 +504,7 @@ impl FdtInstance {
             .unwrap_or(self.fec_oti_maximum_source_block_length.unwrap());
 
         Some(oti::Oti {
-            fec_encoding_id: fec_encoding_id,
+            fec_encoding_id,
             fec_instance_id: self.fec_oti_fec_instance_id.unwrap_or(0) as u16,
             maximum_source_block_length: self.fec_oti_maximum_source_block_length.unwrap() as u32,
             encoding_symbol_length: self.fec_oti_encoding_symbol_length.unwrap() as u16,
@@ -588,7 +588,7 @@ impl File {
             .unwrap_or(self.fec_oti_maximum_source_block_length.unwrap());
 
         Some(oti::Oti {
-            fec_encoding_id: fec_encoding_id,
+            fec_encoding_id,
             fec_instance_id: self.fec_oti_fec_instance_id.unwrap_or(0) as u16,
             maximum_source_block_length: self.fec_oti_maximum_source_block_length.unwrap() as u32,
             encoding_symbol_length: self.fec_oti_encoding_symbol_length.unwrap() as u16,
