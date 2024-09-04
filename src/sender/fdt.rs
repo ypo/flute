@@ -273,9 +273,11 @@ impl Fdt {
             Some(self.fdtid),
             self.inband_sct,
         )?);
+        filedesc.set_published();
         self.fdt_transfer_queue.push_back(filedesc);
         self.fdtid = (self.fdtid + 1) & 0xFFFFF;
         self.last_publish = Some(now);
+        self.files.iter().for_each(|(_, file)| file.set_published());
         Ok(())
     }
 

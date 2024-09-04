@@ -2,6 +2,7 @@ use super::objectdesc::{create_fdt_cache_control, ObjectDesc};
 use crate::common::oti::SchemeSpecific;
 use crate::common::{fdtinstance, oti, partition};
 use crate::error::{FluteError, Result};
+use std::sync::atomic::AtomicBool;
 use std::sync::RwLock;
 use std::time::SystemTime;
 
@@ -21,6 +22,7 @@ pub struct FileDesc {
     pub toi: u128,
     pub fdt_id: Option<u32>,
     pub sender_current_time: bool,
+    pub published: AtomicBool,
     transfer_info: RwLock<TransferInfo>,
 }
 
@@ -109,6 +111,7 @@ impl FileDesc {
                 last_transfer: None,
                 total_nb_transfer: 0,
             }),
+            published: AtomicBool::new(false),
         })
     }
 
@@ -155,6 +158,11 @@ impl FileDesc {
             return false;
         }
 
+        if !self.is_published() {
+            log::warn!("File with TOI {} is not published", self.toi);
+            return false;
+        }
+
         let info = self.transfer_info.read().unwrap();
         if self.object.max_transfer_count > info.transfer_count {
             return true;
@@ -167,6 +175,15 @@ impl FileDesc {
         let delay = self.object.carousel_delay.as_ref().unwrap();
         let last_transfer = info.last_transfer.as_ref().unwrap();
         now.duration_since(*last_transfer).unwrap_or_default() > *delay
+    }
+
+    pub fn is_published(&self) -> bool {
+        self.published.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub fn set_published(&self) {
+        self.published
+            .store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
     pub fn to_file_xml(&self, now: SystemTime) -> fdtinstance::File {
