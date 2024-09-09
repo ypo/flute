@@ -7,7 +7,6 @@ use crate::sender::observer;
 use crate::sender::TOIMaxLength;
 use crate::tools;
 use crate::tools::error::{FluteError, Result};
-use rand::Rng;
 use serde::Serialize;
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -18,8 +17,6 @@ pub struct Fdt {
     _tsi: u64,
     fdtid: u32,
     oti: oti::Oti,
-    toi: u128,
-    toi_max_length: TOIMaxLength,
     files_transfer_queue: VecDeque<Arc<FileDesc>>,
     fdt_transfer_queue: VecDeque<Arc<FileDesc>>,
     files: std::collections::HashMap<u128, Arc<FileDesc>>,
@@ -49,33 +46,10 @@ impl Fdt {
         toi_initial_value: Option<u128>,
         groups: Option<Vec<String>>,
     ) -> Fdt {
-        let toi = match toi_initial_value {
-            Some(0) => 1,
-            Some(n) => n,
-            None => {
-                let mut rng = rand::thread_rng();
-                let mut toi = rng.gen();
-                match toi_max_length {
-                    TOIMaxLength::ToiMax16 => toi &= 0xFFFFu128,
-                    TOIMaxLength::ToiMax32 => toi &= 0xFFFFFFFFu128,
-                    TOIMaxLength::ToiMax48 => toi &= 0xFFFFFFFFFFFFu128,
-                    TOIMaxLength::ToiMax64 => toi &= 0xFFFFFFFFFFFFFFFFu128,
-                    TOIMaxLength::ToiMax80 => toi &= 0xFFFFFFFFFFFFFFFFFFFFu128,
-                    TOIMaxLength::ToiMax112 => {}
-                };
-                if toi == 0 {
-                    toi = 1;
-                }
-                log::info!("TOI initial value = {}", toi);
-                toi
-            }
-        };
-
         Fdt {
             _tsi: tsi,
             fdtid,
             oti: default_oti.clone(),
-            toi,
             files_transfer_queue: VecDeque::new(),
             fdt_transfer_queue: VecDeque::new(),
             files: std::collections::HashMap::new(),
@@ -87,9 +61,8 @@ impl Fdt {
             inband_sct,
             last_publish: None,
             observers,
-            toi_max_length,
             groups,
-            toi_allocator: ToiAllocator::new(),
+            toi_allocator: ToiAllocator::new(toi_max_length, toi_initial_value),
         }
     }
 
@@ -158,33 +131,30 @@ impl Fdt {
     }
 
     pub fn allocate_toi(&mut self) -> Box<Toi> {
-        let ret = ToiAllocator::allocate(&self.toi_allocator, self.toi);
-        self.inc_toi();
-        ret
+        ToiAllocator::allocate(&self.toi_allocator)
     }
 
-    pub fn add_object(&mut self, priority: u32, obj: Box<objectdesc::ObjectDesc>) -> Result<u128> {
+    pub fn add_object(
+        &mut self,
+        priority: u32,
+        mut obj: Box<objectdesc::ObjectDesc>,
+    ) -> Result<u128> {
         if self.complete == Some(true) {
             return Err(FluteError::new(
                 "FDT is complete, no new object should be added",
             ));
         }
 
-        let toi = match obj.toi.as_ref() {
-            Some(toi) => toi.get(),
-            None => {
-                let ret = self.toi;
-                self.inc_toi();
-                ret
-            }
-        };
+        if obj.toi.is_none() {
+            obj.set_toi(self.allocate_toi());
+        }
 
-        let filedesc = Arc::new(FileDesc::new(priority, obj, &self.oti, &toi, None, false)?);
-
+        let filedesc = Arc::new(FileDesc::new(priority, obj, &self.oti, None, false)?);
+        let ret = filedesc.toi;
         debug_assert!(!self.files.contains_key(&filedesc.toi));
         self.files.insert(filedesc.toi, filedesc.clone());
         self.files_transfer_queue.push_back(filedesc);
-        Ok(toi)
+        Ok(ret)
     }
 
     pub fn get_objects_in_fdt(&self) -> std::collections::HashMap<u128, &ObjectDesc> {
@@ -192,30 +162,6 @@ impl Fdt {
             .iter()
             .map(|obj| (*obj.0, obj.1.object.as_ref()))
             .collect()
-    }
-
-    pub fn inc_toi(&mut self) {
-        loop {
-            self.toi += 1;
-            match self.toi_max_length {
-                TOIMaxLength::ToiMax16 => self.toi &= 0xFFFFu128,
-                TOIMaxLength::ToiMax32 => self.toi &= 0xFFFFFFFFu128,
-                TOIMaxLength::ToiMax48 => self.toi &= 0xFFFFFFFFFFFFu128,
-                TOIMaxLength::ToiMax64 => self.toi &= 0xFFFFFFFFFFFFFFFFu128,
-                TOIMaxLength::ToiMax80 => self.toi &= 0xFFFFFFFFFFFFFFFFFFFFu128,
-                TOIMaxLength::ToiMax112 => {}
-            }
-
-            if self.toi == lct::TOI_FDT {
-                self.toi = 1;
-            }
-
-            if !self.files.contains_key(&self.toi) && !self.toi_allocator.contains(&self.toi) {
-                break;
-            }
-
-            log::warn!("TOI {} is already used by a file or reserved", self.toi)
-        }
     }
 
     pub fn is_added(&self, toi: u128) -> bool {
@@ -252,7 +198,7 @@ impl Fdt {
     pub fn publish(&mut self, now: SystemTime) -> Result<()> {
         log::info!("TSI={} Publish new FDT", self._tsi);
         let content = self.to_xml(now)?;
-        let obj = objectdesc::ObjectDesc::create_from_buffer(
+        let mut obj = objectdesc::ObjectDesc::create_from_buffer(
             &content,
             "text/xml",
             &url::Url::parse("file:///").unwrap(),
@@ -265,11 +211,11 @@ impl Fdt {
             None,
             true,
         )?;
+        obj.toi = Some(ToiAllocator::allocate_toi_fdt(&self.toi_allocator));
         let filedesc = Arc::new(FileDesc::new(
             0,
             obj,
             &self.oti,
-            &lct::TOI_FDT,
             Some(self.fdtid),
             self.inband_sct,
         )?);

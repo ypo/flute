@@ -19,10 +19,10 @@ pub struct FileDesc {
     pub priority: u32,
     pub object: Box<ObjectDesc>,
     pub oti: oti::Oti,
-    pub toi: u128,
     pub fdt_id: Option<u32>,
     pub sender_current_time: bool,
     pub published: AtomicBool,
+    pub toi: u128,
     transfer_info: RwLock<TransferInfo>,
 }
 
@@ -31,10 +31,10 @@ impl FileDesc {
         priority: u32,
         object: Box<ObjectDesc>,
         default_oti: &oti::Oti,
-        toi: &u128,
         fdt_id: Option<u32>,
         sender_current_time: bool,
     ) -> Result<FileDesc> {
+        assert!(object.toi.is_some());
         let mut oti = match &object.oti {
             Some(res) => res.clone(),
             None => default_oti.clone(),
@@ -98,11 +98,11 @@ impl FileDesc {
             }
         }
 
+        let toi = object.toi.as_ref().unwrap().get();
         Ok(FileDesc {
             priority,
             object,
             oti,
-            toi: *toi,
             fdt_id,
             sender_current_time,
             transfer_info: RwLock::new(TransferInfo {
@@ -112,6 +112,7 @@ impl FileDesc {
                 total_nb_transfer: 0,
             }),
             published: AtomicBool::new(false),
+            toi,
         })
     }
 
