@@ -32,8 +32,6 @@ pub struct Config {
     pub object_max_cache_size: Option<usize>,
     /// Enable MD5 check of the received objects. Default `true`
     pub enable_md5_check: bool,
-    /// CHeck if FDT is already received
-    pub check_fdt_received: bool,
 }
 
 impl Default for Config {
@@ -44,7 +42,6 @@ impl Default for Config {
             object_timeout: Some(Duration::from_secs(10)),
             object_max_cache_size: None,
             enable_md5_check: true,
-            check_fdt_received: true
         }
     }
 }
@@ -298,7 +295,7 @@ impl Receiver {
             .map(|f| f.fdt_instance_id)
             .unwrap();
 
-        if self.config.check_fdt_received && self.is_fdt_received(fdt_instance_id) {
+        if self.is_fdt_received(fdt_instance_id) {
             return Ok(());
         }
 
