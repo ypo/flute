@@ -644,4 +644,58 @@ mod tests {
         let toi_result = sender.add_object(0, obj).unwrap();
         assert!(toi_value == toi_result);
     }
+
+    #[test]
+    pub fn test_receiver_disable_received_once() {
+        crate::tests::init();
+
+        let max_transfert_count = 5usize;
+        let oti: sender::Oti = Default::default();
+        let content_type = "application/octet-stream";
+
+        let (mut obj, _) = create_object(100000, content_type, sender::Cenc::Null, true, None);
+        obj.max_transfer_count = max_transfert_count as u32;
+        let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new());
+        let mut receiver_config = receiver::Config::default();
+        receiver_config.object_receive_once = false;
+        let mut receiver =
+            receiver::MultiReceiver::new(output.clone(), Some(receiver_config), false);
+
+        let mut sender = create_sender(vec![obj], &oti, sender::Cenc::Null, None);
+
+        let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_owned(), 5000);
+
+        loop {
+            let now_sender = std::time::SystemTime::now();
+            let data = sender.read(now_sender);
+            if data.is_none() {
+                break;
+            }
+
+            // Simulate reception 60s later -> FDT should be expired
+            let now_receiver = std::time::SystemTime::now() + std::time::Duration::from_secs(60);
+            receiver
+                .push(&endpoint, data.as_ref().unwrap(), now_receiver)
+                .unwrap();
+            receiver.cleanup(now_receiver);
+        }
+
+        let nb_complete_objects = output
+            .as_ref()
+            .objects
+            .borrow()
+            .iter()
+            .filter(|&obj| obj.borrow().complete)
+            .count();
+
+        let nb_error_objects = output
+            .as_ref()
+            .objects
+            .borrow()
+            .iter()
+            .filter(|&obj| obj.borrow().error)
+            .count();
+        assert!(nb_complete_objects == max_transfert_count);
+        assert!(nb_error_objects == 0);
+    }
 }

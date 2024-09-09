@@ -32,6 +32,9 @@ pub struct Config {
     pub object_max_cache_size: Option<usize>,
     /// Enable MD5 check of the received objects. Default `true`
     pub enable_md5_check: bool,
+    /// When set to `true`, the receiver will only reconstruct each object once.
+    /// If the same object is transferred again, it will be automatically discarded.
+    pub object_receive_once: bool,
 }
 
 impl Default for Config {
@@ -42,6 +45,7 @@ impl Default for Config {
             object_timeout: Some(Duration::from_secs(10)),
             object_max_cache_size: None,
             enable_md5_check: true,
+            object_receive_once: true
         }
     }
 }
@@ -295,7 +299,7 @@ impl Receiver {
             .map(|f| f.fdt_instance_id)
             .unwrap();
 
-        if self.is_fdt_received(fdt_instance_id) {
+        if self.config.object_receive_once && self.is_fdt_received(fdt_instance_id) {
             return Ok(());
         }
 
@@ -475,7 +479,17 @@ impl Receiver {
 
     fn push_obj(&mut self, pkt: &alc::AlcPkt, now: SystemTime) -> Result<()> {
         if self.objects_completed.contains_key(&pkt.lct.toi) {
+            if self.config.object_receive_once {
                 return Ok(());
+            }
+
+            let payload_id = alc::get_fec_inline_payload_id(pkt)?;
+            log::warn!("Object already received tsi={} toi={}", payload_id.sbn, payload_id.esi);
+            if payload_id.sbn == 0 && payload_id.esi == 0 {
+                self.objects_completed.remove(&pkt.lct.toi);
+            } else {
+                return Ok(());
+            }
         }
         if self.objects_error.contains(&pkt.lct.toi) {
 
