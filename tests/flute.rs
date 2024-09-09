@@ -27,7 +27,8 @@ mod tests {
         let mut sender = Box::new(sender::Sender::new(endpoint, 1, &oti, &config));
 
         for obj in objects {
-            sender.add_object(0, obj).unwrap();
+            let toi = sender.add_object(0, obj).unwrap();
+            assert!(sender.is_added(toi));
         }
         sender.publish(std::time::SystemTime::now()).unwrap();
         sender
@@ -209,6 +210,7 @@ mod tests {
         let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new());
         let mut receiver = receiver::MultiReceiver::new(output.clone(), None, false);
         let mut sender = create_sender(vec![obj], &oti, cenc, sender_config);
+        assert!(sender.nb_objects() == 1);
 
         if with_loss {
             run_loss(&mut sender, &mut receiver)
