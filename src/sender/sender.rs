@@ -342,7 +342,7 @@ impl Sender {
 
     /// Allocate a TOI
     /// TOI must be either release or assigned to an object and call add_object()`
-    pub fn allocate_toi(&mut self) -> Arc<Toi> {
+    pub fn allocate_toi(&mut self) -> Box<Toi> {
         self.fdt.allocate_toi()
     }
 

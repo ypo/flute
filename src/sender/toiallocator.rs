@@ -32,14 +32,14 @@ impl ToiAllocator {
         })
     }
 
-    pub fn allocate(allocator: &Arc<Self>, toi: u128) -> Arc<Toi> {
+    pub fn allocate(allocator: &Arc<Self>, toi: u128) -> Box<Toi> {
         {
             let mut db = allocator.toi_reserved.lock().unwrap();
             let success = db.insert(toi);
             debug_assert!(success);
         }
 
-        Arc::new(Toi {
+        Box::new(Toi {
             allocator: allocator.clone(),
             value: toi,
         })

@@ -8,7 +8,6 @@ use crate::tools;
 use crate::tools::error::Result;
 use std::ffi::OsStr;
 use std::io::{BufReader, Read};
-use std::sync::Arc;
 use std::time::SystemTime;
 
 /// Cache Control
@@ -89,10 +88,21 @@ pub struct ObjectDesc {
     /// Add file to a list of groups
     pub groups: Option<Vec<String>>,
     /// Assign an optional TOI to this object
-    pub toi: Option<Arc<Toi>>,
+    pub toi: Option<Box<Toi>>,
 }
 
 impl ObjectDesc {
+    /// Assigns a Transport Object Identification (TOI) to this object.
+    ///
+    /// If no TOI is assigned, a new TOI will be created during the push of this object into the FLUTE session.
+    ///
+    /// # Arguments
+    ///
+    /// * `toi` - A boxed `Toi` object representing the Time of Interest to be assigned.
+    pub fn set_toi(&mut self, toi: Box<Toi>) {
+        self.toi = Some(toi);
+    }
+
     /// Return an `ObjectDesc` from a file
     pub fn create_from_file(
         path: &std::path::Path,

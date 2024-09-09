@@ -157,7 +157,7 @@ impl Fdt {
         }
     }
 
-    pub fn allocate_toi(&mut self) -> Arc<Toi> {
+    pub fn allocate_toi(&mut self) -> Box<Toi> {
         let ret = ToiAllocator::allocate(&self.toi_allocator, self.toi);
         self.inc_toi();
         ret

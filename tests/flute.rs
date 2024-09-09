@@ -631,4 +631,17 @@ mod tests {
         assert!(low_priority_output_object.error == false);
         assert!(low_priority_output_file_buffer.eq(&low_priority_buffer));
     }
+
+    #[test]
+    fn test_asign_toi_to_object() {
+        let content_type = "application/octet-stream";
+        let oti: sender::Oti = Default::default();
+        let mut sender = create_sender(Vec::new(), &oti, sender::Cenc::Null, None);
+        let toi = sender.allocate_toi();
+        let (mut obj, _) = create_object(100000, content_type, sender::Cenc::Null, true, None);
+        let toi_value = toi.get();
+        obj.set_toi(toi);
+        let toi_result = sender.add_object(0, obj).unwrap();
+        assert!(toi_value == toi_result);
+    }
 }
