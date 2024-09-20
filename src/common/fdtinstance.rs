@@ -393,7 +393,10 @@ pub struct File {
     #[serde(alias = "@IndependentUnitPositions")]
     pub independent_unit_positions: Option<String>,
 
-    #[serde(alias = "@X-Optel-Propagator", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "@X-Optel-Propagator",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub optel_propagator: Option<String>,
 }
 
