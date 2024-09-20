@@ -4,6 +4,7 @@ use crate::tools::{
     self,
     error::{FluteError, Result},
 };
+
 use quick_xml::de::from_reader;
 use serde::{Deserialize, Serialize};
 
@@ -391,6 +392,9 @@ pub struct File {
     )]
     #[serde(alias = "@IndependentUnitPositions")]
     pub independent_unit_positions: Option<String>,
+
+    #[serde(alias = "@X-Optel-Propagator", skip_serializing_if = "Option::is_none")]
+    pub optel_propagator: Option<String>,
 }
 
 fn reed_solomon_scheme_specific(
@@ -433,7 +437,7 @@ impl FdtInstance {
         let tracer = opentelemetry::global::tracer("FdtInstance");
         let mut span = tracer.start("FdtInstance");
         let str = String::from_utf8_lossy(buffer);
-        span.add_event("fdt", vec![KeyValue::new("content", str.to_string())]);
+        span.set_attribute(KeyValue::new("content", str.to_string()));
         span
     }
 
@@ -597,6 +601,19 @@ impl File {
                 as u32,
             scheme_specific,
             inband_fti: false,
+        })
+    }
+
+    #[cfg(feature = "opentelemetry")]
+    pub fn get_optel_propagator(&self) -> Option<std::collections::HashMap<String, String>> {
+        use base64::Engine;
+
+        self.optel_propagator.as_ref().and_then(|propagator| {
+            let decoded = base64::engine::general_purpose::STANDARD
+                .decode(propagator)
+                .ok()?;
+            let decoded = String::from_utf8_lossy(&decoded);
+            serde_json::from_str(&decoded).ok()
         })
     }
 }

@@ -1,8 +1,9 @@
-use std::time::SystemTime;
+use std::{collections::HashMap, time::SystemTime};
 
 use opentelemetry::{
     global::{self},
-    trace::{Span, TraceContextExt, TraceId, Tracer},
+    propagation::Extractor,
+    trace::{Span, SpanKind, TraceContextExt, TraceId, Tracer},
     Context, KeyValue,
 };
 
@@ -18,13 +19,29 @@ impl std::fmt::Debug for ObjectSenderLogger {
     }
 }
 
+struct HeaderExtractor<'a>(pub &'a HashMap<String, String>);
+impl Extractor for HeaderExtractor<'_> {
+    fn get(&self, key: &str) -> Option<&str> {
+        self.0.get(key).map(|s| s.as_str())
+    }
+
+    fn keys(&self) -> Vec<&str> {
+        self.0.keys().map(|s| s.as_str()).collect()
+    }
+}
+
 impl ObjectSenderLogger {
+    fn extract_context_from_propagator(req: &HashMap<String, String>) -> Context {
+        global::get_text_map_propagator(|propagator| propagator.extract(&HeaderExtractor(req)))
+    }
+
     pub fn new(
         endpoint: &UDPEndpoint,
         tsi: u64,
         toi: u128,
         fdt_instance_id: Option<u32>,
         now: SystemTime,
+        propagator: Option<&HashMap<String, String>>,
     ) -> Self {
         let tracer = global::tracer("FluteLogger");
         let name = match toi {
@@ -32,36 +49,47 @@ impl ObjectSenderLogger {
             _ => "Object Transfer",
         };
 
-        let trace_id = endpoint.trace_id(tsi, toi, fdt_instance_id, now);
+        let mut span;
+        if let Some(propagator) = propagator {
+            let parent_cx = Self::extract_context_from_propagator(propagator);
+            span = tracer
+                .span_builder(name)
+                .with_kind(SpanKind::Producer)
+                .start_with_context(&tracer, &parent_cx)
+        } else {
+            let trace_id = endpoint.trace_id(tsi, toi, fdt_instance_id, now);
+            span = tracer
+                .span_builder(name)
+                .with_trace_id(TraceId::from(trace_id))
+                .with_kind(SpanKind::Producer)
+                .start(&tracer);
+        }
 
-        log::info!(
-            "Create {:?} {} {} {:?} trace_id={:?}",
-            endpoint,
-            tsi,
-            toi,
-            fdt_instance_id,
-            trace_id
-        );
-        let mut span = tracer
-            .span_builder(name)
-            .with_trace_id(TraceId::from(trace_id))
-            .start(&tracer);
+        span.set_attribute(KeyValue::new(
+            opentelemetry_semantic_conventions::attribute::NETWORK_TRANSPORT,
+            "flute",
+        ));
+
+        span.set_attribute(KeyValue::new(
+            opentelemetry_semantic_conventions::attribute::NETWORK_PEER_ADDRESS,
+            endpoint.destination_group_address.clone(),
+        ));
+
+        span.set_attribute(KeyValue::new(
+            opentelemetry_semantic_conventions::attribute::NETWORK_PEER_PORT,
+            endpoint.port as i64,
+        ));
+
+        if let Some(source_address) = endpoint.source_address.as_ref() {
+            span.set_attribute(KeyValue::new(
+                opentelemetry_semantic_conventions::attribute::NETWORK_LOCAL_ADDRESS,
+                source_address.clone(),
+            ));
+        }
 
         span.set_attribute(KeyValue::new("flute.toi", toi.to_string()));
         span.set_attribute(KeyValue::new("flute.tsi", tsi.to_string()));
-        span.set_attribute(KeyValue::new("flute.port", endpoint.port.to_string()));
-        if let Some(source_address) = endpoint.source_address.as_ref() {
-            span.set_attribute(KeyValue::new(
-                "flute.source_address",
-                source_address.to_string(),
-            ));
-        }
-        span.set_attribute(KeyValue::new(
-            "flute.destination_group_address",
-            endpoint.destination_group_address.to_string(),
-        ));
 
-        span.add_event("object", vec![KeyValue::new("start", "")]);
         let cx = Context::current_with_span(span);
         Self { _cx: cx }
     }

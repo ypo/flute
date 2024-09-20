@@ -6,6 +6,7 @@ use crate::common::{fdtinstance, lct, oti};
 use crate::error::FluteError;
 use crate::tools;
 use crate::tools::error::Result;
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::io::{BufReader, Read};
 use std::time::SystemTime;
@@ -89,6 +90,8 @@ pub struct ObjectDesc {
     pub groups: Option<Vec<String>>,
     /// Assign an optional TOI to this object
     pub toi: Option<Box<Toi>>,
+    /// Optional Opentelemetry propagator
+    pub optel_propagator: Option<HashMap<String, String>>,
 }
 
 impl ObjectDesc {
@@ -245,6 +248,7 @@ impl ObjectDesc {
             cache_control,
             groups,
             toi: None,
+            optel_propagator: None,
         }))
     }
 
@@ -294,6 +298,7 @@ impl ObjectDesc {
             cache_control,
             groups,
             toi: None,
+            optel_propagator: None,
         }))
     }
 

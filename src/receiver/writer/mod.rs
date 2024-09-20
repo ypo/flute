@@ -10,6 +10,7 @@
 //! ```
 //!
 
+use std::collections::HashMap;
 use std::time::Duration;
 
 use crate::common::udpendpoint::UDPEndpoint;
@@ -34,6 +35,8 @@ pub struct ObjectMetadata {
     pub groups: Option<Vec<String>>,
     /// Object MD5
     pub md5: Option<String>,
+    /// Opentelemetry propagation context
+    pub optel_propagator: Option<HashMap<String, String>>,
 }
 
 ///

@@ -104,6 +104,7 @@ impl SenderSession {
                     file.toi,
                     file.fdt_id,
                     now,
+                    file.object.optel_propagator.as_ref(),
                 ));
             }
         }

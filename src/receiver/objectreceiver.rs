@@ -62,9 +62,8 @@ pub struct ObjectReceiver {
     pub content_location: Option<url::Url>,
     nb_allocated_blocks: usize,
     total_allocated_blocks_size: usize,
-
     #[cfg(feature = "opentelemetry")]
-    logger: ObjectReceiverLogger,
+    logger: Option<ObjectReceiverLogger>,
 }
 
 impl ObjectReceiver {
@@ -108,7 +107,7 @@ impl ObjectReceiver {
             nb_allocated_blocks: 0,
             total_allocated_blocks_size: 0,
             #[cfg(feature = "opentelemetry")]
-            logger: ObjectReceiverLogger::new(endpoint, tsi, toi.clone(), _fdt_instance_id, _now),
+            logger: None,
         }
     }
 
@@ -132,7 +131,7 @@ impl ObjectReceiver {
         self.last_activity = Instant::now();
         self.set_fdt_id_from_pkt(pkt);
         self.set_cenc_from_pkt(pkt);
-        self.set_oti_from_pkt(pkt);
+        self.set_oti_from_pkt(pkt, now);
 
         self.init_blocks_partitioning();
         self.init_object_writer(now);
@@ -140,12 +139,12 @@ impl ObjectReceiver {
 
         if self.oti.is_none() {
             self.cache(pkt)
-                .unwrap_or_else(|_| self.error("Fail to push pkt to cache"));
+                .unwrap_or_else(|_| self.error("Fail to push pkt to cache", now));
             return;
         }
 
         self.push_to_block(pkt, now)
-            .unwrap_or_else(|_| self.error("Fail to push pkt to block"));
+            .unwrap_or_else(|_| self.error("Fail to push pkt to block", now));
     }
 
     fn push_to_block(&mut self, pkt: &alc::AlcPkt, now: std::time::SystemTime) -> Result<()> {
@@ -234,14 +233,6 @@ impl ObjectReceiver {
             }
             self.nb_allocated_blocks += 1;
             self.total_allocated_blocks_size += block_length;
-
-            #[cfg(feature = "opentelemetry")]
-            block.op_init(
-                self.logger.block_span(),
-                source_block_length,
-                block_length,
-                payload_id.sbn,
-            );
         }
 
         block.push(pkt, &payload_id);
@@ -251,6 +242,26 @@ impl ObjectReceiver {
         }
 
         Ok(())
+    }
+
+    #[cfg(feature = "opentelemetry")]
+    fn init_logger(
+        &mut self,
+        propagator: Option<&std::collections::HashMap<String, String>>,
+        now: std::time::SystemTime,
+    ) {
+        if self.logger.is_some() {
+            return;
+        }
+
+        self.logger = Some(ObjectReceiverLogger::new(
+            &self.endpoint,
+            self.tsi,
+            self.toi,
+            self.fdt_instance_id,
+            now,
+            propagator,
+        ))
     }
 
     pub fn attach_fdt(
@@ -269,6 +280,12 @@ impl ObjectReceiver {
             Some(file) => file,
             None => return false,
         };
+
+        #[cfg(feature = "opentelemetry")]
+        if self.logger.is_none() {
+            let propagator = file.get_optel_propagator();
+            self.init_logger(propagator.as_ref(), now);
+        }
 
         if self.cenc.is_none() {
             self.cenc = match &file.content_encoding {
@@ -297,10 +314,13 @@ impl ObjectReceiver {
                             "Fail to parse content-location {} to URL",
                             file.content_location
                         );
-                        self.error(&format!(
-                            "Fail to parse content-location {} to URL",
-                            file.content_location
-                        ));
+                        self.error(
+                            &format!(
+                                "Fail to parse content-location {} to URL",
+                                file.content_location
+                            ),
+                            now,
+                        );
                         return false;
                     }
                 }
@@ -317,7 +337,7 @@ impl ObjectReceiver {
         }
 
         #[cfg(feature = "opentelemetry")]
-        let _span = self.logger.fdt_attached();
+        let _span = self.logger.as_mut().map(|l| l.fdt_attached());
 
         if self.enable_md5_check {
             self.content_md5 = file.content_md5.clone();
@@ -343,13 +363,17 @@ impl ObjectReceiver {
                 false => Some(groups),
             },
             md5: self.content_md5.clone(),
+            #[cfg(feature = "opentelemetry")]
+            optel_propagator: self.logger.as_ref().map(|l| l.get_propagator()),
+            #[cfg(not(feature = "opentelemetry"))]
+            optel_propagator: None,
         });
 
         self.init_blocks_partitioning();
         self.init_object_writer(now);
         self.push_from_cache(now);
         self.write_blocks(0, now)
-            .unwrap_or_else(|_| self.error("Fail to write blocks to storage"));
+            .unwrap_or_else(|_| self.error("Fail to write blocks to storage", now));
         true
     }
 
@@ -387,7 +411,7 @@ impl ObjectReceiver {
 
         if object_writer.writer.open().is_err() {
             log::error!("Fail to open destination for {:?}", self.meta);
-            self.error("Fail to create destination on storage");
+            self.error("Fail to create destination on storage", now);
             return;
         };
 
@@ -457,10 +481,13 @@ impl ObjectReceiver {
                         self.content_location
                     );
 
-                    self.error(&format!(
-                        "MD5 does not match expects {:?} received {:?}",
-                        self.content_md5, &md5
-                    ));
+                    self.error(
+                        &format!(
+                            "MD5 does not match expects {:?} received {:?}",
+                            self.content_md5, &md5
+                        ),
+                        now,
+                    );
                 }
                 break;
             }
@@ -470,7 +497,7 @@ impl ObjectReceiver {
 
     fn complete(&mut self, _now: std::time::SystemTime) {
         #[cfg(feature = "opentelemetry")]
-        let _span = self.logger.complete();
+        let _span = self.logger.as_mut().map(|l| l.complete());
 
         self.state = State::Completed;
 
@@ -485,9 +512,12 @@ impl ObjectReceiver {
         self.cache_size = 0;
     }
 
-    fn error(&mut self, _description: &str) {
+    fn error(&mut self, _description: &str, _now: std::time::SystemTime) {
         #[cfg(feature = "opentelemetry")]
-        let _span = self.logger.error(_description);
+        self.init_logger(None, _now);
+
+        #[cfg(feature = "opentelemetry")]
+        let _span = self.logger.as_mut().map(|l| l.error(_description));
 
         self.state = State::Error;
 
@@ -509,7 +539,7 @@ impl ObjectReceiver {
         while let Some(item) = self.cache.pop() {
             let pkt = item.to_pkt();
             if self.push_to_block(&pkt, now).is_err() {
-                self.error("Fail to push block");
+                self.error("Fail to push block", now);
                 break;
             }
         }
@@ -536,7 +566,7 @@ impl ObjectReceiver {
         self.fdt_instance_id = pkt.fdt_info.as_ref().map(|info| info.fdt_instance_id);
     }
 
-    fn set_oti_from_pkt(&mut self, pkt: &alc::AlcPkt) {
+    fn set_oti_from_pkt(&mut self, pkt: &alc::AlcPkt, now: std::time::SystemTime) {
         if self.oti.is_some() {
             return;
         }
@@ -551,7 +581,7 @@ impl ObjectReceiver {
 
         if pkt.transfer_length.is_none() {
             log::warn!("Bug? Pkt contains OTI without transfer length");
-            self.error("Bug? Pkt contains OTI without transfer length");
+            self.error("Bug? Pkt contains OTI without transfer length", now);
             return;
         }
 
@@ -648,7 +678,10 @@ impl Drop for ObjectReceiver {
                     self.endpoint,
                     self.content_location.as_ref().map(|u| u.to_string())
                 );
-                self.error("Drop object in open state, pkt missing ?");
+                self.error(
+                    "Drop object in open state, pkt missing ?",
+                    SystemTime::now(),
+                );
             } else if object_writer.state == ObjectWriterSessionState::Error {
                 log::error!(
                     "Drop object received with state {:?} TOI={} Endpoint={:?} Content-Location={:?}",

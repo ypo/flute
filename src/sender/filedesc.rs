@@ -1,3 +1,5 @@
+use base64::Engine;
+
 use super::objectdesc::{create_fdt_cache_control, ObjectDesc};
 use crate::common::oti::SchemeSpecific;
 use crate::common::{fdtinstance, oti, partition};
@@ -193,6 +195,11 @@ impl FileDesc {
             _ => self.object.oti.as_ref().map(|oti| oti.get_attributes()),
         };
 
+        let optel_propagator = self.object.optel_propagator.as_ref().map(|propagator| {
+            let s = serde_json::to_string(&propagator).unwrap();
+            base64::engine::general_purpose::STANDARD.encode(s)
+        });
+
         fdtinstance::File {
             content_location: self.object.content_location.to_string(),
             toi: self.toi.to_string(),
@@ -234,6 +241,7 @@ impl FileDesc {
             delimiter: Some(0),
             delimiter2: Some(0),
             group: None,
+            optel_propagator,
         }
     }
 }
