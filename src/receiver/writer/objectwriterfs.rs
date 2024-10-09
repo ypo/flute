@@ -32,7 +32,7 @@ impl ObjectWriterBuilder for ObjectWriterFSBuilder {
         _endpoint: &UDPEndpoint,
         _tsi: &u64,
         _toi: &u128,
-        meta: Option<&ObjectMetadata>,
+        meta: &ObjectMetadata,
         _now: std::time::SystemTime,
     ) -> Box<dyn ObjectWriter> {
         Box::new(ObjectWriterFS {
@@ -41,7 +41,7 @@ impl ObjectWriterBuilder for ObjectWriterFSBuilder {
                 destination: None,
                 writer: None,
             }),
-            meta: meta.cloned(),
+            meta: meta.clone(),
         })
     }
 
@@ -61,6 +61,8 @@ impl ObjectWriterBuilder for ObjectWriterFSBuilder {
         _tsi: &u64,
         _fdt_xml: &str,
         _expires: std::time::SystemTime,
+        _meta: &ObjectMetadata,
+        _transfer_duration: std::time::Duration,
         _now: std::time::SystemTime,
     ) {
     }
@@ -77,7 +79,7 @@ pub struct ObjectWriterFS {
     /// Folder destination were the object will be written
     dest: std::path::PathBuf,
     inner: RefCell<ObjectWriterFSInner>,
-    meta: Option<ObjectMetadata>,
+    meta: ObjectMetadata,
 }
 
 ///
@@ -90,12 +92,7 @@ pub struct ObjectWriterFSInner {
 
 impl ObjectWriter for ObjectWriterFS {
     fn open(&self) -> Result<()> {
-        if self.meta.is_none() {
-            return Ok(());
-        }
-
-        let meta = self.meta.as_ref().unwrap();
-        let content_location_path = meta.content_location.path();
+        let content_location_path = self.meta.content_location.path();
         let relative_path = content_location_path
             .strip_prefix('/')
             .unwrap_or(content_location_path);

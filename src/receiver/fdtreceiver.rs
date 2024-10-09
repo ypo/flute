@@ -21,7 +21,9 @@ pub struct FdtReceiver {
     fdt_instance: Option<FdtInstance>,
     sender_current_time_offset: Option<std::time::Duration>,
     sender_current_time_late: bool,
-    receiver_current_time: SystemTime,
+    pub reception_start_time: SystemTime,
+    enable_expired_check: bool,
+    meta: Option<ObjectMetadata>,
 }
 
 impl std::fmt::Debug for FdtReceiver {
@@ -36,7 +38,7 @@ impl std::fmt::Debug for FdtReceiver {
                 &self.sender_current_time_offset,
             )
             .field("sender_current_time_late", &self.sender_current_time_late)
-            .field("receiver_current_time", &self.receiver_current_time)
+            .field("receiver_start_time", &self.reception_start_time)
             .finish()
     }
 }
@@ -59,7 +61,13 @@ struct FdtWriterInner {
 }
 
 impl FdtReceiver {
-    pub fn new(endpoint: &UDPEndpoint, tsi: u64, fdt_id: u32, now: SystemTime) -> FdtReceiver {
+    pub fn new(
+        endpoint: &UDPEndpoint,
+        tsi: u64,
+        fdt_id: u32,
+        enable_expired_check: bool,
+        now: SystemTime,
+    ) -> FdtReceiver {
         let inner = Rc::new(RefCell::new(FdtWriterInner {
             data: Vec::new(),
             fdt: None,
@@ -85,7 +93,9 @@ impl FdtReceiver {
             fdt_instance: None,
             sender_current_time_offset: None,
             sender_current_time_late: true,
-            receiver_current_time: now,
+            reception_start_time: now,
+            enable_expired_check,
+            meta: None,
         }
     }
 
@@ -104,7 +114,10 @@ impl FdtReceiver {
             obj.push(pkt, now);
             match obj.state {
                 objectreceiver::State::Receiving => {}
-                objectreceiver::State::Completed => self.obj = None,
+                objectreceiver::State::Completed => {
+                    self.meta = Some(obj.create_meta());
+                    self.obj = None
+                }
                 objectreceiver::State::Error => self.inner.borrow_mut().state = State::Error,
             }
         }
@@ -140,12 +153,16 @@ impl FdtReceiver {
         String::from_utf8(inner.data.clone()).ok()
     }
 
+    pub fn fdt_meta(&self) -> Option<&ObjectMetadata> {
+        self.meta.as_ref()
+    }
+
     pub fn update_expired_state(&self, now: SystemTime) {
         if self.state() != State::Complete {
             return;
         }
 
-        if self.is_expired(now) {
+        if self.enable_expired_check && self.is_expired(now) {
             let mut inner = self.inner.borrow_mut();
             inner.state = State::Expired;
         }
@@ -179,7 +196,7 @@ impl ObjectWriterBuilder for FdtWriterBuilder {
         _endpoint: &UDPEndpoint,
         _tsi: &u64,
         _toi: &u128,
-        _meta: Option<&ObjectMetadata>,
+        _meta: &ObjectMetadata,
         _now: std::time::SystemTime,
     ) -> Box<dyn ObjectWriter> {
         Box::new(FdtWriter {
@@ -203,6 +220,8 @@ impl ObjectWriterBuilder for FdtWriterBuilder {
         _tsi: &u64,
         _fdt_xml: &str,
         _expires: std::time::SystemTime,
+        __meta: &ObjectMetadata,
+        _transfer_duration: std::time::Duration,
         _now: std::time::SystemTime,
     ) {
     }

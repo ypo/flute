@@ -1,9 +1,9 @@
-use std::{collections::HashMap, time::SystemTime};
+use std::collections::HashMap;
 
 use opentelemetry::{
     global::{self},
     propagation::Extractor,
-    trace::{Span, SpanKind, TraceContextExt, TraceId, Tracer},
+    trace::{Span, SpanKind, TraceContextExt, Tracer},
     Context, KeyValue,
 };
 
@@ -39,8 +39,6 @@ impl ObjectSenderLogger {
         endpoint: &UDPEndpoint,
         tsi: u64,
         toi: u128,
-        fdt_instance_id: Option<u32>,
-        now: SystemTime,
         propagator: Option<&HashMap<String, String>>,
     ) -> Self {
         let tracer = global::tracer("FluteLogger");
@@ -57,10 +55,8 @@ impl ObjectSenderLogger {
                 .with_kind(SpanKind::Producer)
                 .start_with_context(&tracer, &parent_cx)
         } else {
-            let trace_id = endpoint.trace_id(tsi, toi, fdt_instance_id, now);
             span = tracer
                 .span_builder(name)
-                .with_trace_id(TraceId::from(trace_id))
                 .with_kind(SpanKind::Producer)
                 .start(&tracer);
         }

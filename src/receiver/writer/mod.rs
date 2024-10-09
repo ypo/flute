@@ -14,6 +14,8 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use crate::common::udpendpoint::UDPEndpoint;
+use crate::core::lct::Cenc;
+use crate::core::Oti;
 use crate::tools::error::Result;
 
 ///
@@ -23,8 +25,10 @@ use crate::tools::error::Result;
 pub struct ObjectMetadata {
     /// URI that can be used as an identifier for this object
     pub content_location: url::Url,
-    /// Anticipated size of this object
+    /// Final size of this object
     pub content_length: Option<usize>,
+    /// Transfer length (compressed) of this object
+    pub transfer_length: Option<usize>,
     /// The content type of this object.
     /// This field describes the format of the object's content,
     /// and can be used to determine how to handle or process the object.
@@ -37,6 +41,10 @@ pub struct ObjectMetadata {
     pub md5: Option<String>,
     /// Opentelemetry propagation context
     pub optel_propagator: Option<HashMap<String, String>>,
+    /// Object Transmission Information (OTI) of the received object
+    pub oti: Option<Oti>,
+    /// CENC information
+    pub cenc: Option<Cenc>,
 }
 
 ///
@@ -49,7 +57,7 @@ pub trait ObjectWriterBuilder {
         endpoint: &UDPEndpoint,
         tsi: &u64,
         toi: &u128,
-        meta: Option<&ObjectMetadata>,
+        meta: &ObjectMetadata,
         now: std::time::SystemTime,
     ) -> Box<dyn ObjectWriter>;
     /// Update cache duration of an object
@@ -68,6 +76,8 @@ pub trait ObjectWriterBuilder {
         tsi: &u64,
         fdt_xml: &str,
         expires: std::time::SystemTime,
+        meta: &ObjectMetadata,
+        transfer_duration: Duration,
         now: std::time::SystemTime,
     );
 }

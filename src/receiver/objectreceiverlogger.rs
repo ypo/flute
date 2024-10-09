@@ -1,9 +1,9 @@
-use std::{collections::HashMap, time::SystemTime};
+use std::collections::HashMap;
 
 use opentelemetry::{
     global::{self, BoxedSpan},
     propagation::{Extractor, Injector},
-    trace::{Span, SpanKind, Status, TraceContextExt, TraceId, Tracer},
+    trace::{Span, SpanKind, Status, TraceContextExt, Tracer},
     Context, KeyValue,
 };
 
@@ -46,8 +46,6 @@ impl ObjectReceiverLogger {
         endpoint: &UDPEndpoint,
         tsi: u64,
         toi: u128,
-        fdt_instance_id: Option<u32>,
-        now: SystemTime,
         propagator: Option<&HashMap<String, String>>,
     ) -> Self {
         let tracer = global::tracer("FluteLogger");
@@ -66,12 +64,6 @@ impl ObjectReceiverLogger {
         } else {
             span = tracer
                 .span_builder(name)
-                .with_trace_id(TraceId::from(endpoint.trace_id(
-                    tsi,
-                    toi,
-                    fdt_instance_id,
-                    now,
-                )))
                 .with_kind(SpanKind::Consumer)
                 .start(&tracer);
         }

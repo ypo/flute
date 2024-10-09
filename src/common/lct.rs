@@ -1,8 +1,10 @@
+use serde::Serialize;
+
 use crate::tools::error::{FluteError, Result};
 
 /// Content Encoding, compressed
 #[repr(u8)]
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug, Serialize)]
 pub enum Cenc {
     /// Do not encode content before transmission
     Null = 0,

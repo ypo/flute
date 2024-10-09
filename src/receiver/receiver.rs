@@ -35,6 +35,8 @@ pub struct Config {
     /// When set to `true`, the receiver will only reconstruct each object once.
     /// If the same object is transferred again, it will be automatically discarded.
     pub object_receive_once: bool,
+    /// When set to `true`, the receiver will check the expiration date of the FDT.
+    pub enable_fdt_expiration_check: bool,
 }
 
 impl Default for Config {
@@ -45,7 +47,8 @@ impl Default for Config {
             object_timeout: Some(Duration::from_secs(10)),
             object_max_cache_size: None,
             enable_md5_check: true,
-            object_receive_once: true
+            object_receive_once: true,
+            enable_fdt_expiration_check: true,
         }
     }
 }
@@ -311,6 +314,7 @@ impl Receiver {
                     &self.endpoint,
                     self.tsi,
                     fdt_instance_id,
+                    self.config.enable_fdt_expiration_check,
                     now,
                 )));
 
@@ -371,8 +375,11 @@ impl Receiver {
                     .map(|inst| inst.get_expiration_date().unwrap_or(now))
                     .unwrap_or(now);
 
+                let meta = fdt_current.fdt_meta().unwrap();
+                let transfer_duration = now.duration_since(fdt_current.reception_start_time).unwrap_or(std::time::Duration::new(0, 0));
+
                 self.writer
-                    .fdt_received(&self.endpoint, &self.tsi, &xml, expiration_date, now);
+                    .fdt_received(&self.endpoint, &self.tsi, &xml, expiration_date, meta, transfer_duration, now);
             }
             self.fdt_current.push_front(fdt_current);
             self.attach_latest_fdt_to_objects(now);

@@ -16,9 +16,6 @@ mod toiallocator;
 #[cfg(feature = "opentelemetry")]
 mod objectsenderlogger;
 
-pub use crate::common::lct::Cenc;
-pub use crate::common::oti::FECEncodingID;
-pub use crate::common::oti::Oti;
 pub use crate::common::Profile;
 pub use objectdesc::CacheControl;
 pub use objectdesc::ObjectDesc;

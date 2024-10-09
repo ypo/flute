@@ -8,7 +8,7 @@ use serde::Serialize;
 /// FECEncodingID >= 128 Under-Specified  
 ///
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 pub enum FECEncodingID {
     /// No FEC
     NoCode = 0,
@@ -44,7 +44,7 @@ impl TryFrom<u8> for FECEncodingID {
 
 ///
 /// Reed Solomon GS2M Scheme Specific parameters
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct ReedSolomonGF2MSchemeSpecific {
     /// Length of the finite field elements, in bits
     pub m: u8,
@@ -56,7 +56,7 @@ pub struct ReedSolomonGF2MSchemeSpecific {
 ///
 /// RaptorQ Scheme Specific parameters
 /// <https://www.rfc-editor.org/rfc/rfc6330.html#section-3.3.3>
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize)]
 pub struct RaptorQSchemeSpecific {
     /// The number of source blocks (Z): 8-bit unsigned integer.  
     pub source_blocks_length: u8,
@@ -74,7 +74,7 @@ pub struct RaptorQSchemeSpecific {
 ///+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ///|             Z                 |      N        |       Al      |
 ///+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct RaptorSchemeSpecific {
     /// The number of source blocks (Z): 16-bit unsigned integer.  
     pub source_blocks_length: u16,
@@ -161,7 +161,7 @@ impl RaptorSchemeSpecific {
 ///
 /// Scheme Specific information
 ///
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub enum SchemeSpecific {
     /// if `fec_encoding_id` is `FECEncodingID::ReedSolomonGF2M`
     ReedSolomon(ReedSolomonGF2MSchemeSpecific),
@@ -174,7 +174,7 @@ pub enum SchemeSpecific {
 ///
 /// FEC Object Transmission Information
 /// Contains the parameters using the build the blocks and FEC for the objects transmission
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Oti {
     /// Select the FEC for the object transmission
     pub fec_encoding_id: FECEncodingID,
@@ -253,7 +253,7 @@ impl Oti {
     /// # Example
     ///
     /// ```
-    /// use flute::sender::Oti;
+    /// use flute::core::Oti;
     /// // Files are cut in blocks of 60 source symbols and 4 parity (repair) symbols of 1400 bytes each
     /// let oti = Oti::new_reed_solomon_rs28(1400, 60, 4).unwrap();
     /// ```
@@ -304,7 +304,7 @@ impl Oti {
     /// # Example
     ///
     /// ```
-    /// use flute::sender::Oti;
+    /// use flute::core::Oti;
     /// // Files are cut in blocks of 60 source symbols and 4 parity (repair) symbols of 1400 bytes each
     /// let oti = Oti::new_reed_solomon_rs28_under_specified(1400, 60, 4).unwrap();
     /// ```
@@ -361,7 +361,7 @@ impl Oti {
     /// # Example
     ///
     /// ```
-    /// use flute::sender::Oti;
+    /// use flute::core::Oti;
     /// let oti = Oti::new_raptorq(1400, 60, 4, 1, 4).unwrap();
     /// ```
     ///
@@ -423,7 +423,7 @@ impl Oti {
     /// # Example
     ///
     /// ```
-    /// use flute::sender::Oti;
+    /// use flute::core::Oti;
     /// let oti = Oti::new_raptor(1400, 60, 4, 1, 4).unwrap();
     /// ```
     ///

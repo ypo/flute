@@ -33,7 +33,7 @@
 //!```rust
 //! use flute::sender::Sender;
 //! use flute::sender::ObjectDesc;
-//! use flute::sender::Cenc;
+//! use flute::core::lct::Cenc;
 //! use flute::core::UDPEndpoint;
 //! use std::net::UdpSocket;
 //! use std::time::SystemTime;
@@ -111,8 +111,8 @@
 //! used to configure Forward Error Correction (FEC) encoding in the FLUTE protocol.
 //!
 //!```rust
-//! use flute::sender::Oti;
 //! use flute::sender::Sender;
+//! use flute::core::Oti;
 //! use flute::core::UDPEndpoint;
 //!
 //! // Reed Solomon 2^8 with encoding blocks composed of  
@@ -176,7 +176,7 @@
 //! use flute::sender::PriorityQueue;
 //! use flute::core::UDPEndpoint;
 //! use flute::sender::ObjectDesc;
-//! use flute::sender::Cenc;
+//! use flute::core::lct::Cenc;
 //!
 //! // Create a default configuration
 //! let mut config: flute::sender::Config = Default::default();
@@ -193,14 +193,14 @@
 //! // Create an ObjectDesc for a low priority file
 //! let low_priority_obj = ObjectDesc::create_from_buffer(b"low priority", "text/plain",
 //! &url::Url::parse("file:///low_priority.txt").unwrap(), 1, None, None, None, Cenc::Null, true, None, true).unwrap();
-//! 
+//!
 //! // Create an ObjectDesc for a high priority file
 //! let high_priority_obj = ObjectDesc::create_from_buffer(b"high priority", "text/plain",
 //! &url::Url::parse("file:///high_priority.txt").unwrap(), 1, None, None, None, Cenc::Null, true, None, true).unwrap();
 //!
 //! // Put Object to the low priority queue
 //! sender.add_object(PriorityQueue::LOW, low_priority_obj);
-//! 
+//!
 //! // Put Object to the high priority queue
 //! sender.add_object(PriorityQueue::HIGHEST, high_priority_obj);
 //!```
@@ -231,12 +231,15 @@ pub mod core {
 
     /// LCT packets
     pub mod lct {
-        pub use crate::common::lct::LCTHeader;
-        pub use crate::common::lct::push_lct_header;
-        pub use crate::common::lct::inc_hdr_len;
         pub use crate::common::lct::get_ext;
+        pub use crate::common::lct::inc_hdr_len;
+        pub use crate::common::lct::push_lct_header;
+        pub use crate::common::lct::Cenc;
+        pub use crate::common::lct::LCTHeader;
     }
 
+    pub use crate::common::oti::FECEncodingID;
+    pub use crate::common::oti::Oti;
     pub use crate::common::udpendpoint::UDPEndpoint;
 }
 

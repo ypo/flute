@@ -29,7 +29,7 @@ pub struct ObjectWriterBuffer {
     /// buffer containing the data of the object
     pub data: Vec<u8>,
     /// Metadata of the object
-    pub meta: Option<ObjectMetadata>,
+    pub meta: ObjectMetadata,
 }
 
 impl ObjectWriterBufferBuilder {
@@ -53,14 +53,14 @@ impl ObjectWriterBuilder for ObjectWriterBufferBuilder {
         _endpoint: &UDPEndpoint,
         _tsi: &u64,
         _toi: &u128,
-        meta: Option<&ObjectMetadata>,
+        meta: &ObjectMetadata,
         _now: std::time::SystemTime,
     ) -> Box<dyn ObjectWriter> {
         let obj = Rc::new(RefCell::new(ObjectWriterBuffer {
             complete: false,
             error: false,
             data: Vec::new(),
-            meta: meta.cloned(),
+            meta: meta.clone(),
         }));
 
         let obj_wrapper = Box::new(ObjectWriterBufferWrapper { inner: obj.clone() });
@@ -84,6 +84,8 @@ impl ObjectWriterBuilder for ObjectWriterBufferBuilder {
         _tsi: &u64,
         _fdt_xml: &str,
         _expires: std::time::SystemTime,
+        _meta: &ObjectMetadata,
+        _transfer_duration: std::time::Duration,
         _now: std::time::SystemTime,
     ) {
     }
