@@ -15,8 +15,8 @@ mod tests {
 
     fn create_sender(
         objects: Vec<Box<sender::ObjectDesc>>,
-        oti: &sender::Oti,
-        fdt_cenc: sender::Cenc,
+        oti: &flute::core::Oti,
+        fdt_cenc: flute::core::lct::Cenc,
         sender_config: Option<sender::Config>,
     ) -> Box<sender::Sender> {
         let config = sender_config.unwrap_or(sender::Config {
@@ -37,9 +37,9 @@ mod tests {
     fn create_object(
         transfer_file_size: usize,
         content_type: &str,
-        cenc: sender::Cenc,
+        cenc: flute::core::lct::Cenc,
         inband_cenc: bool,
-        object_oti: Option<&sender::Oti>,
+        object_oti: Option<&flute::core::Oti>,
     ) -> (Box<sender::ObjectDesc>, Vec<u8>) {
         let (buffer, content_location) = create_file_buffer(transfer_file_size);
         (
@@ -64,9 +64,9 @@ mod tests {
     fn create_temp_file_object(
         transfer_file_size: usize,
         content_type: &str,
-        cenc: sender::Cenc,
+        cenc: flute::core::lct::Cenc,
         inband_cenc: bool,
-        object_oti: Option<&sender::Oti>,
+        object_oti: Option<&flute::core::Oti>,
     ) -> (Box<sender::ObjectDesc>, Vec<u8>) {
         let (buffer, content_location) = create_file_buffer(transfer_file_size);
         let file_path = std::env::temp_dir().join("flute_object_test.bin");
@@ -145,7 +145,7 @@ mod tests {
 
         let output_object = output_session[0].as_ref().borrow();
         let output_file_buffer: &[u8] = output_object.data.as_ref();
-        let output_meta = output_object.meta.as_ref().unwrap();
+        let output_meta = &output_object.meta;
 
         log::info!(
             "Receiver buffer {} expect {}",
@@ -177,10 +177,10 @@ mod tests {
     }
 
     fn test_receiver_with_oti(
-        oti: &sender::Oti,
-        object_oti: Option<&sender::Oti>,
+        oti: &flute::core::Oti,
+        object_oti: Option<&flute::core::Oti>,
         with_loss: bool,
-        cenc: sender::Cenc,
+        cenc: flute::core::lct::Cenc,
         inband_cenc: bool,
         sender_config: Option<sender::Config>,
         transfer_file_size: usize,
@@ -234,10 +234,10 @@ mod tests {
     pub fn test_receiver_no_code() {
         init();
         test_receiver_with_oti(
-            &sender::Oti::new_no_code(1400, 64),
+            &flute::core::Oti::new_no_code(1400, 64),
             None,
             false,
-            sender::Cenc::Null,
+            flute::core::lct::Cenc::Null,
             true,
             None,
             100000,
@@ -249,10 +249,10 @@ mod tests {
     pub fn test_receiver_no_code_temp_file() {
         init();
         test_receiver_with_oti(
-            &sender::Oti::new_no_code(1400, 64),
+            &flute::core::Oti::new_no_code(1400, 64),
             None,
             false,
-            sender::Cenc::Null,
+            flute::core::lct::Cenc::Null,
             true,
             None,
             100000,
@@ -264,10 +264,10 @@ mod tests {
     pub fn test_receiver_no_code_large_temp_file() {
         init();
         test_receiver_with_oti(
-            &sender::Oti::new_no_code(1400, 64),
+            &flute::core::Oti::new_no_code(1400, 64),
             None,
             false,
-            sender::Cenc::Null,
+            flute::core::lct::Cenc::Null,
             true,
             None,
             100000000,
@@ -282,7 +282,7 @@ mod tests {
             &Default::default(),
             None,
             false,
-            sender::Cenc::Null,
+            flute::core::lct::Cenc::Null,
             true,
             Some(sender::Config {
                 interleave_blocks: 1,
@@ -304,7 +304,7 @@ mod tests {
             &Default::default(),
             None,
             false,
-            sender::Cenc::Gzip,
+            flute::core::lct::Cenc::Gzip,
             true,
             None,
             100000,
@@ -319,7 +319,7 @@ mod tests {
             &Default::default(),
             None,
             false,
-            sender::Cenc::Deflate,
+            flute::core::lct::Cenc::Deflate,
             true,
             None,
             100000,
@@ -334,7 +334,7 @@ mod tests {
             &Default::default(),
             None,
             false,
-            sender::Cenc::Zlib,
+            flute::core::lct::Cenc::Zlib,
             true,
             None,
             100000,
@@ -345,13 +345,13 @@ mod tests {
     #[test]
     pub fn test_receiver_reed_solomon_gf28_under_specified() {
         crate::tests::init();
-        let oti: sender::Oti =
-            sender::Oti::new_reed_solomon_rs28_under_specified(1400, 64, 20).unwrap();
+        let oti: flute::core::Oti =
+            flute::core::Oti::new_reed_solomon_rs28_under_specified(1400, 64, 20).unwrap();
         test_receiver_with_oti(
             &oti,
             None,
             true,
-            sender::Cenc::Null,
+            flute::core::lct::Cenc::Null,
             true,
             None,
             100000,
@@ -362,12 +362,12 @@ mod tests {
     #[test]
     pub fn test_receiver_reed_solomon_gf28() {
         crate::tests::init();
-        let oti: sender::Oti = sender::Oti::new_reed_solomon_rs28(1400, 64, 20).unwrap();
+        let oti: flute::core::Oti = flute::core::Oti::new_reed_solomon_rs28(1400, 64, 20).unwrap();
         test_receiver_with_oti(
             &oti,
             None,
             true,
-            sender::Cenc::Null,
+            flute::core::lct::Cenc::Null,
             true,
             None,
             100000,
@@ -378,13 +378,14 @@ mod tests {
     #[test]
     pub fn test_receiver_fdt_raptorq_object_reed_solomon_gf28() {
         crate::tests::init();
-        let oti: sender::Oti = sender::Oti::new_raptorq(1400, 64, 20, 1, 4).unwrap();
-        let oti_object: sender::Oti = sender::Oti::new_reed_solomon_rs28(1400, 64, 20).unwrap();
+        let oti: flute::core::Oti = flute::core::Oti::new_raptorq(1400, 64, 20, 1, 4).unwrap();
+        let oti_object: flute::core::Oti =
+            flute::core::Oti::new_reed_solomon_rs28(1400, 64, 20).unwrap();
         test_receiver_with_oti(
             &oti,
             Some(&oti_object),
             true,
-            sender::Cenc::Null,
+            flute::core::lct::Cenc::Null,
             true,
             None,
             100000,
@@ -395,13 +396,14 @@ mod tests {
     #[test]
     pub fn test_receiver_reed_solomon_gf28_outband_fti() {
         crate::tests::init();
-        let mut oti: sender::Oti = sender::Oti::new_reed_solomon_rs28(1400, 64, 20).unwrap();
+        let mut oti: flute::core::Oti =
+            flute::core::Oti::new_reed_solomon_rs28(1400, 64, 20).unwrap();
         oti.inband_fti = false;
         test_receiver_with_oti(
             &oti,
             None,
             true,
-            sender::Cenc::Null,
+            flute::core::lct::Cenc::Null,
             true,
             None,
             100000,
@@ -412,12 +414,12 @@ mod tests {
     #[test]
     pub fn test_receiver_raptorq() {
         crate::tests::init();
-        let oti: sender::Oti = sender::Oti::new_raptorq(1400, 64, 20, 1, 4).unwrap();
+        let oti: flute::core::Oti = flute::core::Oti::new_raptorq(1400, 64, 20, 1, 4).unwrap();
         test_receiver_with_oti(
             &oti,
             None,
             true,
-            sender::Cenc::Null,
+            flute::core::lct::Cenc::Null,
             true,
             None,
             100000,
@@ -428,12 +430,12 @@ mod tests {
     #[test]
     pub fn test_receiver_raptor() {
         crate::tests::init();
-        let oti: sender::Oti = sender::Oti::new_raptor(1400, 64, 20, 1, 4).unwrap();
+        let oti: flute::core::Oti = flute::core::Oti::new_raptor(1400, 64, 20, 1, 4).unwrap();
         test_receiver_with_oti(
             &oti,
             None,
             true,
-            sender::Cenc::Null,
+            flute::core::lct::Cenc::Null,
             true,
             None,
             100000,
@@ -444,13 +446,13 @@ mod tests {
     #[test]
     pub fn test_receiver_raptorq_outband_fti() {
         crate::tests::init();
-        let mut oti: sender::Oti = sender::Oti::new_raptorq(1400, 64, 20, 1, 4).unwrap();
+        let mut oti: flute::core::Oti = flute::core::Oti::new_raptorq(1400, 64, 20, 1, 4).unwrap();
         oti.inband_fti = false;
         test_receiver_with_oti(
             &oti,
             None,
             true,
-            sender::Cenc::Null,
+            flute::core::lct::Cenc::Null,
             true,
             None,
             100000,
@@ -461,13 +463,13 @@ mod tests {
     #[test]
     pub fn test_receiver_outband_fti() {
         crate::tests::init();
-        let mut oti: sender::Oti = Default::default();
+        let mut oti: flute::core::Oti = Default::default();
         oti.inband_fti = false;
         test_receiver_with_oti(
             &oti,
             None,
             false,
-            sender::Cenc::Null,
+            flute::core::lct::Cenc::Null,
             true,
             None,
             100000,
@@ -478,12 +480,12 @@ mod tests {
     #[test]
     pub fn test_receiver_outband_cenc() {
         crate::tests::init();
-        let oti: sender::Oti = Default::default();
+        let oti: flute::core::Oti = Default::default();
         test_receiver_with_oti(
             &oti,
             None,
             false,
-            sender::Cenc::Null,
+            flute::core::lct::Cenc::Null,
             false,
             None,
             100000,
@@ -494,13 +496,13 @@ mod tests {
     #[test]
     pub fn test_receiver_outband_cenc_and_fti() {
         crate::tests::init();
-        let mut oti: sender::Oti = Default::default();
+        let mut oti: flute::core::Oti = Default::default();
         oti.inband_fti = false;
         test_receiver_with_oti(
             &oti,
             None,
             false,
-            sender::Cenc::Null,
+            flute::core::lct::Cenc::Null,
             false,
             None,
             100000,
@@ -512,15 +514,15 @@ mod tests {
     pub fn test_receiver_expired_fdt() {
         crate::tests::init();
 
-        let oti: sender::Oti = Default::default();
+        let oti: flute::core::Oti = Default::default();
         let content_type = "application/octet-stream";
-        let (obj, _) = create_object(100000, content_type, sender::Cenc::Null, true, None);
+        let (obj, _) = create_object(100000, content_type, flute::core::lct::Cenc::Null, true, None);
         let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new());
         let mut receiver = receiver::MultiReceiver::new(output.clone(), None, false);
         let mut sender = create_sender(
             vec![obj],
             &oti,
-            sender::Cenc::Null,
+            flute::core::lct::Cenc::Null,
             Some(sender::Config {
                 fdt_duration: std::time::Duration::from_secs(30),
                 fdt_inband_sct: false,
@@ -569,10 +571,10 @@ mod tests {
     pub fn test_receiver_empty_file() {
         init();
         test_receiver_with_oti(
-            &sender::Oti::new_no_code(1400, 64),
+            &flute::core::Oti::new_no_code(1400, 64),
             None,
             false,
-            sender::Cenc::Null,
+            flute::core::lct::Cenc::Null,
             true,
             None,
             0,
@@ -584,13 +586,13 @@ mod tests {
     fn test_priority_queues() {
         let content_type = "application/octet-stream";
 
-        let oti = sender::Oti::new_no_code(1400, 64);
+        let oti = flute::core::Oti::new_no_code(1400, 64);
 
         let (high_priority_obj, high_priority_buffer) =
-            create_object(1024, content_type, sender::Cenc::Null, true, Some(&oti));
+            create_object(1024, content_type, flute::core::lct::Cenc::Null, true, Some(&oti));
 
         let (low_priority_obj, low_priority_buffer) =
-            create_object(1024, content_type, sender::Cenc::Null, true, Some(&oti));
+            create_object(1024, content_type, flute::core::lct::Cenc::Null, true, Some(&oti));
 
         let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new());
         let mut receiver = receiver::MultiReceiver::new(output.clone(), None, false);
@@ -635,10 +637,10 @@ mod tests {
     #[test]
     fn test_asign_toi_to_object() {
         let content_type = "application/octet-stream";
-        let oti: sender::Oti = Default::default();
-        let mut sender = create_sender(Vec::new(), &oti, sender::Cenc::Null, None);
+        let oti: flute::core::Oti = Default::default();
+        let mut sender = create_sender(Vec::new(), &oti, flute::core::lct::Cenc::Null, None);
         let toi = sender.allocate_toi();
-        let (mut obj, _) = create_object(100000, content_type, sender::Cenc::Null, true, None);
+        let (mut obj, _) = create_object(100000, content_type, flute::core::lct::Cenc::Null, true, None);
         let toi_value = toi.get();
         obj.set_toi(toi);
         let toi_result = sender.add_object(0, obj).unwrap();
@@ -650,10 +652,10 @@ mod tests {
         crate::tests::init();
 
         let max_transfert_count = 5usize;
-        let oti: sender::Oti = Default::default();
+        let oti: flute::core::Oti = Default::default();
         let content_type = "application/octet-stream";
 
-        let (mut obj, _) = create_object(100000, content_type, sender::Cenc::Null, true, None);
+        let (mut obj, _) = create_object(100000, content_type, flute::core::lct::Cenc::Null, true, None);
         obj.max_transfer_count = max_transfert_count as u32;
         let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new());
         let mut receiver_config = receiver::Config::default();
@@ -661,7 +663,7 @@ mod tests {
         let mut receiver =
             receiver::MultiReceiver::new(output.clone(), Some(receiver_config), false);
 
-        let mut sender = create_sender(vec![obj], &oti, sender::Cenc::Null, None);
+        let mut sender = create_sender(vec![obj], &oti, flute::core::lct::Cenc::Null, None);
 
         let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_owned(), 5000);
 
