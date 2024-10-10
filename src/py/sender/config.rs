@@ -44,7 +44,7 @@ impl Config {
 
     #[setter]
     pub fn set_fdt_cenc(&mut self, value: u8) -> PyResult<()> {
-        let cenc = match crate::sender::Cenc::try_from(value) {
+        let cenc = match crate::core::lct::Cenc::try_from(value) {
             Ok(res) => res,
             Err(_) => return Err(PyTypeError::new_err("Wrong CENC parameter")),
         };
