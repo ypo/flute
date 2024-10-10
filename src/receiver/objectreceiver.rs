@@ -438,6 +438,7 @@ impl ObjectReceiver {
         if transfer_length != 0 {
             self.block_writer = Some(BlockWriter::new(
                 transfer_length as usize,
+                self.content_length.clone(),
                 self.cenc.unwrap(),
                 self.content_md5.is_some(),
             ));

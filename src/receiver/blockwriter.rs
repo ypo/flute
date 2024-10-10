@@ -14,6 +14,7 @@ use super::{
 pub struct BlockWriter {
     sbn: u32,
     bytes_left: usize,
+    content_length_left: Option<usize>,
     cenc: lct::Cenc,
     decoder: Option<Box<dyn Decompress>>,
     buffer: Vec<u8>,
@@ -36,10 +37,16 @@ impl std::fmt::Debug for BlockWriter {
 }
 
 impl BlockWriter {
-    pub fn new(transfer_length: usize, cenc: lct::Cenc, md5: bool) -> BlockWriter {
+    pub fn new(
+        transfer_length: usize,
+        content_length: Option<usize>,
+        cenc: lct::Cenc,
+        md5: bool,
+    ) -> BlockWriter {
         BlockWriter {
             sbn: 0,
             bytes_left: transfer_length,
+            content_length_left: content_length,
             cenc,
             decoder: None,
             buffer: Vec::new(),
@@ -98,10 +105,6 @@ impl BlockWriter {
             let output = self.md5_context.take().map(|ctx| ctx.compute().0);
             self.md5 =
                 output.map(|output| base64::engine::general_purpose::STANDARD.encode(output));
-            /*    self.md5 = self
-            .md5_context
-            .take()
-            .map(|ctx| base64::engine::general_purpose::STANDARD.encode(ctx.compute().0));*/
         }
 
         Ok(true)
@@ -146,6 +149,11 @@ impl BlockWriter {
 
     fn decoder_read(&mut self, writer: &dyn ObjectWriter) -> Result<()> {
         let decoder = self.decoder.as_mut().unwrap();
+
+        if self.content_length_left == Some(0) {
+            return Ok(());
+        }
+
         loop {
             let size = match decoder.read(&mut self.buffer) {
                 Ok(res) => res,
@@ -162,6 +170,13 @@ impl BlockWriter {
             }
 
             writer.write(&self.buffer[..size]);
+
+            if let Some(content_length_left) = self.content_length_left.as_mut() {
+                *content_length_left = content_length_left.saturating_sub(size);
+                if *content_length_left == 0 {
+                    return Ok(());
+                }
+            }
         }
     }
 
