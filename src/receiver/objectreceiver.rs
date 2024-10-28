@@ -67,6 +67,7 @@ pub struct ObjectReceiver {
     content_type: Option<String>,
     cache_duration: Option<Duration>,
     groups: Vec<String>,
+    last_timestamp: SystemTime,
 }
 
 impl ObjectReceiver {
@@ -78,7 +79,7 @@ impl ObjectReceiver {
         object_writer_builder: Rc<dyn ObjectWriterBuilder>,
         enable_md5_check: bool,
         max_size_allocated: usize,
-        _now: SystemTime,
+        now: SystemTime,
     ) -> ObjectReceiver {
         log::debug!("Create new Object Receiver with toi {}", toi);
         ObjectReceiver {
@@ -117,6 +118,7 @@ impl ObjectReceiver {
             content_type: None,
             cache_duration: None,
             groups: Vec::new(),
+            last_timestamp: now,
         }
     }
 
@@ -133,6 +135,7 @@ impl ObjectReceiver {
     }
 
     pub fn push(&mut self, pkt: &alc::AlcPkt, now: std::time::SystemTime) {
+        self.last_timestamp = now;
         if self.state != State::Receiving {
             return;
         }
@@ -140,7 +143,7 @@ impl ObjectReceiver {
         self.last_activity = Instant::now();
         self.set_fdt_id_from_pkt(pkt);
         self.set_cenc_from_pkt(pkt);
-        self.set_oti_from_pkt(pkt);
+        self.set_oti_from_pkt(pkt, now);
 
         self.init_blocks_partitioning();
         self.init_object_writer(now);
@@ -148,12 +151,12 @@ impl ObjectReceiver {
 
         if self.oti.is_none() {
             self.cache(pkt)
-                .unwrap_or_else(|_| self.error("Fail to push pkt to cache"));
+                .unwrap_or_else(|_| self.error("Fail to push pkt to cache", now));
             return;
         }
 
         self.push_to_block(pkt, now)
-            .unwrap_or_else(|_| self.error("Fail to push pkt to block"));
+            .unwrap_or_else(|_| self.error("Fail to push pkt to block", now));
     }
 
     fn push_to_block(&mut self, pkt: &alc::AlcPkt, now: std::time::SystemTime) -> Result<()> {
@@ -268,6 +271,7 @@ impl ObjectReceiver {
         server_time: std::time::SystemTime,
     ) -> bool {
         debug_assert!(self.toi != lct::TOI_FDT);
+        self.last_timestamp = now;
         if self.fdt_instance_id.is_some() {
             return false;
         }
@@ -323,10 +327,13 @@ impl ObjectReceiver {
                             "Fail to parse content-location {} to URL",
                             file.content_location
                         );
-                        self.error(&format!(
-                            "Fail to parse content-location {} to URL",
-                            file.content_location
-                        ));
+                        self.error(
+                            &format!(
+                                "Fail to parse content-location {} to URL",
+                                file.content_location
+                            ),
+                            now,
+                        );
                         return false;
                     }
                 }
@@ -364,7 +371,7 @@ impl ObjectReceiver {
         self.init_object_writer(now);
         self.push_from_cache(now);
         self.write_blocks(0, now)
-            .unwrap_or_else(|_| self.error("Fail to write blocks to storage"));
+            .unwrap_or_else(|_| self.error("Fail to write blocks to storage", now));
         self.push_from_cache(now);
         true
     }
@@ -429,8 +436,8 @@ impl ObjectReceiver {
 
         let object_writer = self.object_writer.as_mut().unwrap();
 
-        if object_writer.writer.open().is_err() {
-            self.error("Fail to create destination on storage");
+        if object_writer.writer.open(now).is_err() {
+            self.error("Fail to create destination on storage", now);
             return;
         };
 
@@ -473,6 +480,7 @@ impl ObjectReceiver {
                 sbn as u32,
                 block,
                 self.object_writer.as_ref().unwrap().writer.as_ref(),
+                now,
             )?;
             if !success {
                 break;
@@ -501,10 +509,13 @@ impl ObjectReceiver {
                         self.content_location
                     );
 
-                    self.error(&format!(
-                        "MD5 does not match expects {:?} received {:?}",
-                        self.content_md5, &md5
-                    ));
+                    self.error(
+                        &format!(
+                            "MD5 does not match expects {:?} received {:?}",
+                            self.content_md5, &md5
+                        ),
+                        now,
+                    );
                 }
                 break;
             }
@@ -512,7 +523,7 @@ impl ObjectReceiver {
         Ok(())
     }
 
-    fn complete(&mut self, _now: std::time::SystemTime) {
+    fn complete(&mut self, now: std::time::SystemTime) {
         #[cfg(feature = "opentelemetry")]
         let _span = self.logger.as_mut().map(|l| l.complete());
 
@@ -520,7 +531,7 @@ impl ObjectReceiver {
 
         if let Some(object_writer) = self.object_writer.as_mut() {
             object_writer.state = ObjectWriterSessionState::Closed;
-            object_writer.writer.complete();
+            object_writer.writer.complete(now);
         }
 
         // Free space by removing blocks
@@ -529,7 +540,7 @@ impl ObjectReceiver {
         self.cache_size = 0;
     }
 
-    fn error(&mut self, _description: &str) {
+    fn error(&mut self, _description: &str, now: SystemTime) {
         #[cfg(feature = "opentelemetry")]
         self.init_logger(None);
 
@@ -540,7 +551,7 @@ impl ObjectReceiver {
 
         if let Some(object_writer) = self.object_writer.as_mut() {
             object_writer.state = ObjectWriterSessionState::Error;
-            object_writer.writer.error();
+            object_writer.writer.error(now);
         }
 
         self.blocks.clear();
@@ -556,7 +567,7 @@ impl ObjectReceiver {
         while let Some(item) = self.cache.pop() {
             let pkt = item.to_pkt();
             if self.push_to_block(&pkt, now).is_err() {
-                self.error("Fail to push block");
+                self.error("Fail to push block", now);
                 break;
             }
         }
@@ -583,7 +594,7 @@ impl ObjectReceiver {
         self.fdt_instance_id = pkt.fdt_info.as_ref().map(|info| info.fdt_instance_id);
     }
 
-    fn set_oti_from_pkt(&mut self, pkt: &alc::AlcPkt) {
+    fn set_oti_from_pkt(&mut self, pkt: &alc::AlcPkt, now: SystemTime) {
         if self.oti.is_some() {
             return;
         }
@@ -609,7 +620,7 @@ impl ObjectReceiver {
 
         if pkt.transfer_length.is_none() {
             log::warn!("Bug? Pkt contains OTI without transfer length");
-            self.error("Bug? Pkt contains OTI without transfer length");
+            self.error("Bug? Pkt contains OTI without transfer length", now);
             return;
         }
 
@@ -706,7 +717,10 @@ impl Drop for ObjectReceiver {
                     self.endpoint,
                     self.content_location.as_ref().map(|u| u.to_string())
                 );
-                self.error("Drop object in open state, pkt missing ?");
+                self.error(
+                    "Drop object in open state, pkt missing ?",
+                    self.last_timestamp,
+                );
             } else if object_writer.state == ObjectWriterSessionState::Error {
                 log::error!(
                     "Drop object received with state {:?} TOI={} Endpoint={:?} Content-Location={:?}",

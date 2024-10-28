@@ -75,6 +75,7 @@ pub struct Receiver {
     last_activity: Instant,
     closed_is_imminent: bool,
     endpoint: UDPEndpoint,
+    last_timestamp: Option<SystemTime>
 }
 
 impl Receiver {
@@ -109,6 +110,7 @@ impl Receiver {
             last_activity: Instant::now(),
             closed_is_imminent: false,
             endpoint: endpoint.clone(),
+            last_timestamp: None
         }
     }
 
@@ -167,6 +169,7 @@ impl Receiver {
     /// * `now` - The current `SystemTime` to use for time-related operations.
     ///
     pub fn cleanup(&mut self, now: std::time::SystemTime) {
+        self.last_timestamp = Some(now);
         self.cleanup_objects();
         self.cleanup_fdt(now);
     }
@@ -242,6 +245,7 @@ impl Receiver {
     /// Returns as error if the packet is not a valid
     ///
     pub fn push_data(&mut self, data: &[u8], now: std::time::SystemTime) -> Result<()> {
+        self.last_timestamp = Some(now);
         let alc = alc::parse_alc_pkt(data)?;
         if alc.lct.tsi != self.tsi {
             return Ok(());
@@ -266,6 +270,7 @@ impl Receiver {
     pub fn push(&mut self, alc_pkt: &alc::AlcPkt, now: std::time::SystemTime) -> Result<()> {
         debug_assert!(self.tsi == alc_pkt.lct.tsi);
         self.last_activity = Instant::now();
+        self.last_timestamp = Some(now);
 
         if alc_pkt.lct.close_session {
             log::info!("Close session");
@@ -445,6 +450,7 @@ impl Receiver {
                             toi,
                             &meta.content_location,
                             &duration,
+                            now
                         );
                     }
                 }
@@ -475,6 +481,7 @@ impl Receiver {
                             &toi,
                             &obj.content_location,
                             &cache_duration,
+                            now
                         );
                     }
                 }
@@ -690,6 +697,7 @@ impl Drop for Receiver {
                             obj.0,
                             &obj.1.content_location,
                             &duration,
+                            self.last_timestamp.unwrap_or_else(|| SystemTime::now())
                         );
                     }
 

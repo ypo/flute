@@ -211,6 +211,7 @@ impl ObjectWriterBuilder for FdtWriterBuilder {
         _toi: &u128,
         _content_location: &url::Url,
         _duration: &std::time::Duration,
+        _now: std::time::SystemTime,
     ) {
     }
 
@@ -228,16 +229,16 @@ impl ObjectWriterBuilder for FdtWriterBuilder {
 }
 
 impl ObjectWriter for FdtWriter {
-    fn open(&self) -> Result<()> {
+    fn open(&self, _now: SystemTime) -> Result<()> {
         Ok(())
     }
 
-    fn write(&self, data: &[u8]) {
+    fn write(&self, data: &[u8], _now: SystemTime) {
         let mut inner = self.inner.borrow_mut();
         inner.data.extend(data);
     }
 
-    fn complete(&self) {
+    fn complete(&self, _now: SystemTime) {
         let mut inner = self.inner.borrow_mut();
         match FdtInstance::parse(&inner.data) {
             Ok(inst) => {
@@ -252,7 +253,7 @@ impl ObjectWriter for FdtWriter {
         };
     }
 
-    fn error(&self) {
+    fn error(&self, _now: SystemTime) {
         let mut inner = self.inner.borrow_mut();
         inner.state = State::Error;
     }

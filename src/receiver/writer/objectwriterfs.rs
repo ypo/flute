@@ -3,7 +3,7 @@ use crate::{
     common::udpendpoint::UDPEndpoint,
     error::{FluteError, Result},
 };
-use std::{cell::RefCell, io::Write};
+use std::{cell::RefCell, io::Write, time::SystemTime};
 
 ///
 /// Write objects received by the `receiver` to a filesystem
@@ -52,6 +52,7 @@ impl ObjectWriterBuilder for ObjectWriterFSBuilder {
         _toi: &u128,
         _content_location: &url::Url,
         _duration: &std::time::Duration,
+        _now: std::time::SystemTime,
     ) {
     }
 
@@ -91,7 +92,7 @@ pub struct ObjectWriterFSInner {
 }
 
 impl ObjectWriter for ObjectWriterFS {
-    fn open(&self) -> Result<()> {
+    fn open(&self, _now: SystemTime) -> Result<()> {
         let content_location_path = self.meta.content_location.path();
         let relative_path = content_location_path
             .strip_prefix('/')
@@ -118,7 +119,7 @@ impl ObjectWriter for ObjectWriterFS {
         Ok(())
     }
 
-    fn write(&self, data: &[u8]) {
+    fn write(&self, data: &[u8], _now: SystemTime) {
         let mut inner = self.inner.borrow_mut();
         if inner.writer.is_none() {
             return;
@@ -129,7 +130,7 @@ impl ObjectWriter for ObjectWriterFS {
         };
     }
 
-    fn complete(&self) {
+    fn complete(&self, _now: SystemTime) {
         let mut inner = self.inner.borrow_mut();
         if inner.writer.is_none() {
             return;
@@ -141,7 +142,7 @@ impl ObjectWriter for ObjectWriterFS {
         inner.destination = None
     }
 
-    fn error(&self) {
+    fn error(&self, _now: SystemTime) {
         let mut inner = self.inner.borrow_mut();
         inner.writer = None;
         if inner.destination.is_some() {

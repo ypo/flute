@@ -12,6 +12,7 @@
 
 use std::collections::HashMap;
 use std::time::Duration;
+use std::time::SystemTime;
 
 use crate::common::udpendpoint::UDPEndpoint;
 use crate::core::lct::Cenc;
@@ -68,6 +69,7 @@ pub trait ObjectWriterBuilder {
         toi: &u128,
         content_location: &url::Url,
         duration: &Duration,
+        now: std::time::SystemTime,
     );
     /// Called when an FDT is received
     fn fdt_received(
@@ -87,13 +89,13 @@ pub trait ObjectWriterBuilder {
 ///
 pub trait ObjectWriter {
     /// Open the destination
-    fn open(&self) -> Result<()>;
+    fn open(&self, now: SystemTime) -> Result<()>;
     /// Write data
-    fn write(&self, data: &[u8]);
+    fn write(&self, data: &[u8], now: SystemTime);
     /// Called when all the data has been written
-    fn complete(&self);
+    fn complete(&self, now: SystemTime);
     /// Called when an error occurred during the reception of this object
-    fn error(&self);
+    fn error(&self, now: SystemTime);
 }
 
 impl std::fmt::Debug for dyn ObjectWriterBuilder {

@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+
 use base64::Engine;
 
 use crate::error::{FluteError, Result};
@@ -71,6 +73,7 @@ impl BlockWriter {
         sbn: u32,
         block: &BlockDecoder,
         writer: &dyn ObjectWriter,
+        now: SystemTime,
     ) -> Result<bool> {
         if self.sbn != sbn {
             return Ok(false);
@@ -85,9 +88,9 @@ impl BlockWriter {
         };
 
         if self.cenc == lct::Cenc::Null {
-            self.write_pkt_cenc_null(data, writer);
+            self.write_pkt_cenc_null(data, writer, now);
         } else {
-            self.decode_write_pkt(data, writer)?;
+            self.decode_write_pkt(data, writer, now)?;
         }
 
         debug_assert!(data.len() <= self.bytes_left);
@@ -99,7 +102,7 @@ impl BlockWriter {
             // All blocks have been received -> flush the decoder
             if self.decoder.is_some() {
                 self.decoder.as_mut().unwrap().finish();
-                self.decoder_read(writer)?;
+                self.decoder_read(writer, now)?;
             }
 
             let output = self.md5_context.take().map(|ctx| ctx.compute().0);
@@ -121,24 +124,29 @@ impl BlockWriter {
         self.buffer.resize(data.len(), 0);
     }
 
-    fn write_pkt_cenc_null(&mut self, data: &[u8], writer: &dyn ObjectWriter) {
+    fn write_pkt_cenc_null(&mut self, data: &[u8], writer: &dyn ObjectWriter, now: SystemTime) {
         if let Some(ctx) = self.md5_context.as_mut() {
             ctx.consume(data)
         }
-        writer.write(data);
+        writer.write(data, now);
     }
 
-    fn decode_write_pkt(&mut self, pkt: &[u8], writer: &dyn ObjectWriter) -> Result<()> {
+    fn decode_write_pkt(
+        &mut self,
+        pkt: &[u8],
+        writer: &dyn ObjectWriter,
+        now: SystemTime,
+    ) -> Result<()> {
         if self.decoder.is_none() {
             self.init_decoder(pkt);
-            self.decoder_read(writer)?;
+            self.decoder_read(writer, now)?;
             return Ok(());
         }
 
         let mut offset: usize = 0;
         loop {
             let size = self.decoder.as_mut().unwrap().write(&pkt[offset..])?;
-            self.decoder_read(writer)?;
+            self.decoder_read(writer, now)?;
             offset += size;
             if offset == pkt.len() {
                 break;
@@ -147,7 +155,7 @@ impl BlockWriter {
         Ok(())
     }
 
-    fn decoder_read(&mut self, writer: &dyn ObjectWriter) -> Result<()> {
+    fn decoder_read(&mut self, writer: &dyn ObjectWriter, now: SystemTime) -> Result<()> {
         let decoder = self.decoder.as_mut().unwrap();
 
         if self.content_length_left == Some(0) {
@@ -169,7 +177,7 @@ impl BlockWriter {
                 ctx.consume(&self.buffer[..size])
             }
 
-            writer.write(&self.buffer[..size]);
+            writer.write(&self.buffer[..size], now);
 
             if let Some(content_length_left) = self.content_length_left.as_mut() {
                 *content_length_left = content_length_left.saturating_sub(size);

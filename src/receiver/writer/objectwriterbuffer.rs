@@ -1,6 +1,6 @@
 use super::{ObjectMetadata, ObjectWriter, ObjectWriterBuilder};
 use crate::{common::udpendpoint::UDPEndpoint, tools::error::Result};
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, time::SystemTime};
 
 ///
 /// Write objects received by the `receiver` to a buffers
@@ -75,6 +75,7 @@ impl ObjectWriterBuilder for ObjectWriterBufferBuilder {
         _toi: &u128,
         _content_location: &url::Url,
         _duration: &std::time::Duration,
+        _now: std::time::SystemTime,
     ) {
     }
 
@@ -92,22 +93,22 @@ impl ObjectWriterBuilder for ObjectWriterBufferBuilder {
 }
 
 impl ObjectWriter for ObjectWriterBufferWrapper {
-    fn open(&self) -> Result<()> {
+    fn open(&self, _now: SystemTime) -> Result<()> {
         Ok(())
     }
 
-    fn write(&self, data: &[u8]) {
+    fn write(&self, data: &[u8], _now: SystemTime) {
         let mut inner = self.inner.borrow_mut();
         inner.data.extend(data);
     }
 
-    fn complete(&self) {
+    fn complete(&self, _now: SystemTime) {
         let mut inner = self.inner.borrow_mut();
         log::info!("Object complete !");
         inner.complete = true;
     }
 
-    fn error(&self) {
+    fn error(&self, _now: SystemTime) {
         let mut inner = self.inner.borrow_mut();
         log::error!("Object received with error");
         inner.error = true;
