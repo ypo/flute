@@ -241,6 +241,7 @@ pub struct FdtInstance {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct MBMSSessionIdentityExpiry {
     #[serde(rename = "$value")]
     content: u8,
@@ -250,6 +251,7 @@ pub struct MBMSSessionIdentityExpiry {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub enum CacheControlChoice {
     #[serde(rename = "mbms2007:no-cache")]
     #[serde(alias = "no-cache")]
@@ -263,12 +265,14 @@ pub enum CacheControlChoice {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct CacheControl {
     #[serde(rename = "$value")]
     pub value: CacheControlChoice,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct File {
     #[serde(
         rename = "mbms2007:Cache-Control",
