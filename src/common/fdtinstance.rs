@@ -120,6 +120,7 @@ where
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct FdtInstance {
     #[serde(rename = "@xmlns", serialize_with = "xmlns")]
     pub xmlns: Option<String>,

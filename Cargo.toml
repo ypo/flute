@@ -36,6 +36,7 @@ raptor-code = "1.0.6"
 opentelemetry = { version = "0.25", optional = true  }
 opentelemetry-semantic-conventions = { version = "0.25" , optional = true }
 rand = "0.8"
+utoipa = { version = "5", optional = true }
 
 [dev-dependencies]
 env_logger = "0.11"
@@ -44,3 +45,4 @@ tempfile = "3.10.1"
 [features]
 python = ["pyo3", "pyo3-log"]
 optel = ["opentelemetry", "opentelemetry-semantic-conventions"]
+openapi = ["utoipa"]

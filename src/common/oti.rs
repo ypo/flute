@@ -9,6 +9,7 @@ use serde::Serialize;
 ///
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub enum FECEncodingID {
     /// No FEC
     NoCode = 0,
@@ -45,6 +46,7 @@ impl TryFrom<u8> for FECEncodingID {
 ///
 /// Reed Solomon GS2M Scheme Specific parameters
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ReedSolomonGF2MSchemeSpecific {
     /// Length of the finite field elements, in bits
     pub m: u8,
@@ -57,6 +59,7 @@ pub struct ReedSolomonGF2MSchemeSpecific {
 /// RaptorQ Scheme Specific parameters
 /// <https://www.rfc-editor.org/rfc/rfc6330.html#section-3.3.3>
 #[derive(Clone, Debug, Default, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct RaptorQSchemeSpecific {
     /// The number of source blocks (Z): 8-bit unsigned integer.  
     pub source_blocks_length: u8,
@@ -75,6 +78,7 @@ pub struct RaptorQSchemeSpecific {
 ///|             Z                 |      N        |       Al      |
 ///+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct RaptorSchemeSpecific {
     /// The number of source blocks (Z): 16-bit unsigned integer.  
     pub source_blocks_length: u16,
@@ -162,6 +166,7 @@ impl RaptorSchemeSpecific {
 /// Scheme Specific information
 ///
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub enum SchemeSpecific {
     /// if `fec_encoding_id` is `FECEncodingID::ReedSolomonGF2M`
     ReedSolomon(ReedSolomonGF2MSchemeSpecific),
@@ -175,6 +180,7 @@ pub enum SchemeSpecific {
 /// FEC Object Transmission Information
 /// Contains the parameters using the build the blocks and FEC for the objects transmission
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct Oti {
     /// Select the FEC for the object transmission
     pub fec_encoding_id: FECEncodingID,

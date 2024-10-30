@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 /// UDP Endpoint
 #[derive(Debug, PartialEq, Deserialize, Serialize, Clone, Eq, Hash)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct UDPEndpoint {
     /// Network source adress
     pub source_address: Option<String>,
