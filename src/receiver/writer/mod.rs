@@ -81,6 +81,7 @@ pub trait ObjectWriterBuilder {
         meta: &ObjectMetadata,
         transfer_duration: Duration,
         now: std::time::SystemTime,
+        ext_time: Option<std::time::SystemTime>,
     );
 }
 

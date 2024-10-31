@@ -88,6 +88,7 @@ impl ObjectWriterBuilder for ObjectWriterBufferBuilder {
         _meta: &ObjectMetadata,
         _transfer_duration: std::time::Duration,
         _now: std::time::SystemTime,
+        _ext_time: Option<std::time::SystemTime>,
     ) {
     }
 }
