@@ -156,6 +156,15 @@ impl FileDesc {
         info.transferring
     }
 
+    pub fn is_last_transfer(&self) -> bool {
+        if self.object.carousel_delay.is_some() {
+            return false;
+        }
+
+        let info = self.transfer_info.read().unwrap();
+        self.object.max_transfer_count == info.transfer_count + 1
+    }
+
     pub fn should_transfer_now(&self, priority: u32, now: SystemTime) -> bool {
         if self.priority != priority {
             return false;

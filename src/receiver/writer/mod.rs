@@ -97,6 +97,8 @@ pub trait ObjectWriter {
     fn complete(&self, now: SystemTime);
     /// Called when an error occurred during the reception of this object
     fn error(&self, now: SystemTime);
+    /// Called when the sender has interrupted the transmission of this object
+    fn interrupted(&self, now: SystemTime);
 }
 
 impl std::fmt::Debug for dyn ObjectWriterBuilder {

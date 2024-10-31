@@ -258,4 +258,9 @@ impl ObjectWriter for FdtWriter {
         let mut inner = self.inner.borrow_mut();
         inner.state = State::Error;
     }
+
+    fn interrupted(&self, _now: SystemTime) {
+        let mut inner = self.inner.borrow_mut();
+        inner.state = State::Error;
+    }
 }

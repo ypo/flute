@@ -152,4 +152,8 @@ impl ObjectWriter for ObjectWriterFS {
             inner.destination = None;
         }
     }
+
+    fn interrupted(&self, now: SystemTime) {
+        self.error(now);
+    }
 }

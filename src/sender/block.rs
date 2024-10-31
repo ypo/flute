@@ -65,8 +65,12 @@ impl Block {
         }))
     }
 
-    pub fn read(&mut self) -> Option<EncodingSymbol> {
-        if self.read_index as usize == self.shards.len() {
+    pub fn is_empty(&self) -> bool {
+        self.read_index as usize == self.shards.len()
+    }
+
+    pub fn read(&mut self) -> Option<(EncodingSymbol, bool)> {
+        if self.is_empty() {
             return None;
         }
         let shard = self.shards[self.read_index as usize].as_ref();
@@ -79,7 +83,7 @@ impl Block {
             is_source_symbol,
         };
         self.read_index += 1;
-        Some(symbol)
+        Some((symbol, self.is_empty()))
     }
 
     fn create_shards_no_code(oti: &Oti, buffer: &[u8]) -> Vec<Box<dyn FecShard>> {

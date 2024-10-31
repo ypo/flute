@@ -114,4 +114,10 @@ impl ObjectWriter for ObjectWriterBufferWrapper {
         log::error!("Object received with error");
         inner.error = true;
     }
+
+    fn interrupted(&self, _now: SystemTime) {
+        let mut inner = self.inner.borrow_mut();
+        log::error!("Object reception interrupted");
+        inner.error = true;
+    }
 }

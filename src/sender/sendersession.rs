@@ -54,21 +54,20 @@ impl SenderSession {
             }
 
             let encoder = self.encoder.as_mut()?;
-            let pkt = encoder.read();
-            if pkt.is_none() {
-                self.release_file(fdt, now);
-                continue;
-            }
 
             debug_assert!(self.file.is_some());
             let file = self.file.as_ref().unwrap();
+            let must_top_transfer =
+                !self.transfer_fdt_only && file.total_nb_transfer() > 0 && !fdt.is_added(file.toi);
 
-            if !self.transfer_fdt_only {
-                if file.total_nb_transfer() > 0 && !fdt.is_added(file.toi) {
-                    log::debug!("File has already been transferred and is removed from the FDT, stop the transfer {}", file.object.content_location.to_string());
-                    self.release_file(fdt, now);
-                    continue;
-                }
+            if must_top_transfer {
+                log::debug!("File has already been transferred and is removed from the FDT, stop the transfer {}", file.object.content_location.to_string());
+            }
+
+            let pkt = encoder.read(must_top_transfer);
+            if pkt.is_none() {
+                self.release_file(fdt, now);
+                continue;
             }
 
             let pkt = pkt.as_ref().unwrap();
@@ -107,8 +106,9 @@ impl SenderSession {
             }
         }
 
-        let block_encoder =
-            BlockEncoder::new(self.file.as_ref().unwrap().clone(), self.interleave_blocks);
+        let file = self.file.as_ref().unwrap().clone();
+        let is_last_transfer = file.is_last_transfer();
+        let block_encoder = BlockEncoder::new(file, self.interleave_blocks, is_last_transfer);
         if block_encoder.is_err() {
             log::error!("Fail to open Block Encoder");
             self.release_file(fdt, now);

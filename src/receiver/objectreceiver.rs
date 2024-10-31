@@ -151,15 +151,25 @@ impl ObjectReceiver {
 
         if self.oti.is_none() {
             self.cache(pkt)
-                .unwrap_or_else(|_| self.error("Fail to push pkt to cache", now));
+                .unwrap_or_else(|_| self.error("Fail to push pkt to cache", now, false));
             return;
         }
 
         self.push_to_block(pkt, now)
-            .unwrap_or_else(|_| self.error("Fail to push pkt to block", now));
+            .unwrap_or_else(|_| self.error("Fail to push pkt to block", now, false));
     }
 
     fn push_to_block(&mut self, pkt: &alc::AlcPkt, now: std::time::SystemTime) -> Result<()> {
+        self.push_to_block2(pkt, now)?;
+        if pkt.lct.close_object {
+            if self.state == State::Receiving {
+                self.error("No more packet for this object", now, true);
+            }
+        }
+        Ok(())
+    }
+
+    fn push_to_block2(&mut self, pkt: &alc::AlcPkt, now: std::time::SystemTime) -> Result<()> {
         debug_assert!(self.oti.is_some());
         debug_assert!(self.transfer_length.is_some());
         let payload_id = alc::parse_payload_id(pkt, self.oti.as_ref().unwrap())?;
@@ -333,6 +343,7 @@ impl ObjectReceiver {
                                 file.content_location
                             ),
                             now,
+                            false,
                         );
                         return false;
                     }
@@ -371,7 +382,7 @@ impl ObjectReceiver {
         self.init_object_writer(now);
         self.push_from_cache(now);
         self.write_blocks(0, now)
-            .unwrap_or_else(|_| self.error("Fail to write blocks to storage", now));
+            .unwrap_or_else(|_| self.error("Fail to write blocks to storage", now, false));
         self.push_from_cache(now);
         true
     }
@@ -437,7 +448,7 @@ impl ObjectReceiver {
         let object_writer = self.object_writer.as_mut().unwrap();
 
         if object_writer.writer.open(now).is_err() {
-            self.error("Fail to create destination on storage", now);
+            self.error("Fail to create destination on storage", now, false);
             return;
         };
 
@@ -515,6 +526,7 @@ impl ObjectReceiver {
                             self.content_md5, &md5
                         ),
                         now,
+                        false,
                     );
                 }
                 break;
@@ -540,18 +552,23 @@ impl ObjectReceiver {
         self.cache_size = 0;
     }
 
-    fn error(&mut self, _description: &str, now: SystemTime) {
+    fn error(&mut self, description: &str, now: SystemTime, interrupted: bool) {
         #[cfg(feature = "opentelemetry")]
         self.init_logger(None);
 
         #[cfg(feature = "opentelemetry")]
-        let _span = self.logger.as_mut().map(|l| l.error(_description));
+        let _span = self.logger.as_mut().map(|l| l.error(description));
 
+        log::debug!("{}", description);
         self.state = State::Error;
 
         if let Some(object_writer) = self.object_writer.as_mut() {
             object_writer.state = ObjectWriterSessionState::Error;
-            object_writer.writer.error(now);
+            if interrupted {
+                object_writer.writer.interrupted(now);
+            } else {
+                object_writer.writer.error(now);
+            }
         }
 
         self.blocks.clear();
@@ -567,7 +584,7 @@ impl ObjectReceiver {
         while let Some(item) = self.cache.pop() {
             let pkt = item.to_pkt();
             if self.push_to_block(&pkt, now).is_err() {
-                self.error("Fail to push block", now);
+                self.error("Fail to push block", now, false);
                 break;
             }
         }
@@ -620,7 +637,7 @@ impl ObjectReceiver {
 
         if pkt.transfer_length.is_none() {
             log::warn!("Bug? Pkt contains OTI without transfer length");
-            self.error("Bug? Pkt contains OTI without transfer length", now);
+            self.error("Bug? Pkt contains OTI without transfer length", now, false);
             return;
         }
 
@@ -720,6 +737,7 @@ impl Drop for ObjectReceiver {
                 self.error(
                     "Drop object in open state, pkt missing ?",
                     self.last_timestamp,
+                    false,
                 );
             } else if object_writer.state == ObjectWriterSessionState::Error {
                 log::error!(

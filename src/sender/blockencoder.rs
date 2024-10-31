@@ -21,6 +21,8 @@ pub struct BlockEncoder {
     source_size_transferred: usize,
     nb_pkt_sent: usize,
     fd: Option<std::fs::File>,
+    stopped: bool,
+    closabled_object: bool,
 }
 
 use super::block::Block;
@@ -29,6 +31,7 @@ impl BlockEncoder {
     pub fn new(
         file: Arc<filedesc::FileDesc>,
         block_multiplex_windows: usize,
+        closabled_object: bool,
     ) -> Result<BlockEncoder> {
         let mut fd = None;
         if let (None, Some(path)) = (file.object.content.as_ref(), file.object.path.as_ref()) {
@@ -51,12 +54,22 @@ impl BlockEncoder {
             source_size_transferred: 0,
             nb_pkt_sent: 0,
             fd,
+            stopped: false,
+            closabled_object,
         };
         block.block_partitioning();
         Ok(block)
     }
 
-    pub fn read(&mut self) -> Option<pkt::Pkt> {
+    pub fn read(&mut self, force_close_object: bool) -> Option<pkt::Pkt> {
+        if self.stopped {
+            return None;
+        }
+
+        if force_close_object {
+            self.stopped = true;
+        }
+
         loop {
             self.read_window();
 
@@ -95,7 +108,7 @@ impl BlockEncoder {
                 continue;
             }
 
-            let symbol = symbol.as_ref().unwrap();
+            let (symbol, is_last_symbol) = symbol.as_ref().unwrap();
 
             self.block_multiplex_index += 1;
             if symbol.is_source_symbol {
@@ -103,6 +116,10 @@ impl BlockEncoder {
             }
 
             self.nb_pkt_sent += 1;
+
+            let is_last_packet = (self.source_size_transferred
+                >= self.file.object.transfer_length as usize)
+                && *is_last_symbol;
 
             return Some(pkt::Pkt {
                 payload: symbol.symbols.to_vec(),
@@ -113,8 +130,7 @@ impl BlockEncoder {
                 fdt_id: self.file.fdt_id,
                 cenc: self.file.object.cenc,
                 inband_cenc: self.file.object.inband_cenc,
-                close_object: self.source_size_transferred
-                    >= self.file.object.transfer_length as usize,
+                close_object: force_close_object || (self.closabled_object && is_last_packet),
                 source_block_length: block.nb_source_symbols as u32,
                 sender_current_time: self.file.sender_current_time,
             });
