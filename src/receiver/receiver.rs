@@ -384,7 +384,6 @@ impl Receiver {
                     .duration_since(fdt_current.reception_start_time)
                     .unwrap_or(std::time::Duration::new(0, 0));
 
-                let ext_time = alc::get_sender_current_time(alc_pkt).unwrap_or(None);
                 self.writer.fdt_received(
                     &self.endpoint,
                     &self.tsi,
@@ -393,7 +392,7 @@ impl Receiver {
                     meta,
                     transfer_duration,
                     now,
-                    ext_time,
+                    fdt_current.ext_time,
                 );
             }
             self.fdt_current.push_front(fdt_current);

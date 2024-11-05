@@ -21,6 +21,7 @@ pub struct FdtReceiver {
     fdt_instance: Option<FdtInstance>,
     sender_current_time_offset: Option<std::time::Duration>,
     sender_current_time_late: bool,
+    pub ext_time: Option<std::time::SystemTime>,
     pub reception_start_time: SystemTime,
     enable_expired_check: bool,
     meta: Option<ObjectMetadata>,
@@ -96,11 +97,13 @@ impl FdtReceiver {
             reception_start_time: now,
             enable_expired_check,
             meta: None,
+            ext_time: None,
         }
     }
 
     pub fn push(&mut self, pkt: &alc::AlcPkt, now: std::time::SystemTime) {
         if let Ok(Some(res)) = alc::get_sender_current_time(pkt) {
+            self.ext_time = Some(now);
             if res < now {
                 self.sender_current_time_late = true;
                 self.sender_current_time_offset = Some(now.duration_since(res).unwrap())
