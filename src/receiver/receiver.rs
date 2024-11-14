@@ -181,7 +181,7 @@ impl Receiver {
 
         self.fdt_receivers.retain(|_, fdt| {
             let state = fdt.state();
-            state == fdtreceiver::State::Complete || state == fdtreceiver::State::Receiving
+            state == fdtreceiver::FDTState::Complete || state == fdtreceiver::FDTState::Receiving
         });
     }
 
@@ -323,7 +323,7 @@ impl Receiver {
                     now,
                 )));
 
-            if fdt_receiver.state() != fdtreceiver::State::Receiving {
+            if fdt_receiver.state() != fdtreceiver::FDTState::Receiving {
                 log::warn!(
                     "TSI={} FDT state is {:?}, bug ?",
                     self.tsi,
@@ -334,15 +334,15 @@ impl Receiver {
 
             fdt_receiver.push(alc_pkt, now);
 
-            if fdt_receiver.state() == fdtreceiver::State::Complete {
+            if fdt_receiver.state() == fdtreceiver::FDTState::Complete {
                 fdt_receiver.update_expired_state(now);
             }
 
             match fdt_receiver.state() {
-                fdtreceiver::State::Receiving => return Ok(()),
-                fdtreceiver::State::Complete => {}
-                fdtreceiver::State::Error => return Err(FluteError::new("Fail to decode FDT")),
-                fdtreceiver::State::Expired => {
+                fdtreceiver::FDTState::Receiving => return Ok(()),
+                fdtreceiver::FDTState::Complete => {}
+                fdtreceiver::FDTState::Error => return Err(FluteError::new("Fail to decode FDT")),
+                fdtreceiver::FDTState::Expired => {
                     let expiration = fdt_receiver.get_expiration_time().unwrap_or(now);
                     let server_time = fdt_receiver.get_server_time(now);
 
@@ -361,7 +361,8 @@ impl Receiver {
         }
 
         if let Some(previous_fdt) = self.fdt_current.front() {
-            if previous_fdt.fdt_id + 1 != fdt_instance_id {
+            if previous_fdt.fdt_id + 1 != fdt_instance_id && previous_fdt.fdt_id != fdt_instance_id
+            {
                 log::warn!(
                     "TSI={} Previous FDT ID {} was current is {} is there an FDT missing ?",
                     self.tsi,
@@ -413,7 +414,7 @@ impl Receiver {
         let fdt_id = fdt.fdt_id;
         let server_time = fdt.get_server_time(now);
         let fdt_instance = fdt.fdt_instance()?;
-        log::info!("TSI={} Attach FDT id {}", self.tsi, fdt_id);
+        log::debug!("TSI={} Attach FDT id {}", self.tsi, fdt_id);
         let mut check_state = Vec::new();
         for obj in &mut self.objects {
             let success = obj.1.attach_fdt(fdt_id, fdt_instance, now, server_time);
@@ -517,14 +518,10 @@ impl Receiver {
             }
 
             let payload_id = alc::get_fec_inline_payload_id(pkt)?;
-            log::warn!(
-                "Object already received tsi={} toi={}",
-                payload_id.sbn,
-                payload_id.esi
-            );
             if payload_id.sbn == 0 && payload_id.esi == 0 {
                 self.objects_completed.remove(&pkt.lct.toi);
             } else {
+                log::warn!("Skip packet tsi={} toi={}", payload_id.sbn, payload_id.esi);
                 return Ok(());
             }
         }
@@ -593,6 +590,16 @@ impl Receiver {
                     } else {
                         log::error!("No cache expiration date for {:?}", obj.content_location);
                     }
+                }
+                objectreceiver::State::Interrupted => {
+                    log::debug!(
+                        "Object transmission interrupted tsi={} toi={}",
+                        self.tsi,
+                        obj.toi
+                    );
+                    remove_object = true;
+                    self.objects_error.insert(toi);
+                    self.gc_object_error();
                 }
                 objectreceiver::State::Error => {
                     log::error!("Object in error state tsi={} toi={}", self.tsi, obj.toi);
@@ -670,7 +677,7 @@ impl Receiver {
             let fdt_id = fdt.fdt_id;
             let server_time = fdt.get_server_time(now);
             fdt.update_expired_state(now);
-            if fdt.state() == fdtreceiver::State::Complete {
+            if fdt.state() == fdtreceiver::FDTState::Complete {
                 if let Some(fdt_instance) = fdt.fdt_instance() {
                     let success = obj.attach_fdt(fdt_id, fdt_instance, now, server_time);
                     if success {

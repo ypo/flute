@@ -516,7 +516,13 @@ mod tests {
 
         let oti: flute::core::Oti = Default::default();
         let content_type = "application/octet-stream";
-        let (obj, _) = create_object(100000, content_type, flute::core::lct::Cenc::Null, true, None);
+        let (obj, _) = create_object(
+            100000,
+            content_type,
+            flute::core::lct::Cenc::Null,
+            true,
+            None,
+        );
         let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new());
         let mut receiver = receiver::MultiReceiver::new(output.clone(), None, false);
         let mut sender = create_sender(
@@ -588,11 +594,21 @@ mod tests {
 
         let oti = flute::core::Oti::new_no_code(1400, 64);
 
-        let (high_priority_obj, high_priority_buffer) =
-            create_object(1024, content_type, flute::core::lct::Cenc::Null, true, Some(&oti));
+        let (high_priority_obj, high_priority_buffer) = create_object(
+            1024,
+            content_type,
+            flute::core::lct::Cenc::Null,
+            true,
+            Some(&oti),
+        );
 
-        let (low_priority_obj, low_priority_buffer) =
-            create_object(1024, content_type, flute::core::lct::Cenc::Null, true, Some(&oti));
+        let (low_priority_obj, low_priority_buffer) = create_object(
+            1024,
+            content_type,
+            flute::core::lct::Cenc::Null,
+            true,
+            Some(&oti),
+        );
 
         let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new());
         let mut receiver = receiver::MultiReceiver::new(output.clone(), None, false);
@@ -640,7 +656,13 @@ mod tests {
         let oti: flute::core::Oti = Default::default();
         let mut sender = create_sender(Vec::new(), &oti, flute::core::lct::Cenc::Null, None);
         let toi = sender.allocate_toi();
-        let (mut obj, _) = create_object(100000, content_type, flute::core::lct::Cenc::Null, true, None);
+        let (mut obj, _) = create_object(
+            100000,
+            content_type,
+            flute::core::lct::Cenc::Null,
+            true,
+            None,
+        );
         let toi_value = toi.get();
         obj.set_toi(toi);
         let toi_result = sender.add_object(0, obj).unwrap();
@@ -655,7 +677,13 @@ mod tests {
         let oti: flute::core::Oti = Default::default();
         let content_type = "application/octet-stream";
 
-        let (mut obj, _) = create_object(100000, content_type, flute::core::lct::Cenc::Null, true, None);
+        let (mut obj, _) = create_object(
+            100000,
+            content_type,
+            flute::core::lct::Cenc::Null,
+            true,
+            None,
+        );
         obj.max_transfer_count = max_transfert_count as u32;
         let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new());
         let mut receiver_config = receiver::Config::default();

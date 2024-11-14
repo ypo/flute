@@ -7,7 +7,7 @@ use crate::{receiver::writer::ObjectWriter, tools::error::Result};
 use std::{cell::RefCell, rc::Rc, time::SystemTime};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum State {
+pub enum FDTState {
     Receiving,
     Complete,
     Error,
@@ -58,7 +58,7 @@ struct FdtWriterInner {
     data: Vec<u8>,
     fdt: Option<FdtInstance>,
     expires: Option<SystemTime>,
-    state: State,
+    state: FDTState,
 }
 
 impl FdtReceiver {
@@ -72,7 +72,7 @@ impl FdtReceiver {
         let inner = Rc::new(RefCell::new(FdtWriterInner {
             data: Vec::new(),
             fdt: None,
-            state: State::Receiving,
+            state: FDTState::Receiving,
             expires: None,
         }));
 
@@ -121,7 +121,8 @@ impl FdtReceiver {
                     self.meta = Some(obj.create_meta());
                     self.obj = None
                 }
-                objectreceiver::State::Error => self.inner.borrow_mut().state = State::Error,
+                objectreceiver::State::Interrupted => self.inner.borrow_mut().state = FDTState::Error,
+                objectreceiver::State::Error => self.inner.borrow_mut().state = FDTState::Error,
             }
         }
     }
@@ -138,7 +139,7 @@ impl FdtReceiver {
         now
     }
 
-    pub fn state(&self) -> State {
+    pub fn state(&self) -> FDTState {
         self.inner.borrow().state
     }
 
@@ -161,13 +162,13 @@ impl FdtReceiver {
     }
 
     pub fn update_expired_state(&self, now: SystemTime) {
-        if self.state() != State::Complete {
+        if self.state() != FDTState::Complete {
             return;
         }
 
         if self.enable_expired_check && self.is_expired(now) {
             let mut inner = self.inner.borrow_mut();
-            inner.state = State::Expired;
+            inner.state = FDTState::Expired;
         }
     }
 
@@ -251,19 +252,19 @@ impl ObjectWriter for FdtWriter {
                     _ => None,
                 };
                 inner.fdt = Some(inst);
-                inner.state = State::Complete
+                inner.state = FDTState::Complete
             }
-            Err(_) => inner.state = State::Error,
+            Err(_) => inner.state = FDTState::Error,
         };
     }
 
     fn error(&self, _now: SystemTime) {
         let mut inner = self.inner.borrow_mut();
-        inner.state = State::Error;
+        inner.state = FDTState::Error;
     }
 
     fn interrupted(&self, _now: SystemTime) {
         let mut inner = self.inner.borrow_mut();
-        inner.state = State::Error;
+        inner.state = FDTState::Error;
     }
 }

@@ -90,7 +90,7 @@ pub struct ObjectDesc {
     pub groups: Option<Vec<String>>,
     /// Assign an optional TOI to this object
     pub toi: Option<Box<Toi>>,
-    /// Optional Opentelemetry propagator
+    /// Optional Opentelemetry propagator (only available with the `opentelemetry` feature)
     pub optel_propagator: Option<HashMap<String, String>>,
 }
 

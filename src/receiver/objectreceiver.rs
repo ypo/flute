@@ -16,6 +16,7 @@ use super::objectreceiverlogger::ObjectReceiverLogger;
 pub enum State {
     Receiving,
     Completed,
+    Interrupted,
     Error,
 }
 
@@ -557,10 +558,16 @@ impl ObjectReceiver {
         self.init_logger(None);
 
         #[cfg(feature = "opentelemetry")]
-        let _span = self.logger.as_mut().map(|l| l.error(description));
+        let _span = self.logger.as_mut().map(|l| match interrupted {
+            true => l.interrupted(description),
+            false => l.error(description),
+        });
 
         log::debug!("{}", description);
-        self.state = State::Error;
+        self.state = match interrupted {
+            true => State::Interrupted,
+            false => State::Error,
+        };
 
         if let Some(object_writer) = self.object_writer.as_mut() {
             object_writer.state = ObjectWriterSessionState::Error;
@@ -740,13 +747,22 @@ impl Drop for ObjectReceiver {
                     false,
                 );
             } else if object_writer.state == ObjectWriterSessionState::Error {
-                log::error!(
-                    "Drop object received with state {:?} TOI={} Endpoint={:?} Content-Location={:?}",
-                    object_writer.state,
-                    self.toi,
-                    self.endpoint,
-                    self.content_location.as_ref().map(|u| u.to_string())
-                );
+                if self.state != State::Interrupted {
+                    log::error!(
+                        "Drop object received with state {:?} TOI={} Endpoint={:?} Content-Location={:?}",
+                        object_writer.state,
+                        self.toi,
+                        self.endpoint,
+                        self.content_location.as_ref().map(|u| u.to_string())
+                    );
+                } else {
+                    log::warn!(
+                        "Interrupted object  TOI={} Endpoint={:?} Content-Location={:?}",
+                        self.toi,
+                        self.endpoint,
+                        self.content_location.as_ref().map(|u| u.to_string())
+                    );
+                }
             }
         }
     }

@@ -127,6 +127,16 @@ impl ObjectReceiverLogger {
         tracer.start_with_context("complete", &self.cx)
     }
 
+    pub fn interrupted(&mut self, description: &str) -> BoxedSpan {
+        let tracer = global::tracer("FluteLogger");
+
+        let span = self.cx.span();
+        span.set_status(Status::Ok);
+
+        span.set_attribute(KeyValue::new("description", description.to_string()));
+        tracer.start_with_context("interrupted", &self.cx)
+    }
+
     pub fn error(&mut self, description: &str) -> BoxedSpan {
         let tracer = global::tracer("FluteLogger");
 
