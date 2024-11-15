@@ -1,7 +1,9 @@
 mod tests {
     use flute::core::UDPEndpoint;
     use flute::sender::PriorityQueue;
+    use flute::sender::TargetAcquisition;
     use rand::RngCore;
+
     use std::io::Write;
     use std::rc::Rc;
 
@@ -40,7 +42,9 @@ mod tests {
         cenc: flute::core::lct::Cenc,
         inband_cenc: bool,
         object_oti: Option<&flute::core::Oti>,
+        target_acquisition: Option<TargetAcquisition>,
     ) -> (Box<sender::ObjectDesc>, Vec<u8>) {
+        let _ = target_acquisition;
         let (buffer, content_location) = create_file_buffer(transfer_file_size);
         (
             sender::ObjectDesc::create_from_buffer(
@@ -49,7 +53,7 @@ mod tests {
                 &content_location,
                 1,
                 None,
-                None,
+                target_acquisition,
                 None,
                 None,
                 cenc,
@@ -104,12 +108,15 @@ mod tests {
         loop {
             let now = std::time::SystemTime::now();
             let data = sender.read(now);
-            if data.is_none() {
+            if data.is_none() && sender.get_objects_in_fdt().is_empty() {
                 break;
             }
-            receiver
-                .push(&endpoint, data.as_ref().unwrap(), now)
-                .unwrap();
+
+            if data.is_some() {
+                receiver
+                    .push(&endpoint, data.as_ref().unwrap(), now)
+                    .unwrap();
+            }
             receiver.cleanup(now);
         }
     }
@@ -120,16 +127,18 @@ mod tests {
         loop {
             let now = std::time::SystemTime::now();
             let data = sender.read(now);
-            if data.is_none() {
+            if data.is_none() && sender.get_objects_in_fdt().is_empty() {
                 break;
             }
 
-            if (i & 7) == 0 {
-                log::info!("ALC pkt {} is lost", i)
-            } else {
-                receiver
-                    .push(&endpoint, data.as_ref().unwrap(), now)
-                    .unwrap();
+            if data.is_some() {
+                if (i & 7) == 0 {
+                    log::info!("ALC pkt {} is lost", i)
+                } else {
+                    receiver
+                        .push(&endpoint, data.as_ref().unwrap(), now)
+                        .unwrap();
+                }
             }
             receiver.cleanup(now);
             i += 1;
@@ -140,6 +149,7 @@ mod tests {
         input_buffer: &[u8],
         input_content_location: &url::Url,
         input_content_type: &str,
+        target_acquisition: Option<TargetAcquisition>,
         output: &receiver::writer::ObjectWriterBufferBuilder,
     ) {
         let output_session = output.objects.borrow();
@@ -164,6 +174,25 @@ mod tests {
             .as_ref()
             .unwrap()
             .eq(input_content_type));
+
+        let transfer_duration = output_object
+            .end_time
+            .unwrap()
+            .duration_since(output_object.start_time)
+            .unwrap();
+
+        match target_acquisition {
+            Some(TargetAcquisition::WithinDuration(duration)) => {
+                let diff = duration.abs_diff(transfer_duration);
+                log::info!("Acquisition Time diff={:?}", diff);
+                assert!(diff < std::time::Duration::from_millis(100));
+            }
+            Some(TargetAcquisition::WithinTime(time)) => {
+                assert!(time >= output_object.end_time.unwrap());
+            }
+            Some(TargetAcquisition::AsFastAsPossible) => {}
+            None => {}
+        }
     }
 
     fn create_file_buffer(file_size: usize) -> (Vec<u8>, url::Url) {
@@ -187,6 +216,7 @@ mod tests {
         sender_config: Option<sender::Config>,
         transfer_file_size: usize,
         temp_file: bool,
+        target_acquisition: Option<TargetAcquisition>,
     ) {
         let content_type = "application/octet-stream";
 
@@ -204,6 +234,7 @@ mod tests {
                 cenc,
                 inband_cenc,
                 object_oti,
+                target_acquisition.clone(),
             ),
         };
 
@@ -228,6 +259,7 @@ mod tests {
             &input_file_buffer,
             &input_content_location,
             content_type,
+            target_acquisition,
             &output,
         );
     }
@@ -244,6 +276,25 @@ mod tests {
             None,
             100000,
             false,
+            None,
+        );
+    }
+
+    #[test]
+    pub fn test_receiver_no_code_target_acquisition() {
+        init();
+        test_receiver_with_oti(
+            &flute::core::Oti::new_no_code(1400, 64),
+            None,
+            false,
+            flute::core::lct::Cenc::Null,
+            true,
+            None,
+            100000,
+            false,
+            Some(TargetAcquisition::WithinDuration(
+                std::time::Duration::from_secs(4),
+            )),
         );
     }
 
@@ -259,6 +310,7 @@ mod tests {
             None,
             100000,
             true,
+            None,
         );
     }
 
@@ -274,6 +326,7 @@ mod tests {
             None,
             100000000,
             true,
+            None,
         );
     }
 
@@ -296,6 +349,7 @@ mod tests {
             }),
             100000,
             false,
+            None,
         );
     }
 
@@ -311,6 +365,7 @@ mod tests {
             None,
             100000,
             false,
+            None,
         );
     }
 
@@ -326,6 +381,7 @@ mod tests {
             None,
             100000,
             false,
+            None,
         );
     }
 
@@ -341,6 +397,7 @@ mod tests {
             None,
             100000,
             false,
+            None,
         );
     }
 
@@ -358,6 +415,7 @@ mod tests {
             None,
             100000,
             false,
+            None,
         );
     }
 
@@ -374,6 +432,7 @@ mod tests {
             None,
             100000,
             false,
+            None,
         );
     }
 
@@ -392,6 +451,7 @@ mod tests {
             None,
             100000,
             false,
+            None,
         );
     }
 
@@ -410,6 +470,7 @@ mod tests {
             None,
             100000,
             false,
+            None,
         );
     }
 
@@ -426,6 +487,7 @@ mod tests {
             None,
             100000,
             false,
+            None,
         );
     }
 
@@ -442,6 +504,7 @@ mod tests {
             None,
             100000,
             false,
+            None,
         );
     }
 
@@ -459,6 +522,7 @@ mod tests {
             None,
             100000,
             false,
+            None,
         );
     }
 
@@ -476,6 +540,7 @@ mod tests {
             None,
             100000,
             false,
+            None,
         );
     }
 
@@ -492,6 +557,7 @@ mod tests {
             None,
             100000,
             false,
+            None,
         );
     }
 
@@ -509,6 +575,7 @@ mod tests {
             None,
             100000,
             false,
+            None,
         );
     }
 
@@ -523,6 +590,7 @@ mod tests {
             content_type,
             flute::core::lct::Cenc::Null,
             true,
+            None,
             None,
         );
         let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new());
@@ -587,6 +655,7 @@ mod tests {
             None,
             0,
             false,
+            None,
         );
     }
 
@@ -602,6 +671,7 @@ mod tests {
             flute::core::lct::Cenc::Null,
             true,
             Some(&oti),
+            None,
         );
 
         let (low_priority_obj, low_priority_buffer) = create_object(
@@ -610,6 +680,7 @@ mod tests {
             flute::core::lct::Cenc::Null,
             true,
             Some(&oti),
+            None,
         );
 
         let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new());
@@ -664,6 +735,7 @@ mod tests {
             flute::core::lct::Cenc::Null,
             true,
             None,
+            None,
         );
         let toi_value = toi.get();
         obj.set_toi(toi);
@@ -684,6 +756,7 @@ mod tests {
             content_type,
             flute::core::lct::Cenc::Null,
             true,
+            None,
             None,
         );
         obj.max_transfer_count = max_transfert_count as u32;

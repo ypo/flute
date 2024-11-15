@@ -30,6 +30,10 @@ pub struct ObjectWriterBuffer {
     pub data: Vec<u8>,
     /// Metadata of the object
     pub meta: ObjectMetadata,
+    /// Time when the object reception started
+    pub start_time: SystemTime,
+    /// Time when the object reception ended
+    pub end_time: Option<SystemTime>,
 }
 
 impl ObjectWriterBufferBuilder {
@@ -54,13 +58,15 @@ impl ObjectWriterBuilder for ObjectWriterBufferBuilder {
         _tsi: &u64,
         _toi: &u128,
         meta: &ObjectMetadata,
-        _now: std::time::SystemTime,
+        now: std::time::SystemTime,
     ) -> Box<dyn ObjectWriter> {
         let obj = Rc::new(RefCell::new(ObjectWriterBuffer {
             complete: false,
             error: false,
             data: Vec::new(),
             meta: meta.clone(),
+            start_time: now,
+            end_time: None,
         }));
 
         let obj_wrapper = Box::new(ObjectWriterBufferWrapper { inner: obj.clone() });
@@ -103,21 +109,24 @@ impl ObjectWriter for ObjectWriterBufferWrapper {
         inner.data.extend(data);
     }
 
-    fn complete(&self, _now: SystemTime) {
+    fn complete(&self, now: SystemTime) {
         let mut inner = self.inner.borrow_mut();
         log::info!("Object complete !");
         inner.complete = true;
+        inner.end_time = Some(now);
     }
 
-    fn error(&self, _now: SystemTime) {
+    fn error(&self, now: SystemTime) {
         let mut inner = self.inner.borrow_mut();
         log::error!("Object received with error");
         inner.error = true;
+        inner.end_time = Some(now);
     }
 
-    fn interrupted(&self, _now: SystemTime) {
+    fn interrupted(&self, now: SystemTime) {
         let mut inner = self.inner.borrow_mut();
         log::error!("Object reception interrupted");
         inner.error = true;
+        inner.end_time = Some(now);
     }
 }

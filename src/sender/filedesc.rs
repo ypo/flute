@@ -15,6 +15,62 @@ struct TransferInfo {
     total_nb_transfer: u64,
     last_transfer: Option<SystemTime>,
     next_transfer_timestamp: Option<SystemTime>,
+    packet_transmission_tick: Option<std::time::Duration>,
+}
+
+impl TransferInfo {
+    fn init(&mut self, object: &ObjectDesc, oti: &oti::Oti, now: SystemTime) {
+        self.transferring = true;
+        let mut packet_transmission_tick = None;
+        if let Some(target_acquisition_latency) = object.target_acquisition.as_ref() {
+            packet_transmission_tick = match target_acquisition_latency {
+                crate::sender::objectdesc::TargetAcquisition::AsFastAsPossible => None,
+                crate::sender::objectdesc::TargetAcquisition::WithinDuration(duration) => {
+                    let nb_packets = object
+                        .transfer_length
+                        .div_ceil(oti.encoding_symbol_length as u64);
+                    // TODO should we take into account the FEC encoding symbol length ?
+                    Some(duration.div_f64(nb_packets as f64))
+                }
+                crate::sender::objectdesc::TargetAcquisition::WithinTime(target_time) => {
+                    let duration = target_time.duration_since(now).unwrap_or_default();
+                    if duration.is_zero() {
+                        log::warn!("Target acquisition time is in the past");
+                    }
+                    let nb_packets = object
+                        .transfer_length
+                        .div_ceil(oti.encoding_symbol_length as u64);
+                    Some(duration.div_f64(nb_packets as f64))
+                }
+            }
+        }
+
+        self.packet_transmission_tick = packet_transmission_tick;
+        if self.packet_transmission_tick.is_some() {
+            self.next_transfer_timestamp = Some(now)
+        }
+
+        if self.transfer_count == object.max_transfer_count && object.carousel_delay.is_some() {
+            self.transfer_count = 0;
+        }
+    }
+
+    fn done(&mut self, now: SystemTime) {
+        self.transferring = false;
+        self.transfer_count += 1;
+        self.total_nb_transfer += 1;
+        self.last_transfer = Some(now);
+    }
+
+    fn tick(&mut self) {
+        if let Some(tick) = self.packet_transmission_tick {
+            if let Some(next_transfer_timestamp) = self.next_transfer_timestamp.as_mut() {
+                if let Some(next) = next_transfer_timestamp.checked_add(tick) {
+                    *next_transfer_timestamp = next;
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -27,7 +83,6 @@ pub struct FileDesc {
     pub published: AtomicBool,
     pub toi: u128,
     transfer_info: RwLock<TransferInfo>,
-    packet_transmission_tick: Option<std::time::Duration>,
 }
 
 impl FileDesc {
@@ -50,15 +105,6 @@ impl FileDesc {
                 "Object transfer length of {} is bigger than {}, so is incompatible with the parameters of your OTI",
                 object.transfer_length, max_transfer_length
             )));
-        }
-
-        let mut packet_transmission_tick = None;
-        if let Some(target_acquisition_latency) = object.target_acquisition_latency.as_ref() {
-            let nb_packets = object
-                .transfer_length
-                .div_ceil(oti.encoding_symbol_length as u64);
-            // TODO should we take into account the FEC encoding symbol length ?
-            packet_transmission_tick = Some(target_acquisition_latency.div_f64(nb_packets as f64));
         }
 
         if oti.fec_encoding_id == oti::FECEncodingID::RaptorQ
@@ -124,10 +170,10 @@ impl FileDesc {
                 last_transfer: None,
                 total_nb_transfer: 0,
                 next_transfer_timestamp: None,
+                packet_transmission_tick: None,
             }),
             published: AtomicBool::new(false),
             toi,
-            packet_transmission_tick,
         })
     }
 
@@ -138,25 +184,12 @@ impl FileDesc {
 
     pub fn transfer_started(&self, now: SystemTime) {
         let mut info = self.transfer_info.write().unwrap();
-        info.transferring = true;
-        if self.packet_transmission_tick.is_some() {
-            info.next_transfer_timestamp = Some(now)
-        }
-
-        if info.transfer_count == self.object.max_transfer_count
-            && self.object.carousel_delay.is_some()
-        {
-            info.transfer_count = 0;
-        }
+        info.init(&self.object, &self.oti, now);
     }
 
     pub fn transfer_done(&self, now: SystemTime) {
         let mut info = self.transfer_info.write().unwrap();
-        debug_assert!(info.transferring);
-        info.transferring = false;
-        info.transfer_count += 1;
-        info.total_nb_transfer += 1;
-        info.last_transfer = Some(now);
+        info.done(now);
     }
 
     pub fn is_expired(&self) -> bool {
@@ -178,14 +211,8 @@ impl FileDesc {
     }
 
     pub fn inc_next_transfer_timestamp(&self) {
-        if let Some(tick) = self.packet_transmission_tick.as_ref() {
-            let mut info = self.transfer_info.write().unwrap();
-            if let Some(next_transfer_timestamp) = info.next_transfer_timestamp.as_mut() {
-                if let Some(next) = next_transfer_timestamp.checked_add(*tick) {
-                    *next_transfer_timestamp = next;
-                }
-            }
-        }
+        let mut info = self.transfer_info.write().unwrap();
+        info.tick();
     }
 
     pub fn is_last_transfer(&self) -> bool {
