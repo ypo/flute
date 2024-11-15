@@ -53,12 +53,12 @@ impl FileDesc {
         }
 
         let mut packet_transmission_tick = None;
-        if let Some(target_acquisition_duration) = object.target_acquisition_duration.as_ref() {
+        if let Some(target_acquisition_latency) = object.target_acquisition_latency.as_ref() {
             let nb_packets = object
                 .transfer_length
                 .div_ceil(oti.encoding_symbol_length as u64);
             // TODO should we take into account the FEC encoding symbol length ?
-            packet_transmission_tick = Some(target_acquisition_duration.div_f64(nb_packets as f64));
+            packet_transmission_tick = Some(target_acquisition_latency.div_f64(nb_packets as f64));
         }
 
         if oti.fec_encoding_id == oti::FECEncodingID::RaptorQ
