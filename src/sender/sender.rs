@@ -421,6 +421,7 @@ mod tests {
             None,
             None,
             None,
+            None,
             lct::Cenc::Null,
             true,
             None,

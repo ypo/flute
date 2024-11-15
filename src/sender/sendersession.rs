@@ -57,19 +57,26 @@ impl SenderSession {
 
             debug_assert!(self.file.is_some());
             let file = self.file.as_ref().unwrap();
-            let must_top_transfer =
+            let must_stop_transfer =
                 !self.transfer_fdt_only && file.total_nb_transfer() > 0 && !fdt.is_added(file.toi);
 
-            if must_top_transfer {
+            if must_stop_transfer {
                 log::debug!("File has already been transferred and is removed from the FDT, stop the transfer {}", file.object.content_location.to_string());
             }
 
-            let pkt = encoder.read(must_top_transfer);
+            if let Some(next_timestamp) = file.get_next_transfer_timestamp() {
+                if next_timestamp > now {
+                    return None;
+                }
+            }
+
+            let pkt = encoder.read(must_stop_transfer);
             if pkt.is_none() {
                 self.release_file(fdt, now);
                 continue;
             }
 
+            file.inc_next_transfer_timestamp();
             let pkt = pkt.as_ref().unwrap();
             return Some(alc::new_alc_pkt(
                 &file.oti,

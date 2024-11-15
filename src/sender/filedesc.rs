@@ -14,6 +14,7 @@ struct TransferInfo {
     transfer_count: u32,
     total_nb_transfer: u64,
     last_transfer: Option<SystemTime>,
+    next_transfer_timestamp: Option<SystemTime>,
 }
 
 #[derive(Debug)]
@@ -26,6 +27,7 @@ pub struct FileDesc {
     pub published: AtomicBool,
     pub toi: u128,
     transfer_info: RwLock<TransferInfo>,
+    packet_transmission_tick: Option<std::time::Duration>,
 }
 
 impl FileDesc {
@@ -48,6 +50,15 @@ impl FileDesc {
                 "Object transfer length of {} is bigger than {}, so is incompatible with the parameters of your OTI",
                 object.transfer_length, max_transfer_length
             )));
+        }
+
+        let mut packet_transmission_tick = None;
+        if let Some(target_acquisition_duration) = object.target_acquisition_duration.as_ref() {
+            let nb_packets = object
+                .transfer_length
+                .div_ceil(oti.encoding_symbol_length as u64);
+            // TODO should we take into account the FEC encoding symbol length ?
+            packet_transmission_tick = Some(target_acquisition_duration.div_f64(nb_packets as f64));
         }
 
         if oti.fec_encoding_id == oti::FECEncodingID::RaptorQ
@@ -112,9 +123,11 @@ impl FileDesc {
                 transfer_count: 0,
                 last_transfer: None,
                 total_nb_transfer: 0,
+                next_transfer_timestamp: None,
             }),
             published: AtomicBool::new(false),
             toi,
+            packet_transmission_tick,
         })
     }
 
@@ -123,9 +136,12 @@ impl FileDesc {
         info.total_nb_transfer
     }
 
-    pub fn transfer_started(&self) {
+    pub fn transfer_started(&self, now: SystemTime) {
         let mut info = self.transfer_info.write().unwrap();
         info.transferring = true;
+        if self.packet_transmission_tick.is_some() {
+            info.next_transfer_timestamp = Some(now)
+        }
 
         if info.transfer_count == self.object.max_transfer_count
             && self.object.carousel_delay.is_some()
@@ -154,6 +170,22 @@ impl FileDesc {
     pub fn is_transferring(&self) -> bool {
         let info = self.transfer_info.read().unwrap();
         info.transferring
+    }
+
+    pub fn get_next_transfer_timestamp(&self) -> Option<SystemTime> {
+        let info = self.transfer_info.read().unwrap();
+        info.next_transfer_timestamp
+    }
+
+    pub fn inc_next_transfer_timestamp(&self) {
+        if let Some(tick) = self.packet_transmission_tick.as_ref() {
+            let mut info = self.transfer_info.write().unwrap();
+            if let Some(next_transfer_timestamp) = info.next_transfer_timestamp.as_mut() {
+                if let Some(next) = next_transfer_timestamp.checked_add(*tick) {
+                    *next_transfer_timestamp = next;
+                }
+            }
+        }
     }
 
     pub fn is_last_transfer(&self) -> bool {

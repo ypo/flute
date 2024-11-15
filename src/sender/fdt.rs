@@ -205,6 +205,7 @@ impl Fdt {
             1,
             Some(self.carousel),
             None,
+            None,
             self.groups.clone(),
             self.cenc,
             true,
@@ -265,7 +266,7 @@ impl Fdt {
         }
 
         log::debug!("TSI={} Start transmission of FDT", self._tsi);
-        current_fdt_transfer.transfer_started();
+        current_fdt_transfer.transfer_started(now);
         Some(current_fdt_transfer.clone())
     }
 
@@ -290,7 +291,7 @@ impl Fdt {
         let evt = observer::Event::StartTransfer(observer::FileInfo { toi: file.toi });
         self.observers.dispatch(&evt, now);
 
-        file.transfer_started();
+        file.transfer_started(now);
         Some(file.clone())
     }
 
@@ -412,6 +413,7 @@ mod tests {
             2,
             None,
             None,
+            None,
             Some(vec!["Test1".to_owned()]),
             lct::Cenc::Null,
             true,
@@ -425,6 +427,7 @@ mod tests {
             "plain/txt",
             &url::Url::parse("file:///object2").unwrap(),
             2,
+            None,
             None,
             None,
             None,

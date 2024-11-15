@@ -82,6 +82,14 @@ pub struct ObjectDesc {
     pub oti: Option<oti::Oti>,
     /// Repeat the transfer the same object multiple times
     pub max_transfer_count: u32,
+    /// Specifies the desired duration for transferring the object to the receiver.
+    /// 
+    /// - If `Some(duration)` is provided, the transfer will attempt to complete within this duration.
+    /// - If `None`, the transfer will proceed as quickly as possible.
+    ///
+    /// **Note:** The transfer may take longer if the sender's scheduling is slower than expected or 
+    /// if other delays occur during the transfer process.
+    pub target_acquisition_duration: Option<std::time::Duration>,
     /// If defined, object is transmitted in a carousel every `carousel_delay_ns`
     pub carousel_delay: Option<std::time::Duration>,
     /// Define object cache control
@@ -114,6 +122,7 @@ impl ObjectDesc {
         cache_in_ram: bool,
         max_transfer_count: u32,
         carousel_delay: Option<std::time::Duration>,
+        target_acquisition_duration: Option<std::time::Duration>,
         cache_control: Option<CacheControl>,
         groups: Option<Vec<String>>,
         cenc: lct::Cenc,
@@ -142,6 +151,7 @@ impl ObjectDesc {
                 content_location,
                 max_transfer_count,
                 carousel_delay,
+                target_acquisition_duration,
                 cache_control,
                 groups,
                 cenc,
@@ -156,6 +166,7 @@ impl ObjectDesc {
                 content_location,
                 max_transfer_count,
                 carousel_delay,
+                target_acquisition_duration,
                 cache_control,
                 groups,
                 cenc,
@@ -173,6 +184,7 @@ impl ObjectDesc {
         content_location: &url::Url,
         max_transfer_count: u32,
         carousel_delay: Option<std::time::Duration>,
+        target_acquisition_duration: Option<std::time::Duration>,
         cache_control: Option<CacheControl>,
         groups: Option<Vec<String>>,
         cenc: lct::Cenc,
@@ -187,6 +199,7 @@ impl ObjectDesc {
             content_location.clone(),
             max_transfer_count,
             carousel_delay,
+            target_acquisition_duration,
             cache_control,
             groups,
             cenc,
@@ -203,6 +216,7 @@ impl ObjectDesc {
         content_location: url::Url,
         max_transfer_count: u32,
         carousel_delay: Option<std::time::Duration>,
+        target_acquisition_duration: Option<std::time::Duration>,
         cache_control: Option<CacheControl>,
         groups: Option<Vec<String>>,
         cenc: lct::Cenc,
@@ -245,6 +259,7 @@ impl ObjectDesc {
             oti,
             max_transfer_count,
             carousel_delay,
+            target_acquisition_duration,
             cache_control,
             groups,
             toi: None,
@@ -258,6 +273,7 @@ impl ObjectDesc {
         content_location: url::Url,
         max_transfer_count: u32,
         carousel_delay: Option<std::time::Duration>,
+        target_acquisition_duration: Option<std::time::Duration>,
         cache_control: Option<CacheControl>,
         groups: Option<Vec<String>>,
         cenc: lct::Cenc,
@@ -295,6 +311,7 @@ impl ObjectDesc {
             oti,
             max_transfer_count,
             carousel_delay,
+            target_acquisition_duration,
             cache_control,
             groups,
             toi: None,
