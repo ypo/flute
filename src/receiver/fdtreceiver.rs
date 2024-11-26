@@ -103,7 +103,7 @@ impl FdtReceiver {
 
     pub fn push(&mut self, pkt: &alc::AlcPkt, now: std::time::SystemTime) {
         if let Ok(Some(res)) = alc::get_sender_current_time(pkt) {
-            self.ext_time = Some(now);
+            self.ext_time = Some(res);
             if res < now {
                 self.sender_current_time_late = true;
                 self.sender_current_time_offset = Some(now.duration_since(res).unwrap())
