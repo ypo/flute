@@ -23,6 +23,16 @@
 ///     * nb_blocks: The total number of blocks.  
 ///
 pub fn block_partitioning(b: u64, l: u64, e: u64) -> (u64, u64, u64, u64) {
+    if b == 0 {
+        log::warn!("Maximum Source Block Length is 0");
+        return (0, 0, 0, 0);
+    }
+
+    if e == 0 {
+        log::error!("Encoding Symbol Length is 0");
+        return (0, 0, 0, 0);
+    }
+
     let t = num_integer::div_ceil(l, e);
     let n = num_integer::div_ceil(t, b);
     log::debug!("t={} n={} b={} l={} e={}", t, n, b, l, e);
