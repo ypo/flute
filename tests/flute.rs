@@ -1,14 +1,50 @@
 mod tests {
     use flute::core::UDPEndpoint;
+    use flute::receiver::MultiReceiverListener;
+    use flute::receiver::ReceiverEndpoint;
     use flute::sender::PriorityQueue;
     use flute::sender::TargetAcquisition;
     use rand::RngCore;
 
+    use std::cell::RefCell;
+    use std::collections::HashSet;
     use std::io::Write;
     use std::rc::Rc;
 
     use flute::receiver;
     use flute::sender;
+
+    struct TestMultiReceiverObserver {
+        endpoints: RefCell<HashSet<ReceiverEndpoint>>,
+    }
+
+    impl TestMultiReceiverObserver {
+        pub fn new() -> Self {
+            Self {
+                endpoints: RefCell::new(HashSet::new()),
+            }
+        }
+    }
+
+    impl MultiReceiverListener for TestMultiReceiverObserver {
+        fn on_session_open(&self, endpoint: &ReceiverEndpoint) {
+            let mut endpoints = self.endpoints.borrow_mut();
+            assert!(endpoints.get(endpoint).is_none());
+            endpoints.insert(endpoint.clone());
+        }
+
+        fn on_session_closed(&self, endpoint: &ReceiverEndpoint) {
+            let mut endpoints = self.endpoints.borrow_mut();
+            assert!(endpoints.get(endpoint).is_some());
+            endpoints.remove(endpoint);
+        }
+    }
+
+    impl Drop for TestMultiReceiverObserver {
+        fn drop(&mut self) {
+            assert!(self.endpoints.borrow().is_empty());
+        }
+    }
 
     pub fn init() {
         // std::env::set_var("RUST_LOG", "debug");
@@ -242,6 +278,8 @@ mod tests {
 
         let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new());
         let mut receiver = receiver::MultiReceiver::new(output.clone(), None, false);
+        receiver.add_listener(TestMultiReceiverObserver::new());
+
         let mut sender = create_sender(vec![obj], &oti, cenc, sender_config);
         assert!(sender.nb_objects() == 1);
 

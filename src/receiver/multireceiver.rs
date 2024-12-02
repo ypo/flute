@@ -4,6 +4,7 @@ use super::writer::ObjectWriterBuilder;
 use crate::common::alc;
 use crate::common::udpendpoint::UDPEndpoint;
 use crate::tools::error::Result;
+use core::fmt::Debug;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::SystemTime;
@@ -11,8 +12,26 @@ use std::time::SystemTime;
 /// Receiver endpoint
 #[derive(Debug, Hash, Eq, PartialEq, Clone)]
 pub struct ReceiverEndpoint {
+    /// UDP endpoint
     pub endpoint: UDPEndpoint,
+    /// TSI value
     pub tsi: u64,
+}
+
+/// MultiReceiverListener
+pub trait MultiReceiverListener {
+    /// Called when a FLUTE session is opened
+    fn on_session_open(&self, endpoint: &ReceiverEndpoint);
+    /// Called when a FLUTE session is being closed
+    fn on_session_closed(&self, endpoint: &ReceiverEndpoint);
+}
+
+type MultiReceiverListenerBox = Box<dyn MultiReceiverListener>;
+
+impl Debug for dyn MultiReceiverListener {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "MultiReceiverListener")
+    }
 }
 
 ///
@@ -26,6 +45,8 @@ pub struct MultiReceiver {
     writer: Rc<dyn ObjectWriterBuilder>,
     config: Option<Config>,
     enable_tsi_filtering: bool,
+    listeners: HashMap<u64, MultiReceiverListenerBox>,
+    listeners_id: u64,
 }
 
 impl MultiReceiver {
@@ -65,7 +86,33 @@ impl MultiReceiver {
             config,
             tsifilter: TSIFilter::new(),
             enable_tsi_filtering,
+            listeners: HashMap::new(),
+            listeners_id: 0,
         }
+    }
+
+    ///
+    /// Add a listener to the MultiReceiver
+    /// # Arguments
+    /// * `listener` - The listener to add
+    /// # Returns
+    /// The id of the listener
+    pub fn add_listener<L>(&mut self, listener: L) -> u64
+    where
+        L: MultiReceiverListener + 'static,
+    {
+        let id = self.listeners_id;
+        self.listeners_id += 1;
+        self.listeners.insert(id, Box::new(listener));
+        id
+    }
+
+    /// Remove a listener from the MultiReceiver
+    ///
+    /// # Arguments
+    /// * `id` - The id of the listener to remove
+    pub fn remove_listener(&mut self, id: u64) {
+        self.listeners.remove(&id);
     }
 
     ///
@@ -203,6 +250,9 @@ impl MultiReceiver {
             if remove_session {
                 log::warn!("Remove closed session");
                 self.alc_receiver.remove(&key);
+                for listener in self.listeners.values() {
+                    listener.on_session_closed(&key);
+                }
             }
             ret
         } else {
@@ -215,10 +265,8 @@ impl MultiReceiver {
     /// Remove FLUTE session that are closed or expired
     /// Remove Objects that are expired
     ///
-    /// Cleanup should be call from time to time to avoid consuming to much memory
-    ///
-    /// Return List of receiver endpoint that has been removed
-    pub fn cleanup(&mut self, now: SystemTime) -> Vec<ReceiverEndpoint> {
+    /// Cleanup shall be call from time to time to avoid consuming to much memory    
+    pub fn cleanup(&mut self, now: SystemTime) {
         let mut output = Vec::new();
         for receiver in &self.alc_receiver {
             if receiver.1.is_expired() {
@@ -231,7 +279,11 @@ impl MultiReceiver {
             receiver.cleanup(now);
         }
 
-        output
+        for endpoint in &output {
+            for listener in self.listeners.values() {
+                listener.on_session_closed(&endpoint);
+            }
+        }
     }
 
     fn get_receiver(&mut self, key: &ReceiverEndpoint) -> Option<&mut Receiver> {
@@ -245,6 +297,11 @@ impl MultiReceiver {
             .entry(key.clone())
             .or_insert_with(|| {
                 log::info!("Create FLUTE Receiver {:?}", key);
+
+                for listener in self.listeners.values() {
+                    listener.on_session_open(&key);
+                }
+
                 Box::new(Receiver::new(
                     &key.endpoint,
                     key.tsi,
@@ -253,5 +310,15 @@ impl MultiReceiver {
                 ))
             })
             .as_mut()
+    }
+}
+
+impl Drop for MultiReceiver {
+    fn drop(&mut self) {
+        for endpoint in self.alc_receiver.keys() {
+            for listener in self.listeners.values() {
+                listener.on_session_closed(endpoint);
+            }
+        }
     }
 }

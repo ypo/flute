@@ -16,5 +16,7 @@ mod objectreceiverlogger;
 
 pub mod writer;
 pub use multireceiver::MultiReceiver;
+pub use multireceiver::MultiReceiverListener;
+pub use multireceiver::ReceiverEndpoint;
 pub use receiver::Config;
 pub use receiver::Receiver;
