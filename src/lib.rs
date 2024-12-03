@@ -161,7 +161,6 @@
 //!
 //! let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_string(), 3400);
 //! let mut sender = Sender::new(endpoint, 1, &Default::default(), &config);
-//!
 //!```
 //!
 //! # Priority Queues
@@ -171,6 +170,7 @@
 //! Transfer of files in lower priority queues is paused while there are files to be transferred in higher priority queues.  
 //!
 //!```rust
+//! 
 //! use flute::sender::Sender;
 //! use flute::sender::Config;
 //! use flute::sender::PriorityQueue;
@@ -203,6 +203,110 @@
 //!
 //! // Put Object to the high priority queue
 //! sender.add_object(PriorityQueue::HIGHEST, high_priority_obj);
+//!```
+//! 
+//! # Bitrate Control
+//!The FLUTE library does not provide a built-in bitrate control mechanism. 
+//! Users are responsible for controlling the bitrate by sending packets at a specific rate. 
+//! However, the library offers a way to control the target transfer duration or the target transfer end time for each file individually.
+//!
+//!To ensure proper functionality, the target transfer mechanism requires that the overall bitrate is sufficiently high.
+//! 
+//! ## Target Transfer Duration
+//! 
+//! The sender will attempt to transfer the file within the specified duration.
+//! 
+//!```rust
+//! 
+//! use flute::sender::Sender;
+//! use flute::sender::ObjectDesc;
+//! use flute::sender::TargetAcquisition;
+//! use flute::core::lct::Cenc;
+//! use flute::core::UDPEndpoint;
+//! use std::net::UdpSocket;
+//! use std::time::SystemTime;
+//!
+//! // Create UDP Socket
+//! let udp_socket = UdpSocket::bind("0.0.0.0:0").unwrap();
+//! udp_socket.connect("224.0.0.1:3400").expect("Connection failed");
+//!
+//! // Create FLUTE Sender
+//! let tsi = 1;
+//! let oti = Default::default();
+//! let config = Default::default();
+//! let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_string(), 3400);
+//! let mut sender = Sender::new(endpoint, tsi, &oti, &config);
+//!
+//! // Create an Object
+//! let mut obj = ObjectDesc::create_from_buffer(b"hello world", "text/plain",
+//! &url::Url::parse("file:///hello.txt").unwrap(), 1, None, None, None, None, Cenc::Null, true, None, true).unwrap();
+//! 
+//! // Set the Target Transfer Duration of this object to 2 seconds
+//! obj.target_acquisition = Some(TargetAcquisition::WithinDuration(std::time::Duration::from_secs(2)));
+//! 
+//! // Add object(s) (files) to the FLUTE sender (priority queue 0)
+//! sender.add_object(0, obj);
+//!
+//! // Always call publish after adding objects
+//! sender.publish(SystemTime::now());
+//!
+//! // Send FLUTE packets over UDP/IP
+//! while sender.nb_objects() > 0  {
+//!     if let Some(pkt) = sender.read(SystemTime::now()) {
+//!         udp_socket.send(&pkt).unwrap();
+//!     } else {
+//!        std::thread::sleep(std::time::Duration::from_millis(1));
+//!     }
+//! }
+//!```
+//! 
+//! ## Target Time to End Transfer
+//! 
+//! The sender will try to finish the file at the specified time.
+//! 
+//!```rust
+//! 
+//! use flute::sender::Sender;
+//! use flute::sender::ObjectDesc;
+//! use flute::sender::TargetAcquisition;
+//! use flute::core::lct::Cenc;
+//! use flute::core::UDPEndpoint;
+//! use std::net::UdpSocket;
+//! use std::time::SystemTime;
+//!
+//! // Create UDP Socket
+//! let udp_socket = UdpSocket::bind("0.0.0.0:0").unwrap();
+//! udp_socket.connect("224.0.0.1:3400").expect("Connection failed");
+//!
+//! // Create FLUTE Sender
+//! let tsi = 1;
+//! let oti = Default::default();
+//! let config = Default::default();
+//! let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_string(), 3400);
+//! let mut sender = Sender::new(endpoint, tsi, &oti, &config);
+//!
+//! // Create an Object
+//! let mut obj = ObjectDesc::create_from_buffer(b"hello world", "text/plain",
+//! &url::Url::parse("file:///hello.txt").unwrap(), 1, None, None, None, None, Cenc::Null, true, None, true).unwrap();
+//! 
+//! // Set the Target Transfer End Time of this object to 10 seconds from now
+//! let target_end_time = SystemTime::now() + std::time::Duration::from_secs(10);
+//! obj.target_acquisition = Some(TargetAcquisition::WithinTime(target_end_time));
+//! 
+//! // Add object(s) (files) to the FLUTE sender (priority queue 0)
+//! sender.add_object(0, obj);
+//!
+//! // Always call publish after adding objects
+//! sender.publish(SystemTime::now());
+//! 
+//! // Send FLUTE packets over UDP/IP
+//! while sender.nb_objects() > 0  {
+//!     if let Some(pkt) = sender.read(SystemTime::now()) {
+//!         udp_socket.send(&pkt).unwrap();
+//!     } else {
+//!        std::thread::sleep(std::time::Duration::from_millis(1));
+//!     }
+//! }
 //!```
 
 #![deny(missing_docs)]
