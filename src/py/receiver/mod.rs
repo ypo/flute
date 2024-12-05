@@ -8,7 +8,7 @@ mod udpendpoint;
 mod lct;
 
 #[pymodule]
-pub fn receiver(_py: Python, m: &PyModule) -> PyResult<()> {
+pub fn receiver(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<config::Config>()?;
     m.add_class::<objectwriterbuilder::ObjectWriterBuilder>()?;
     m.add_class::<receiverpy::Receiver>()?;

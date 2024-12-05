@@ -23,6 +23,7 @@ impl Sender {
         }
     }
 
+    #[pyo3(signature = (content, content_type, content_location, oti=None))]
     fn add_object_from_buffer(
         &mut self,
         content: &[u8],
@@ -55,6 +56,7 @@ impl Sender {
             .map_err(|e| PyTypeError::new_err(e.0.to_string()))
     }
 
+    #[pyo3(signature = (filepath, cenc, content_type, content_location=None, oti=None))]
     fn add_file(
         &mut self,
         filepath: &str,

@@ -6,7 +6,7 @@ mod sender;
 
 /// A Python module implemented in Rust.
 #[pymodule]
-fn flute(_py: Python, m: &PyModule) -> PyResult<()> {
+fn flute(m: &Bound<'_, PyModule>) -> PyResult<()> {
     pyo3_log::init();
     m.add_wrapped(wrap_pymodule!(sender::sender))?;
     m.add_wrapped(wrap_pymodule!(receiver::receiver))?;

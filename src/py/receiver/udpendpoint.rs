@@ -9,6 +9,7 @@ pub struct UDPEndpoint {
 #[pymethods]
 impl UDPEndpoint {
     #[new]
+    #[pyo3(signature = (destination_group_address, port, source_address=None))]
     fn new(
         destination_group_address: &str,
         port: u16,
