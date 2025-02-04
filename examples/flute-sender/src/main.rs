@@ -1,6 +1,7 @@
 use flute::{
     core::UDPEndpoint,
-    sender::{Cenc, ObjectDesc, Sender},
+    core::lct::Cenc,
+    sender::{ObjectDesc, Sender},
 };
 use std::{net::UdpSocket, time::SystemTime};
 
@@ -43,6 +44,7 @@ fn main() {
             "application/octet-stream",
             true,
             1,
+            None,
             None,
             None,
             None,
