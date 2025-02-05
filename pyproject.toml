@@ -5,6 +5,7 @@ build-backend = "maturin"
 [project]
 name = "flute-alc"
 requires-python = ">=3.7"
+dynamic = ["version"]
 classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
