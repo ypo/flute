@@ -23,7 +23,7 @@ jobs:
         with:
           toolchain: stable
       - name: Build wheels
-        uses: PyO3/maturin-action@v1.34.0
+        uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
           #manylinux: auto
