@@ -46,6 +46,8 @@ pub struct ObjectMetadata {
     pub oti: Option<Oti>,
     /// CENC information
     pub cenc: Option<Cenc>,
+    /// ETag
+    pub e_tag: Option<String>,
 }
 
 ///

@@ -69,6 +69,7 @@ pub struct ObjectReceiver {
     cache_duration: Option<Duration>,
     groups: Vec<String>,
     last_timestamp: SystemTime,
+    e_tag: Option<String>,
 }
 
 impl ObjectReceiver {
@@ -120,6 +121,7 @@ impl ObjectReceiver {
             cache_duration: None,
             groups: Vec::new(),
             last_timestamp: now,
+            e_tag: None,
         }
     }
 
@@ -378,6 +380,7 @@ impl ObjectReceiver {
         self.content_length = file.content_length.map(|c| c as usize);
         self.content_type = file.content_type.clone();
         self.groups = groups;
+        self.e_tag = file.file_etag.clone();
 
         self.init_blocks_partitioning();
         self.init_object_writer(now);
@@ -409,6 +412,7 @@ impl ObjectReceiver {
             oti: self.oti.clone(),
             transfer_length: self.transfer_length.map(|s| s as usize),
             cenc: self.cenc.clone(),
+            e_tag: self.e_tag.clone(),
         }
     }
 

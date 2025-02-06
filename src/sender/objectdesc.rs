@@ -89,8 +89,6 @@ pub struct ObjectDesc {
     pub inband_cenc: bool,
     /// the MD5 sum of this object. Can be used by the FLUTE `receiver`to validate the integrity of the reception
     pub md5: Option<String>,
-    /// Optional list of attributes that will be added to the FDT
-    pub attributes: Option<std::collections::HashMap<String, String>>,
     /// If defined, FEC Object Transmission Information (OTI) overload the default OTI defined in the FDT
     pub oti: Option<oti::Oti>,
     /// Repeat the transfer the same object multiple times
@@ -107,6 +105,8 @@ pub struct ObjectDesc {
     pub toi: Option<Box<Toi>>,
     /// Optional Opentelemetry propagator (only available with the `opentelemetry` feature)
     pub optel_propagator: Option<HashMap<String, String>>,
+    /// Optional ETag
+    pub e_tag: Option<String>,
 }
 
 impl ObjectDesc {
@@ -262,7 +262,6 @@ impl ObjectDesc {
             cenc,
             inband_cenc,
             md5,
-            attributes: None,
             oti,
             max_transfer_count,
             carousel_delay,
@@ -271,6 +270,7 @@ impl ObjectDesc {
             groups,
             toi: None,
             optel_propagator: None,
+            e_tag: None,
         }))
     }
 
@@ -314,7 +314,6 @@ impl ObjectDesc {
             cenc,
             inband_cenc,
             md5,
-            attributes: None,
             oti,
             max_transfer_count,
             carousel_delay,
@@ -323,6 +322,7 @@ impl ObjectDesc {
             groups,
             toi: None,
             optel_propagator: None,
+            e_tag: None,
         }))
     }
 

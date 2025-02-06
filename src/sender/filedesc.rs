@@ -304,7 +304,7 @@ impl FileDesc {
             mbms_session_identity: None,
             decryption_key_uri: None,
             fec_redundancy_level: None,
-            file_etag: None,
+            file_etag: self.object.e_tag.clone(),
             independent_unit_positions: None,
             delimiter: Some(0),
             delimiter2: Some(0),
