@@ -59,7 +59,9 @@ impl AlcCodec for AlcRS2m {
         }
 
         debug_assert!(fti[0] == lct::Ext::Fti as u8);
-        debug_assert!(fti[1] == 4);
+        if fti[1] != 4 {
+            return Err(FluteError::new("Wrong extension"));
+        }
 
         let transfer_length =
             u64::from_be_bytes(fti[0..8].as_ref().try_into().unwrap()) & 0xFFFFFFFFFFFF;

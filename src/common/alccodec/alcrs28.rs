@@ -45,7 +45,9 @@ impl AlcCodec for AlcRS28 {
         }
 
         debug_assert!(fti[0] == lct::Ext::Fti as u8);
-        debug_assert!(fti[1] == 3);
+        if fti[1] != 3 {
+            return Err(FluteError::new("Wrong header extension"));
+        }
 
         let transfer_length =
             u64::from_be_bytes(fti[0..8].as_ref().try_into().unwrap()) & 0xFFFFFFFFFFFF;
