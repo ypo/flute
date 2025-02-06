@@ -50,7 +50,12 @@ impl AlcCodec for AlcNoCode {
         }
 
         debug_assert!(fti[0] == lct::Ext::Fti as u8);
-        debug_assert!(fti[1] == 4);
+        if fti[1] != 4 {
+            return Err(FluteError::new(format!(
+                "Wrong exten header size {} != 4 for FTI",
+                fti[1]
+            )));
+        }
 
         let transfer_length = u64::from_be_bytes(fti[2..10].as_ref().try_into().unwrap()) >> 16;
         let encoding_symbol_length = u16::from_be_bytes(fti[10..12].as_ref().try_into().unwrap());
