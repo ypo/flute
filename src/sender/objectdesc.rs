@@ -105,7 +105,7 @@ pub struct ObjectDesc {
     pub toi: Option<Box<Toi>>,
     /// Optional Opentelemetry propagator (only available with the `opentelemetry` feature)
     pub optel_propagator: Option<HashMap<String, String>>,
-    /// Optional ETag
+    /// Optional ETag or entity-tag as defined in RFC 2616
     pub e_tag: Option<String>,
 }
 
