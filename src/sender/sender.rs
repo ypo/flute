@@ -414,7 +414,7 @@ mod tests {
     fn create_obj(length: usize) -> Box<objectdesc::ObjectDesc> {
         let buffer = vec![0u8; length];
         objectdesc::ObjectDesc::create_from_buffer(
-            &buffer,
+            buffer,
             "text",
             &url::Url::parse("file:///hello").unwrap(),
             1,

@@ -84,7 +84,7 @@ mod tests {
         let (buffer, content_location) = create_file_buffer(transfer_file_size);
         (
             sender::ObjectDesc::create_from_buffer(
-                &buffer,
+                buffer.clone(),
                 &content_type,
                 &content_location,
                 1,

@@ -1,8 +1,9 @@
-use std::io::Read;
 use std::sync::Arc;
 
 use super::filedesc;
+use super::objectdesc::ObjectDataSource;
 use crate::common::{partition, pkt};
+use crate::error::FluteError;
 use crate::tools::error::Result;
 
 #[derive(Debug)]
@@ -20,7 +21,6 @@ pub struct BlockEncoder {
     read_end: bool,
     source_size_transferred: usize,
     nb_pkt_sent: usize,
-    fd: Option<std::fs::File>,
     stopped: bool,
     closabled_object: bool,
 }
@@ -33,10 +33,11 @@ impl BlockEncoder {
         block_multiplex_windows: usize,
         closabled_object: bool,
     ) -> Result<BlockEncoder> {
-        let mut fd = None;
-        if let (None, Some(path)) = (file.object.content.as_ref(), file.object.path.as_ref()) {
-            log::info!("Open file {:?}", path);
-            fd = Some(std::fs::File::open(path)?);
+        match &file.object.source {
+            ObjectDataSource::Buffer(_) => {}
+            ObjectDataSource::Stream(stream) => {
+                stream.lock().unwrap().seek(std::io::SeekFrom::Start(0))?;
+            }
         }
 
         let mut block = BlockEncoder {
@@ -53,7 +54,6 @@ impl BlockEncoder {
             read_end: false,
             source_size_transferred: 0,
             nb_pkt_sent: 0,
-            fd,
             stopped: false,
             closabled_object,
         };
@@ -149,19 +149,22 @@ impl BlockEncoder {
 
     fn read_block(&mut self) -> Result<()> {
         debug_assert!(!self.read_end);
-
-        if self.fd.is_some() {
-            return self.read_fd_block();
+        let source = &self.file.object.source;
+        match source {
+            ObjectDataSource::Buffer(_) => self.read_block_buffer(),
+            ObjectDataSource::Stream(_) => self.read_block_stream(),
         }
+    }
 
-        if self.file.object.content.is_none() {
-            self.read_end = true;
-            return Ok(());
-        }
-
+    fn read_block_buffer(&mut self) -> Result<()> {
         log::debug!("Read block nb {}", self.curr_sbn);
+
+        let content = match &self.file.object.source {
+            ObjectDataSource::Buffer(buffer) => Ok(buffer),
+            _ => Err(FluteError::new("Not a data source buffer")),
+        }?;
+
         let oti = &self.file.oti;
-        let content = self.file.object.content.as_ref().unwrap();
         let block_length = match self.curr_sbn as u64 {
             value if value < self.nb_a_large => self.a_large,
             _ => self.a_small,
@@ -186,14 +189,17 @@ impl BlockEncoder {
             content.len(),
             self.read_end
         );
-
         Ok(())
     }
 
-    fn read_fd_block(&mut self) -> Result<()> {
-        let fd = self.fd.as_mut().unwrap();
-
+    fn read_block_stream(&mut self) -> Result<()> {
         log::info!("Read block nb {}", self.curr_sbn);
+
+        let mut stream = match &self.file.object.source {
+            ObjectDataSource::Stream(stream) => Ok(stream.lock().unwrap()),
+            _ => Err(FluteError::new("Not a data source stream")),
+        }?;
+
         let oti = &self.file.oti;
         let block_length = match self.curr_sbn as u64 {
             value if value < self.nb_a_large => self.a_large,
@@ -201,7 +207,7 @@ impl BlockEncoder {
         };
         let mut buffer: Vec<u8> =
             vec![0; block_length as usize * oti.encoding_symbol_length as usize];
-        let result = match fd.read(&mut buffer) {
+        let result = match stream.read(&mut buffer) {
             Ok(s) => s,
             Err(e) => {
                 log::error!("Fail to read file {:?}", e.to_string());

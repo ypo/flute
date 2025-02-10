@@ -199,7 +199,7 @@ impl Fdt {
         log::info!("TSI={} Publish new FDT", self._tsi);
         let content = self.to_xml(now)?;
         let mut obj = objectdesc::ObjectDesc::create_from_buffer(
-            &content,
+            content,
             "text/xml",
             &url::Url::parse("file:///").unwrap(),
             1,
@@ -407,7 +407,7 @@ mod tests {
             Some(vec!["Group1".to_owned()]),
         );
         let obj1 = objectdesc::ObjectDesc::create_from_buffer(
-            &Vec::new(),
+            Vec::new(),
             "plain/txt",
             &url::Url::parse("file:///object1").unwrap(),
             2,
@@ -423,7 +423,7 @@ mod tests {
         .unwrap();
 
         let obj2 = objectdesc::ObjectDesc::create_from_buffer(
-            &Vec::new(),
+            Vec::new(),
             "plain/txt",
             &url::Url::parse("file:///object2").unwrap(),
             2,

@@ -8,7 +8,9 @@ use crate::tools;
 use crate::tools::error::Result;
 use std::collections::HashMap;
 use std::ffi::OsStr;
-use std::io::{BufReader, Read};
+use std::io::BufReader;
+use std::io::{Read, Seek};
+use std::sync::Mutex;
 use std::time::SystemTime;
 
 /// Cache Control
@@ -50,7 +52,7 @@ pub fn create_fdt_cache_control(cc: &CacheControl, now: SystemTime) -> fdtinstan
 
 ///
 /// Target Acquisition for Object
-/// 
+///
 #[derive(Debug, Clone)]
 pub enum TargetAcquisition {
     /// Transfer the object as fast as possible
@@ -62,6 +64,66 @@ pub enum TargetAcquisition {
 }
 
 ///
+/// Object Data Stream Trait
+/// 
+pub trait ObjectDataStreamTrait:
+    std::io::Read + std::io::Seek + Send + Sync + std::fmt::Debug
+{
+}
+impl<T: std::io::Read + std::io::Seek + Send + Sync + std::fmt::Debug> ObjectDataStreamTrait for T {}
+/// Boxed Object Data Stream
+pub type ObjectDataStream = Box<dyn ObjectDataStreamTrait>;
+
+/// Object Data Source
+#[derive(Debug)]
+pub enum ObjectDataSource {
+    /// Source from a stream
+    Stream(Mutex<ObjectDataStream>),
+    /// Source from a buffer
+    Buffer(Vec<u8>),
+}
+
+impl ObjectDataSource {
+    /// Create an Object Data Source from a buffer
+    pub fn from_buffer(buffer: &[u8], cenc: lct::Cenc) -> Result<Self> {
+        let data = match cenc {
+            lct::Cenc::Null => Ok(buffer.to_vec()),
+            _ => compress::compress(buffer, cenc),
+        }?;
+
+        Ok(ObjectDataSource::Buffer(data))
+    }
+
+    /// Create an Object Data Source from a vector
+    pub fn from_vec(buffer: Vec<u8>, cenc: lct::Cenc) -> Result<Self> {
+        let data = match cenc {
+            lct::Cenc::Null => Ok(buffer.to_vec()),
+            _ => compress::compress(&buffer, cenc),
+        }?;
+
+        Ok(ObjectDataSource::Buffer(data))
+    }
+
+    /// Create an Object Data Source from a stream
+    pub fn from_stream(stream: ObjectDataStream) -> Self {
+        ObjectDataSource::Stream(Mutex::new(stream))
+    }
+
+    fn len(&mut self) -> Result<u64> {
+        match self {
+            ObjectDataSource::Buffer(buffer) => Ok(buffer.len() as u64),
+            ObjectDataSource::Stream(stream) => {
+                let mut stream = stream.lock().unwrap();
+                let current_pos = stream.stream_position()?;
+                let end_pos = stream.seek(std::io::SeekFrom::End(0))?;
+                stream.seek(std::io::SeekFrom::Start(current_pos))?;
+                Ok(end_pos)
+            }
+        }
+    }
+}
+
+///
 /// Object (file) that can be send over FLUTE
 ///
 #[derive(Debug)]
@@ -69,10 +131,8 @@ pub struct ObjectDesc {
     /// supply the resource location for this object
     /// as defined in [rfc2616 14.14](https://www.rfc-editor.org/rfc/rfc2616#section-14.14)
     pub content_location: url::Url,
-    /// Optional path to the file
-    pub path: Option<std::path::PathBuf>,
-    /// Optional buffer contening the content of this object
-    pub content: Option<Vec<u8>>,
+    /// Data Source of the object
+    pub source: ObjectDataSource,
     /// Media type of the object
     /// as defined in [rfc2616 14.17](https://www.rfc-editor.org/rfc/rfc2616#section-14.17)
     pub content_type: String,
@@ -153,7 +213,6 @@ impl ObjectDesc {
             let content = std::fs::read(path)?;
             Self::create_with_content(
                 content,
-                Some(path.to_path_buf()),
                 content_type.to_string(),
                 content_location,
                 max_transfer_count,
@@ -167,16 +226,21 @@ impl ObjectDesc {
                 md5,
             )
         } else {
-            Self::create_with_path(
-                path.to_path_buf(),
-                content_type.to_string(),
-                content_location,
+            if cenc != lct::Cenc::Null {
+                return Err(FluteError::new(
+                    "Compressed object is not compatible with file path",
+                ));
+            }
+            let file = std::fs::File::open(path)?;
+            Self::create_from_stream(
+                Box::new(file),
+                content_type,
+                &content_location,
                 max_transfer_count,
                 carousel_delay,
                 target_acquisition,
                 cache_control,
                 groups,
-                cenc,
                 inband_cenc,
                 oti,
                 md5,
@@ -184,9 +248,56 @@ impl ObjectDesc {
         }
     }
 
+    /// Create an Object Description from a stream
+    pub fn create_from_stream(
+        mut stream: ObjectDataStream,
+        content_type: &str,
+        content_location: &url::Url,
+        max_transfer_count: u32,
+        carousel_delay: Option<std::time::Duration>,
+        target_acquisition: Option<TargetAcquisition>,
+        cache_control: Option<CacheControl>,
+        groups: Option<Vec<String>>,
+        inband_cenc: bool,
+        oti: Option<oti::Oti>,
+        md5: bool,
+    ) -> Result<Box<ObjectDesc>> {
+        let md5 = match md5 {
+            // https://www.rfc-editor.org/rfc/rfc2616#section-14.15
+            true => {
+                let md5 = Self::compute_file_md5(&mut stream)?;
+                Some(base64::engine::general_purpose::STANDARD.encode(md5.0))
+            }
+            false => None,
+        };
+
+        let mut source = ObjectDataSource::from_stream(stream);
+        let transfer_length = source.len()?;
+
+        Ok(Box::new(ObjectDesc {
+            content_location: content_location.clone(),
+            source,
+            content_type: content_type.to_string(),
+            content_length: transfer_length,
+            transfer_length,
+            cenc: lct::Cenc::Null,
+            inband_cenc,
+            md5,
+            oti,
+            max_transfer_count,
+            carousel_delay,
+            target_acquisition,
+            cache_control,
+            groups,
+            toi: None,
+            optel_propagator: None,
+            e_tag: None,
+        }))
+    }
+
     /// Return an `ObjectDesc` from a buffer
     pub fn create_from_buffer(
-        content: &[u8],
+        content: Vec<u8>,
         content_type: &str,
         content_location: &url::Url,
         max_transfer_count: u32,
@@ -200,8 +311,7 @@ impl ObjectDesc {
         md5: bool,
     ) -> Result<Box<ObjectDesc>> {
         ObjectDesc::create_with_content(
-            content.to_vec(),
-            None,
+            content,
             content_type.to_string(),
             content_location.clone(),
             max_transfer_count,
@@ -217,8 +327,7 @@ impl ObjectDesc {
     }
 
     fn create_with_content(
-        mut content: Vec<u8>,
-        path: Option<std::path::PathBuf>,
+        content: Vec<u8>,
         content_type: String,
         content_location: url::Url,
         max_transfer_count: u32,
@@ -241,75 +350,14 @@ impl ObjectDesc {
             false => None,
         };
 
-        if cenc != lct::Cenc::Null {
-            content = compress::compress(&content, cenc)?;
-            log::info!(
-                "compress content from {} to {}",
-                content_length,
-                content.len()
-            );
-        }
-
-        let transfer_length = content.len();
+        let mut source = ObjectDataSource::from_vec(content, cenc)?;
+        let transfer_length = source.len()?;
 
         Ok(Box::new(ObjectDesc {
             content_location,
-            path,
-            content: Some(content),
+            source,
             content_type,
             content_length: content_length as u64,
-            transfer_length: transfer_length as u64,
-            cenc,
-            inband_cenc,
-            md5,
-            oti,
-            max_transfer_count,
-            carousel_delay,
-            target_acquisition,
-            cache_control,
-            groups,
-            toi: None,
-            optel_propagator: None,
-            e_tag: None,
-        }))
-    }
-
-    fn create_with_path(
-        path: std::path::PathBuf,
-        content_type: String,
-        content_location: url::Url,
-        max_transfer_count: u32,
-        carousel_delay: Option<std::time::Duration>,
-        target_acquisition: Option<TargetAcquisition>,
-        cache_control: Option<CacheControl>,
-        groups: Option<Vec<String>>,
-        cenc: lct::Cenc,
-        inband_cenc: bool,
-        oti: Option<oti::Oti>,
-        md5: bool,
-    ) -> Result<Box<ObjectDesc>> {
-        if cenc != lct::Cenc::Null {
-            return Err(FluteError::new(
-                "Compressed object is not compatible with file path",
-            ));
-        }
-        let file = std::fs::File::open(path.clone())?;
-        let transfer_length = file.metadata()?.len();
-
-        let md5 = match md5 {
-            // https://www.rfc-editor.org/rfc/rfc2616#section-14.15
-            true => Some(
-                base64::engine::general_purpose::STANDARD.encode(Self::compute_file_md5(&file).0),
-            ),
-            false => None,
-        };
-
-        Ok(Box::new(ObjectDesc {
-            content_location,
-            path: Some(path.to_path_buf()),
-            content: None,
-            content_type,
-            content_length: transfer_length,
             transfer_length,
             cenc,
             inband_cenc,
@@ -326,19 +374,21 @@ impl ObjectDesc {
         }))
     }
 
-    fn compute_file_md5(file: &std::fs::File) -> md5::Digest {
-        let mut reader = BufReader::new(file);
+    fn compute_file_md5(stream: &mut ObjectDataStream) -> Result<md5::Digest> {
+        stream.seek(std::io::SeekFrom::Start(0))?;
+        let mut reader = BufReader::new(stream);
         let mut context = md5::Context::new();
         let mut buffer = vec![0; 102400];
 
         loop {
-            let count = reader.read(&mut buffer).unwrap();
+            let count = reader.read(&mut buffer)?;
             if count == 0 {
                 break;
             }
             context.consume(&buffer[0..count]);
         }
 
-        context.compute()
+        reader.seek(std::io::SeekFrom::Start(0))?;
+        Ok(context.compute())
     }
 }

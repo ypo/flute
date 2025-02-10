@@ -36,7 +36,7 @@ impl Sender {
 
         let oti = oti.map(|o| o.0.clone());
         let object = crate::sender::ObjectDesc::create_from_buffer(
-            content,
+            content.to_vec(),
             content_type,
             &content_location,
             1,

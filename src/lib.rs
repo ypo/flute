@@ -50,7 +50,7 @@
 //! let mut sender = Sender::new(endpoint, tsi, &oti, &config);
 //!
 //! // Add object(s) (files) to the FLUTE sender (priority queue 0)
-//! let obj = ObjectDesc::create_from_buffer(b"hello world", "text/plain",
+//! let obj = ObjectDesc::create_from_buffer(b"hello world".to_vec(), "text/plain",
 //! &url::Url::parse("file:///hello.txt").unwrap(), 1, None, None, None, None, Cenc::Null, true, None, true).unwrap();
 //! sender.add_object(0, obj);
 //!
@@ -191,11 +191,11 @@
 //! let mut sender = Sender::new(endpoint, 1, &Default::default(), &config);
 //!
 //! // Create an ObjectDesc for a low priority file
-//! let low_priority_obj = ObjectDesc::create_from_buffer(b"low priority", "text/plain",
+//! let low_priority_obj = ObjectDesc::create_from_buffer(b"low priority".to_vec(), "text/plain",
 //! &url::Url::parse("file:///low_priority.txt").unwrap(), 1, None, None, None, None, Cenc::Null, true, None, true).unwrap();
 //!
 //! // Create an ObjectDesc for a high priority file
-//! let high_priority_obj = ObjectDesc::create_from_buffer(b"high priority", "text/plain",
+//! let high_priority_obj = ObjectDesc::create_from_buffer(b"high priority".to_vec(), "text/plain",
 //! &url::Url::parse("file:///high_priority.txt").unwrap(), 1, None, None, None, None, Cenc::Null, true, None, true).unwrap();
 //!
 //! // Put Object to the low priority queue
@@ -238,7 +238,7 @@
 //! let mut sender = Sender::new(endpoint, tsi, &oti, &config);
 //!
 //! // Create an Object
-//! let mut obj = ObjectDesc::create_from_buffer(b"hello world", "text/plain",
+//! let mut obj = ObjectDesc::create_from_buffer(b"hello world".to_vec(), "text/plain",
 //! &url::Url::parse("file:///hello.txt").unwrap(), 1, None, None, None, None, Cenc::Null, true, None, true).unwrap();
 //! 
 //! // Set the Target Transfer Duration of this object to 2 seconds
@@ -286,7 +286,7 @@
 //! let mut sender = Sender::new(endpoint, tsi, &oti, &config);
 //!
 //! // Create an Object
-//! let mut obj = ObjectDesc::create_from_buffer(b"hello world", "text/plain",
+//! let mut obj = ObjectDesc::create_from_buffer(b"hello world".to_vec(), "text/plain",
 //! &url::Url::parse("file:///hello.txt").unwrap(), 1, None, None, None, None, Cenc::Null, true, None, true).unwrap();
 //! 
 //! // Set the Target Transfer End Time of this object to 10 seconds from now
