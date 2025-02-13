@@ -4,7 +4,6 @@
 
 mod block;
 mod blockencoder;
-mod compress;
 mod fdt;
 mod filedesc;
 mod objectdesc;
@@ -16,6 +15,7 @@ mod toiallocator;
 #[cfg(feature = "opentelemetry")]
 mod objectsenderlogger;
 
+pub mod compress;
 pub use crate::common::Profile;
 pub use objectdesc::CacheControl;
 pub use objectdesc::ObjectDesc;

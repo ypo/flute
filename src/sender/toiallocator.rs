@@ -44,8 +44,8 @@ impl ToiAllocatorInternal {
             Some(0) => 1,
             Some(n) => n,
             None => {
-                let mut rng = rand::thread_rng();
-                rng.gen()
+                let mut rng = rand::rng();
+                rng.random()
             }
         };
 

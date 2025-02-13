@@ -88,7 +88,7 @@ impl ObjectDataSource {
     pub fn from_buffer(buffer: &[u8], cenc: lct::Cenc) -> Result<Self> {
         let data = match cenc {
             lct::Cenc::Null => Ok(buffer.to_vec()),
-            _ => compress::compress(buffer, cenc),
+            _ => compress::compress_buffer(buffer, cenc),
         }?;
 
         Ok(ObjectDataSource::Buffer(data))
@@ -98,7 +98,7 @@ impl ObjectDataSource {
     pub fn from_vec(buffer: Vec<u8>, cenc: lct::Cenc) -> Result<Self> {
         let data = match cenc {
             lct::Cenc::Null => Ok(buffer.to_vec()),
-            _ => compress::compress(&buffer, cenc),
+            _ => compress::compress_buffer(&buffer, cenc),
         }?;
 
         Ok(ObjectDataSource::Buffer(data))

@@ -237,7 +237,7 @@ mod tests {
         input_file_buffer.extend(vec![0; file_size]);
 
         // Random buffer
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         rng.fill_bytes(input_file_buffer.as_mut());
 
         (input_file_buffer, input_content_location)
