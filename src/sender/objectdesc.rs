@@ -157,6 +157,8 @@ pub struct ObjectDesc {
     pub target_acquisition: Option<TargetAcquisition>,
     /// If defined, object is transmitted in a carousel every `carousel_delay_ns`
     pub carousel_delay: Option<std::time::Duration>,
+    /// Optional start transfer of the object at a specific time
+    pub transfer_start_time: Option<SystemTime>,
     /// Define object cache control
     pub cache_control: Option<CacheControl>,
     /// Add file to a list of groups
@@ -287,6 +289,7 @@ impl ObjectDesc {
             max_transfer_count,
             carousel_delay,
             target_acquisition,
+            transfer_start_time: None,
             cache_control,
             groups,
             toi: None,
@@ -366,6 +369,7 @@ impl ObjectDesc {
             max_transfer_count,
             carousel_delay,
             target_acquisition,
+            transfer_start_time: None,
             cache_control,
             groups,
             toi: None,

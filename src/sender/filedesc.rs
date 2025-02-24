@@ -234,6 +234,12 @@ impl FileDesc {
             return false;
         }
 
+        if let Some(start_time) = self.object.transfer_start_time {
+            if now < start_time {
+                return false;
+            }
+        }
+
         let info = self.transfer_info.read().unwrap();
         if self.object.max_transfer_count > info.transfer_count {
             return true;
