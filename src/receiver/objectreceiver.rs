@@ -5,12 +5,15 @@ use crate::common::udpendpoint::UDPEndpoint;
 use crate::common::{alc, fdtinstance::FdtInstance, lct, oti, partition};
 use crate::receiver::writer::{ObjectMetadata, ObjectWriter};
 use crate::tools::error::{FluteError, Result};
+use std::collections::VecDeque;
 use std::rc::Rc;
 use std::time::Instant;
 use std::time::{Duration, SystemTime};
 
 #[cfg(feature = "opentelemetry")]
 use super::objectreceiverlogger::ObjectReceiverLogger;
+
+const MAX_PREALLOCATED_BLOCKS: usize = 2048;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum State {
@@ -44,7 +47,8 @@ pub struct ObjectReceiver {
     cache: Vec<Box<alc::AlcPktCache>>,
     cache_size: usize,
     max_size_allocated: usize,
-    blocks: Vec<BlockDecoder>,
+    blocks: VecDeque<BlockDecoder>,
+    blocks_offset: usize,
     blocks_variable_size: bool,
     pub transfer_length: Option<u64>,
     cenc: Option<lct::Cenc>,
@@ -90,7 +94,8 @@ impl ObjectReceiver {
             cache: Vec::new(),
             cache_size: 0,
             max_size_allocated,
-            blocks: Vec::new(),
+            blocks: VecDeque::new(),
+            blocks_offset: 0,
             transfer_length: None,
             cenc: None,
             content_md5: None,
@@ -130,11 +135,11 @@ impl ObjectReceiver {
     }
 
     pub fn nb_block_completed(&self) -> usize {
-        self.blocks.iter().filter(|block| block.completed).count()
+        self.blocks_offset + self.blocks.iter().filter(|block| block.completed).count()
     }
 
     pub fn nb_block(&self) -> usize {
-        self.blocks.len()
+        self.blocks_offset + self.blocks.len()
     }
 
     pub fn push(&mut self, pkt: &alc::AlcPkt, now: std::time::SystemTime) {
@@ -184,19 +189,28 @@ impl ObjectReceiver {
             return Ok(());
         }
 
-        if payload_id.sbn as usize >= self.blocks.len() {
-            if !self.blocks_variable_size {
-                return Err(FluteError::new(format!(
-                    "SBN {} > max SBN {}",
-                    payload_id.sbn,
-                    self.blocks.len()
-                )));
-            }
-            self.blocks
-                .resize_with(payload_id.sbn as usize + 1, BlockDecoder::new);
+        if payload_id.sbn < self.blocks_offset as u32 {
+            // already completed
+            return Ok(());
         }
 
-        let block = &mut self.blocks[payload_id.sbn as usize];
+        let block_offset = payload_id.sbn as usize - self.blocks_offset;
+        if block_offset as usize >= self.blocks.len() {
+            if block_offset > 2 * MAX_PREALLOCATED_BLOCKS {
+                log::error!(
+                    "Request to allocate {} blocks which is greater than the max {}",
+                    block_offset,
+                    2 * MAX_PREALLOCATED_BLOCKS
+                );
+                self.state = State::Error;
+                return Err(FluteError::new("Too many blocks allocated"));
+            }
+
+            self.blocks
+                .resize_with(block_offset as usize + 1, BlockDecoder::new);
+        }
+
+        let block = &mut self.blocks[block_offset];
         if block.completed {
             return Ok(());
         }
@@ -486,8 +500,9 @@ impl ObjectReceiver {
         debug_assert!(self.block_writer.is_some());
         let mut sbn = sbn_start as usize;
         let writer = self.block_writer.as_mut().unwrap();
-        while sbn < self.blocks.len() {
-            let block = &mut self.blocks[sbn];
+        while sbn >= self.blocks_offset && sbn - self.blocks_offset < self.blocks.len() {
+            let block_offset = sbn - self.blocks_offset;
+            let block = &mut self.blocks[block_offset];
             if !block.completed {
                 break;
             }
@@ -505,7 +520,13 @@ impl ObjectReceiver {
             debug_assert!(self.total_allocated_blocks_size >= block.block_size);
             self.total_allocated_blocks_size -= block.block_size;
             self.nb_allocated_blocks -= 1;
-            block.deallocate();
+
+            if block_offset == 0 {
+                self.blocks_offset += 1;
+                self.blocks.pop_front();
+            } else {
+                block.deallocate();
+            }
 
             if writer.is_completed() {
                 let md5_valid = self
@@ -588,7 +609,7 @@ impl ObjectReceiver {
     }
 
     fn push_from_cache(&mut self, now: std::time::SystemTime) {
-        if self.blocks.is_empty() {
+        if self.nb_block() == 0 {
             return;
         }
 
@@ -682,7 +703,7 @@ impl ObjectReceiver {
     ///  Block Partitioning Algorithm
     ///  See https://tools.ietf.org/html/rfc5052
     fn init_blocks_partitioning(&mut self) {
-        if !self.blocks.is_empty() {
+        if self.nb_block() > 0 {
             return;
         }
 
@@ -727,8 +748,10 @@ impl ObjectReceiver {
             self.transfer_length,
             self.toi
         );
-        self.blocks
-            .resize_with(nb_blocks as usize, BlockDecoder::new);
+        self.blocks.resize_with(
+            std::cmp::min(nb_blocks as usize, MAX_PREALLOCATED_BLOCKS),
+            BlockDecoder::new,
+        );
     }
 }
 
