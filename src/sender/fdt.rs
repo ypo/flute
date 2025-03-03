@@ -157,6 +157,18 @@ impl Fdt {
         Ok(ret)
     }
 
+    pub fn trigger_transfer_at(&mut self, toi: u128, timestamp: Option<SystemTime>) -> bool {
+        if let Some(file) = self.files.get(&toi) {
+            if file.is_transferring() {
+                return true;
+            }
+
+            file.reset_last_transfer(timestamp);
+            return true;
+        }
+        false
+    }
+
     pub fn get_objects_in_fdt(&self) -> std::collections::HashMap<u128, &ObjectDesc> {
         self.files
             .iter()

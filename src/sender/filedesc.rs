@@ -16,6 +16,7 @@ struct TransferInfo {
     last_transfer: Option<SystemTime>,
     next_transfer_timestamp: Option<SystemTime>,
     packet_transmission_tick: Option<std::time::Duration>,
+    transfer_start_time: Option<SystemTime>,
 }
 
 impl TransferInfo {
@@ -158,6 +159,7 @@ impl FileDesc {
         }
 
         let toi = object.toi.as_ref().unwrap().get();
+        let transfer_start_time = object.transfer_start_time.clone();
         Ok(FileDesc {
             priority,
             object,
@@ -171,6 +173,7 @@ impl FileDesc {
                 total_nb_transfer: 0,
                 next_transfer_timestamp: None,
                 packet_transmission_tick: None,
+                transfer_start_time,
             }),
             published: AtomicBool::new(false),
             toi,
@@ -215,6 +218,14 @@ impl FileDesc {
         info.tick();
     }
 
+    pub fn reset_last_transfer(&self, start_time: Option<SystemTime>) {
+        let mut info = self.transfer_info.write().unwrap();
+        info.last_transfer = None;
+        if start_time.is_some() {
+            info.transfer_start_time = start_time;
+        }
+    }
+
     pub fn is_last_transfer(&self) -> bool {
         if self.object.carousel_delay.is_some() {
             return false;
@@ -234,13 +245,13 @@ impl FileDesc {
             return false;
         }
 
-        if let Some(start_time) = self.object.transfer_start_time {
+        let info = self.transfer_info.read().unwrap();
+        if let Some(start_time) = info.transfer_start_time {
             if now < start_time {
                 return false;
             }
         }
 
-        let info = self.transfer_info.read().unwrap();
         if self.object.max_transfer_count > info.transfer_count {
             return true;
         }

@@ -277,6 +277,22 @@ impl Sender {
         self.fdt.add_object(priority, obj)
     }
 
+    /// Initiates the transfer of an object that is broadcasted in a carousel.
+    ///
+    /// - The object must be listed in the File Delivery Table (FDT).
+    /// - If the object is already being transferred, no action is taken.
+    ///
+    /// # Arguments
+    /// * `toi` - TOI of the Object.
+    /// * `timestamp` - Optional timestamp to set when the object transfer must start. If None, the transfer will start immediately.
+    ///
+    /// # Returns
+    /// - `true` if the object is found the triggered is set.
+    /// - `false` if the object is not listed in the FDT or the trigger could not be set.
+    pub fn trigger_transfer_at(&mut self, toi: u128, timestamp: Option<SystemTime>) -> bool {
+        self.fdt.trigger_transfer_at(toi, timestamp)
+    }
+
     /// Check if the object is inside the FDT
     pub fn is_added(&self, toi: u128) -> bool {
         self.fdt.is_added(toi)
