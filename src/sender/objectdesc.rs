@@ -71,6 +71,34 @@ pub trait ObjectDataStreamTrait:
 {
 }
 impl<T: std::io::Read + std::io::Seek + Send + Sync + std::fmt::Debug> ObjectDataStreamTrait for T {}
+
+impl dyn ObjectDataStreamTrait + '_ {
+    /// Calculate the MD5 hash of the stream
+    pub fn md5_base64(&mut self) -> Result<String> {
+        let md5 = self.md5()?;
+        // https://www.rfc-editor.org/rfc/rfc2616#section-14.15
+        Ok(base64::engine::general_purpose::STANDARD.encode(md5.0))
+    }
+
+    fn md5(&mut self) -> Result<md5::Digest> {
+        self.seek(std::io::SeekFrom::Start(0))?;
+        let mut reader = BufReader::new(self);
+        let mut context = md5::Context::new();
+        let mut buffer = vec![0; 102400];
+
+        loop {
+            let count = reader.read(&mut buffer)?;
+            if count == 0 {
+                break;
+            }
+            context.consume(&buffer[0..count]);
+        }
+
+        reader.seek(std::io::SeekFrom::Start(0))?;
+        Ok(context.compute())
+    }
+}
+
 /// Boxed Object Data Stream
 pub type ObjectDataStream = Box<dyn ObjectDataStreamTrait>;
 
@@ -265,11 +293,7 @@ impl ObjectDesc {
         md5: bool,
     ) -> Result<Box<ObjectDesc>> {
         let md5 = match md5 {
-            // https://www.rfc-editor.org/rfc/rfc2616#section-14.15
-            true => {
-                let md5 = Self::compute_file_md5(&mut stream)?;
-                Some(base64::engine::general_purpose::STANDARD.encode(md5.0))
-            }
+            true => Some(stream.md5_base64()?),
             false => None,
         };
 
@@ -376,23 +400,5 @@ impl ObjectDesc {
             optel_propagator: None,
             e_tag: None,
         }))
-    }
-
-    fn compute_file_md5(stream: &mut ObjectDataStream) -> Result<md5::Digest> {
-        stream.seek(std::io::SeekFrom::Start(0))?;
-        let mut reader = BufReader::new(stream);
-        let mut context = md5::Context::new();
-        let mut buffer = vec![0; 102400];
-
-        loop {
-            let count = reader.read(&mut buffer)?;
-            if count == 0 {
-                break;
-            }
-            context.consume(&buffer[0..count]);
-        }
-
-        reader.seek(std::io::SeekFrom::Start(0))?;
-        Ok(context.compute())
     }
 }
