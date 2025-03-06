@@ -26,6 +26,37 @@ This library implements the following RFCs
 | RFC 5510 | Reed-Solomon Forward Error Correction (FEC) Schemes      | <https://www.rfc-editor.org/rfc/rfc5510.html> |
 | 3GPP TS 26.346 | Extended FLUTE FDT Schema (7.2.10)      | <https://www.etsi.org/deliver/etsi_ts/126300_126399/126346/17.03.00_60/ts_126346v170300p.pdf> |
 
+## Thread Safety
+
+### FLUTE Sender
+
+The FLUTE Sender is designed to be safely shared between multiple threads.
+
+### FLUTE Receiver and Tokio Integration
+
+Unlike the sender, the FLUTE Receiver **is not thread-safe** and cannot be shared between multiple threads.
+To integrate it with Tokio, you must use `tokio::task::LocalSet`, which allows spawning tasks that require a single-threaded runtime.
+
+The following example demonstrates how to use the FLUTE Receiver with Tokio:
+
+```rust
+use flute::receiver::{writer, MultiReceiver};
+use std::rc::Rc;
+
+#[tokio::main]
+async fn main() {
+   let local = task::LocalSet::new();
+   // Run the local task set.
+   local.run_until(async move {
+       let nonsend_data = nonsend_data.clone();
+       task::spawn_local(async move {
+           let writer = Rc::new(writer::ObjectWriterFSBuilder::new(&std::path::Path::new("./flute_dir")).unwrap_or_else(|_| std::process::exit(0)));
+           let mut receiver = MultiReceiver::new(writer, None, false);
+           // ... run the receiver
+       }).await.unwrap();
+   }).await;
+}
+```
 ## UDP/IP Multicast files sender
 
 Transfer files over a UDP/IP network
@@ -50,7 +81,7 @@ let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_string(), 3400);
 let mut sender = Sender::new(endpoint, tsi, &oti, &config);
 
 // Add object(s) (files) to the FLUTE sender (priority queue 0)
-let obj = ObjectDesc::create_from_buffer(b"hello world", "text/plain",
+let obj = ObjectDesc::create_from_buffer(b"hello world".to_vec(), "text/plain",
 &url::Url::parse("file:///hello.txt").unwrap(), 1, None, None, None, None, Cenc::Null, true, None, true).unwrap();
 sender.add_object(0, obj);
 
@@ -191,11 +222,11 @@ let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_string(), 3400);
 let mut sender = Sender::new(endpoint, 1, &Default::default(), &config);
 
 // Create an ObjectDesc for a low priority file
-let low_priority_obj = ObjectDesc::create_from_buffer(b"low priority", "text/plain",
+let low_priority_obj = ObjectDesc::create_from_buffer(b"low priority".to_vec(), "text/plain",
 &url::Url::parse("file:///low_priority.txt").unwrap(), 1, None, None, None, None, Cenc::Null, true, None, true).unwrap();
 
 // Create an ObjectDesc for a high priority file
-let high_priority_obj = ObjectDesc::create_from_buffer(b"high priority", "text/plain",
+let high_priority_obj = ObjectDesc::create_from_buffer(b"high priority".to_vec(), "text/plain",
 &url::Url::parse("file:///high_priority.txt").unwrap(), 1, None, None, None, None, Cenc::Null, true, None, true).unwrap();
 
 // Put Object to the low priority queue
@@ -238,7 +269,7 @@ let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_string(), 3400);
 let mut sender = Sender::new(endpoint, tsi, &oti, &config);
 
 // Create an Object
-let mut obj = ObjectDesc::create_from_buffer(b"hello world", "text/plain",
+let mut obj = ObjectDesc::create_from_buffer(b"hello world".to_vec(), "text/plain",
 &url::Url::parse("file:///hello.txt").unwrap(), 1, None, None, None, None, Cenc::Null, true, None, true).unwrap();
 
 // Set the Target Transfer Duration of this object to 2 seconds
@@ -286,7 +317,7 @@ let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_string(), 3400);
 let mut sender = Sender::new(endpoint, tsi, &oti, &config);
 
 // Create an Object
-let mut obj = ObjectDesc::create_from_buffer(b"hello world", "text/plain",
+let mut obj = ObjectDesc::create_from_buffer(b"hello world".to_vec(), "text/plain",
 &url::Url::parse("file:///hello.txt").unwrap(), 1, None, None, None, None, Cenc::Null, true, None, true).unwrap();
 
 // Set the Target Transfer End Time of this object to 10 seconds from now
