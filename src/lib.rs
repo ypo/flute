@@ -26,6 +26,37 @@
 //!| RFC 5510 | Reed-Solomon Forward Error Correction (FEC) Schemes      | <https://www.rfc-editor.org/rfc/rfc5510.html> |
 //!| 3GPP TS 26.346 | Extended FLUTE FDT Schema (7.2.10)      | <https://www.etsi.org/deliver/etsi_ts/126300_126399/126346/17.03.00_60/ts_126346v170300p.pdf> |
 //!
+//! # Thread Safety
+//! 
+//! ## FLUTE Sender
+//! 
+//! The FLUTE Sender is designed to be safely shared between multiple threads.
+//! 
+//! ## FLUTE Receiver and Tokio Integration
+//! 
+//! Unlike the sender, the FLUTE Receiver **is not thread-safe** and cannot be shared between multiple threads. 
+//! To integrate it with Tokio, you must use `tokio::task::LocalSet`, which allows spawning tasks that require a single-threaded runtime. 
+//! 
+//! The following example demonstrates how to use the FLUTE Receiver with Tokio:
+//!
+//!```ignore
+//! use flute::receiver::{writer, MultiReceiver};
+//! use std::rc::Rc;
+//! 
+//!#[tokio::main]
+//!async fn main() {
+//!    let local = task::LocalSet::new();
+//!    // Run the local task set.
+//!    local.run_until(async move {
+//!        let nonsend_data = nonsend_data.clone();
+//!        task::spawn_local(async move {
+//!            let writer = Rc::new(writer::ObjectWriterFSBuilder::new(&std::path::Path::new("./flute_dir")).unwrap_or_else(|_| std::process::exit(0)));
+//!            let mut receiver = MultiReceiver::new(writer, None, false);
+//!            // ... run the receiver
+//!        }).await.unwrap();
+//!    }).await;
+//!}
+//!```
 //! # UDP/IP Multicast files sender
 //!
 //! Transfer files over a UDP/IP network
