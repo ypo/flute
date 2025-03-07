@@ -1,5 +1,6 @@
 use super::filedesc::FileDesc;
 use super::observer::ObserverList;
+use super::sender::FDTPublishMode;
 use super::toiallocator::{Toi, ToiAllocator};
 use super::{objectdesc, ObjectDesc};
 use crate::common::{fdtinstance::FdtInstance, lct, oti};
@@ -30,6 +31,7 @@ pub struct Fdt {
     observers: ObserverList,
     groups: Option<Vec<String>>,
     toi_allocator: Arc<ToiAllocator>,
+    publish_mode: FDTPublishMode,
 }
 
 impl Fdt {
@@ -45,6 +47,7 @@ impl Fdt {
         toi_max_length: TOIMaxLength,
         toi_initial_value: Option<u128>,
         groups: Option<Vec<String>>,
+        publish_mode: FDTPublishMode,
     ) -> Fdt {
         Fdt {
             _tsi: tsi,
@@ -63,6 +66,7 @@ impl Fdt {
             observers,
             groups,
             toi_allocator: ToiAllocator::new(toi_max_length, toi_initial_value),
+            publish_mode,
         }
     }
 
@@ -73,6 +77,11 @@ impl Fdt {
         let oti_attributes = match self.oti.fec_encoding_id {
             oti::FECEncodingID::RaptorQ => None, // RaptorA scheme parameters is object dependent
             _ => Some(self.oti.get_attributes()),
+        };
+
+        let files = match self.publish_mode {
+            FDTPublishMode::Automatic => self.get_files_being_transferred(),
+            FDTPublishMode::Manual => self.files.values().map(|desc| desc.as_ref()).collect(),
         };
 
         FdtInstance {
@@ -107,12 +116,7 @@ impl Fdt {
                 Some(attr) => attr.fec_oti_scheme_specific_info.clone(),
             },
 
-            file: Some(
-                self.files
-                    .values()
-                    .map(|desc| desc.to_file_xml(now))
-                    .collect(),
-            ),
+            file: Some(files.iter().map(|desc| desc.to_file_xml(now)).collect()),
             xmlns_mbms_2005: None,
             xmlns_mbms_2007: None,
             xmlns_mbms_2008: None,
@@ -128,6 +132,14 @@ impl Fdt {
             schema_version: Some(4),
             delimiter: Some(0),
         }
+    }
+
+    pub fn get_files_being_transferred(&self) -> Vec<&FileDesc> {
+        self.files
+            .iter()
+            .filter(|file| file.1.as_ref().is_transferring())
+            .map(|f| f.1.as_ref())
+            .collect()
     }
 
     pub fn allocate_toi(&mut self) -> Box<Toi> {
@@ -208,7 +220,7 @@ impl Fdt {
     }
 
     pub fn publish(&mut self, now: SystemTime) -> Result<()> {
-        log::info!("TSI={} Publish new FDT", self._tsi);
+        log::debug!("TSI={} Publish new FDT", self._tsi);
         let content = self.to_xml(now)?;
         let mut obj = objectdesc::ObjectDesc::create_from_buffer(
             content,
@@ -238,6 +250,10 @@ impl Fdt {
         self.last_publish = Some(now);
         self.files.iter().for_each(|(_, file)| file.set_published());
         Ok(())
+    }
+
+    pub fn need_transfer_fdt(&self) -> bool {
+        self.current_fdt_transfer.is_none()
     }
 
     fn current_fdt_will_expire(&self, now: SystemTime) -> bool {
@@ -304,6 +320,14 @@ impl Fdt {
         self.observers.dispatch(&evt, now);
 
         file.transfer_started(now);
+
+        match self.publish_mode {
+            FDTPublishMode::Automatic => {
+                self.publish(now).ok();
+            }
+            FDTPublishMode::Manual => {}
+        }
+
         Some(file.clone())
     }
 
@@ -417,6 +441,7 @@ mod tests {
             crate::sender::TOIMaxLength::ToiMax112,
             Some(1),
             Some(vec!["Group1".to_owned()]),
+            crate::sender::FDTPublishMode::Manual,
         );
         let obj1 = objectdesc::ObjectDesc::create_from_buffer(
             Vec::new(),

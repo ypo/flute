@@ -51,6 +51,11 @@ impl SenderSession {
         loop {
             if self.encoder.is_none() {
                 self.get_next(fdt, now);
+                if !self.transfer_fdt_only {
+                    if fdt.need_transfer_fdt() {
+                        return None;
+                    }
+                }
             }
 
             let encoder = self.encoder.as_mut()?;

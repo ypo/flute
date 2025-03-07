@@ -68,7 +68,11 @@ mod tests {
             let toi = sender.add_object(0, obj).unwrap();
             assert!(sender.is_added(toi));
         }
-        sender.publish(std::time::SystemTime::now()).unwrap();
+
+        if config.fdt_publish_mode == sender::FDTPublishMode::Manual {
+            sender.publish(std::time::SystemTime::now()).unwrap();
+        }
+
         sender
     }
 
@@ -312,6 +316,28 @@ mod tests {
             flute::core::lct::Cenc::Null,
             true,
             None,
+            100000,
+            false,
+            None,
+        );
+    }
+
+    #[test]
+    pub fn test_receiver_automatic_publishing_no_code() {
+        init();
+
+        let config = sender::Config {
+            fdt_publish_mode: sender::FDTPublishMode::Automatic,
+            ..Default::default()
+        };
+
+        test_receiver_with_oti(
+            &flute::core::Oti::new_no_code(1400, 64),
+            None,
+            false,
+            flute::core::lct::Cenc::Null,
+            true,
+            Some(config),
             100000,
             false,
             None,

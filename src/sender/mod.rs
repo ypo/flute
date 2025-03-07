@@ -30,5 +30,6 @@ pub use sender::Config;
 pub use sender::PriorityQueue;
 pub use sender::Sender;
 pub use sender::TOIMaxLength;
+pub use sender::FDTPublishMode;
 pub use toiallocator::Toi;
 

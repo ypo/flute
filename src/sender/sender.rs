@@ -63,6 +63,27 @@ impl PriorityQueue {
     }
 }
 
+/// Specifies how the File Delivery Table (FDT) is published.
+///
+// This enum defines when and how the FDT is updated and sent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FDTPublishMode {
+    /// Manual publishing mode.
+    ///
+    /// - The FDT is published only when `publish()` is explicitly called.
+    /// - It includes all objects that have been inserted up to the time of publication.
+    /// - Provides full control over when the FDT is updated and sent.
+    Manual,
+
+    /// Automatic publishing mode.
+    ///
+    /// - The FDT is automatically published before the transmission of each object.
+    /// - It contains only the objects that are currently being transferred.
+    /// - Ensures that each transmission is accompanied by an up-to-date FDT,  
+    ///   May result in smaller but more frequent FDT updates.
+    Automatic,
+}
+
 ///
 /// Configuration of the `Sender`
 ///
@@ -78,6 +99,8 @@ pub struct Config {
     pub fdt_cenc: lct::Cenc,
     /// Insert Sender Current Time inside ALC/LCT packets containing the FDT.
     pub fdt_inband_sct: bool,
+    /// FDT publish mode
+    pub fdt_publish_mode: FDTPublishMode,
     /// A struct representing a set of priority queues for file transmission.
     /// Each priority queue is associated with a specific priority level determined by the key in the `BTreeMap`.
     /// A lower key indicates a higher priority.
@@ -139,6 +162,7 @@ impl Default for Config {
             toi_max_length: TOIMaxLength::ToiMax112,
             toi_initial_value: Some(1),
             groups: None,
+            fdt_publish_mode: FDTPublishMode::Manual,
         }
     }
 }
@@ -182,6 +206,7 @@ impl Sender {
             config.toi_max_length,
             config.toi_initial_value,
             config.groups.clone(),
+            config.fdt_publish_mode,
         );
 
         let fdt_session = SenderSession::new(
@@ -340,6 +365,8 @@ impl Sender {
     /// Publish modification to the FDT
     /// An updated version of the FDT will be generated and transferred
     /// Multiple modification can be made (ex: several call to 'add_object()`) before publishing a new FDT version
+    ///
+    /// Required only if fdt_publish_mode is set to manual
     pub fn publish(&mut self, now: SystemTime) -> Result<()> {
         self.fdt.publish(now)
     }
@@ -386,6 +413,10 @@ impl Sender {
             if data.is_some() {
                 return data;
             }
+        }
+
+        if let Some(fdt_data) = self.fdt_session.run(&mut self.fdt, now) {
+            return Some(fdt_data);
         }
 
         None
