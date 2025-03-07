@@ -253,7 +253,7 @@ impl Fdt {
     }
 
     pub fn need_transfer_fdt(&self) -> bool {
-        self.current_fdt_transfer.is_none()
+        !self.fdt_transfer_queue.is_empty()
     }
 
     fn current_fdt_will_expire(&self, now: SystemTime) -> bool {
@@ -289,7 +289,7 @@ impl Fdt {
         }
 
         let current_fdt_transfer = self.current_fdt_transfer.as_ref()?;
-        if !current_fdt_transfer.should_transfer_now(0, now) {
+        if !current_fdt_transfer.should_transfer_now(0, self.publish_mode, now) {
             return None;
         }
 
@@ -307,7 +307,7 @@ impl Fdt {
             .files_transfer_queue
             .iter()
             .enumerate()
-            .find(|(_, item)| item.should_transfer_now(priority, now))?;
+            .find(|(_, item)| item.should_transfer_now(priority, self.publish_mode, now))?;
 
         let file = self.files_transfer_queue.remove(index).unwrap();
         log::info!(

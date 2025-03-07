@@ -1,6 +1,7 @@
 use base64::Engine;
 
 use super::objectdesc::{create_fdt_cache_control, ObjectDesc};
+use super::FDTPublishMode;
 use crate::common::oti::SchemeSpecific;
 use crate::common::{fdtinstance, oti, partition};
 use crate::error::{FluteError, Result};
@@ -36,7 +37,12 @@ impl TransferInfo {
                 crate::sender::objectdesc::TargetAcquisition::WithinTime(target_time) => {
                     let duration = target_time.duration_since(now).unwrap_or_default();
                     if duration.is_zero() {
-                        log::warn!("Target acquisition time is in the past");
+                        log::warn!(
+                            "Target acquisition time is in the past target={:?} now={:?} for={}",
+                            target_time,
+                            now,
+                            object.content_location
+                        );
                     }
                     let nb_packets = object
                         .transfer_length
@@ -235,12 +241,17 @@ impl FileDesc {
         self.object.max_transfer_count == info.transfer_count + 1
     }
 
-    pub fn should_transfer_now(&self, priority: u32, now: SystemTime) -> bool {
+    pub fn should_transfer_now(
+        &self,
+        priority: u32,
+        fdt_publish_mode: FDTPublishMode,
+        now: SystemTime,
+    ) -> bool {
         if self.priority != priority {
             return false;
         }
 
-        if !self.is_published() {
+        if fdt_publish_mode == FDTPublishMode::Manual && !self.is_published() {
             log::warn!("File with TOI {} is not published", self.toi);
             return false;
         }

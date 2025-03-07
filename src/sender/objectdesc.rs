@@ -65,7 +65,7 @@ pub enum TargetAcquisition {
 
 ///
 /// Object Data Stream Trait
-/// 
+///
 pub trait ObjectDataStreamTrait:
     std::io::Read + std::io::Seek + Send + Sync + std::fmt::Debug
 {

@@ -51,10 +51,12 @@ impl SenderSession {
         loop {
             if self.encoder.is_none() {
                 self.get_next(fdt, now);
-                if !self.transfer_fdt_only {
-                    if fdt.need_transfer_fdt() {
-                        return None;
-                    }
+            }
+
+            if !self.transfer_fdt_only {
+                // Stop emitting packets if a new FDT is needed
+                if fdt.need_transfer_fdt() {
+                    return None;
                 }
             }
 
