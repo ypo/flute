@@ -362,9 +362,9 @@ impl Sender {
         self.fdt.nb_objects()
     }
 
-    /// Publish modification to the FDT
+    /// Publish modifications to the FDT
     /// An updated version of the FDT will be generated and transferred
-    /// Multiple modification can be made (ex: several call to 'add_object()`) before publishing a new FDT version
+    /// Multiple modifications can be made (ex: several call to 'add_object()`) before publishing a new FDT version
     ///
     /// Required only if fdt_publish_mode is set to manual
     pub fn publish(&mut self, now: SystemTime) -> Result<()> {
