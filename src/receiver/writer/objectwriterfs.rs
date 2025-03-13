@@ -50,7 +50,7 @@ impl ObjectWriterBuilder for ObjectWriterFSBuilder {
         _endpoint: &UDPEndpoint,
         _tsi: &u64,
         _toi: &u128,
-        _content_location: &url::Url,
+        _content_location: &str,
         _duration: &std::time::Duration,
         _now: std::time::SystemTime,
     ) {
@@ -94,7 +94,25 @@ pub struct ObjectWriterFSInner {
 
 impl ObjectWriter for ObjectWriterFS {
     fn open(&self, _now: SystemTime) -> Result<()> {
-        let content_location_path = self.meta.content_location.path();
+        let url = url::Url::parse(&self.meta.content_location);
+        let content_location_path = match &url {
+            Ok(url) => url.path(),
+            Err(e) => match e {
+                url::ParseError::RelativeUrlWithoutBase => &self.meta.content_location,
+                url::ParseError::RelativeUrlWithCannotBeABaseBase => &self.meta.content_location,
+                _ => {
+                    log::error!(
+                        "Fail to parse content location {:?} {:?}",
+                        self.meta.content_location,
+                        e
+                    );
+                    return Err(FluteError::new(format!(
+                        "Fail to parse content location {:?} {:?}",
+                        self.meta.content_location, e
+                    )));
+                }
+            },
+        };
         let relative_path = content_location_path
             .strip_prefix('/')
             .unwrap_or(content_location_path);

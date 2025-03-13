@@ -56,7 +56,7 @@ impl Default for Config {
 #[derive(Debug, Clone)]
 pub struct ObjectCompletedMeta {
     expiration_date: SystemTime,
-    content_location: url::Url,
+    content_location: String,
 }
 
 ///

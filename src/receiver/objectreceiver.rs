@@ -63,7 +63,7 @@ pub struct ObjectReceiver {
     pub fdt_instance_id: Option<u32>,
     last_activity: Instant,
     pub cache_expiration_date: Option<SystemTime>,
-    pub content_location: Option<url::Url>,
+    pub content_location: Option<String>,
     nb_allocated_blocks: usize,
     total_allocated_blocks_size: usize,
     #[cfg(feature = "opentelemetry")]
@@ -114,7 +114,7 @@ impl ObjectReceiver {
             last_activity: Instant::now(),
             cache_expiration_date: None,
             content_location: match *toi == lct::TOI_FDT {
-                true => Some(url::Url::parse("flute://fdt").unwrap()),
+                true => Some("flute://fdt".to_string()),
                 false => None,
             },
             nb_allocated_blocks: 0,
@@ -343,30 +343,7 @@ impl ObjectReceiver {
             }
         }
 
-        self.content_location = match url::Url::parse(&file.content_location) {
-            Ok(val) => Some(val),
-            Err(_) => {
-                let base_url = url::Url::parse("file:///").unwrap();
-                match base_url.join(&file.content_location) {
-                    Ok(val) => Some(val),
-                    Err(_) => {
-                        log::error!(
-                            "Fail to parse content-location {} to URL",
-                            file.content_location
-                        );
-                        self.error(
-                            &format!(
-                                "Fail to parse content-location {} to URL",
-                                file.content_location
-                            ),
-                            now,
-                            false,
-                        );
-                        return false;
-                    }
-                }
-            }
-        };
+        self.content_location = Some(file.content_location.clone());
 
         let mut groups = match fdt.group.as_ref() {
             Some(groups) => groups.clone(),
@@ -410,7 +387,7 @@ impl ObjectReceiver {
             content_location: self
                 .content_location
                 .clone()
-                .unwrap_or(url::Url::parse("file:///").unwrap()),
+                .unwrap_or("file:///".to_string()),
             content_length: self.content_length.clone(),
             content_type: self.content_type.clone(),
             cache_duration: self.cache_duration.clone(),

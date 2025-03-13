@@ -187,7 +187,7 @@ mod tests {
 
     fn check_output(
         input_buffer: &[u8],
-        input_content_location: &url::Url,
+        input_content_location: &str,
         input_content_type: &str,
         target_acquisition: Option<TargetAcquisition>,
         output: &receiver::writer::ObjectWriterBufferBuilder,
@@ -299,7 +299,7 @@ mod tests {
 
         check_output(
             &input_file_buffer,
-            &input_content_location,
+            &input_content_location.as_str(),
             content_type,
             target_acquisition,
             &output,

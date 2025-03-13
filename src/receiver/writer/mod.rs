@@ -25,7 +25,7 @@ use crate::tools::error::Result;
 #[derive(Debug, Clone)]
 pub struct ObjectMetadata {
     /// URI that can be used as an identifier for this object
-    pub content_location: url::Url,
+    pub content_location: String,
     /// Final size of this object
     pub content_length: Option<usize>,
     /// Transfer length (compressed) of this object
@@ -69,7 +69,7 @@ pub trait ObjectWriterBuilder {
         endpoint: &UDPEndpoint,
         tsi: &u64,
         toi: &u128,
-        content_location: &url::Url,
+        content_location: &str,
         duration: &Duration,
         now: std::time::SystemTime,
     );
