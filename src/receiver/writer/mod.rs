@@ -94,8 +94,15 @@ pub trait ObjectWriterBuilder {
 pub trait ObjectWriter {
     /// Open the destination
     fn open(&self, now: SystemTime) -> Result<()>;
-    /// Write data
-    fn write(&self, data: &[u8], now: SystemTime);
+    /// Writes a data block associated with a specific Source Block Number (SBN).
+    ///
+    /// # Arguments
+    ///
+    /// * `sbn` - The Source Block Number identifying the data block's origin or sequence.
+    /// * `data` - A byte slice representing the content to be written.
+    /// * `now` - The current system time, typically used for timestamping or aging logic.
+    ///
+    fn write(&self, sbn: u32, data: &[u8], now: SystemTime);
     /// Called when all the data has been written
     fn complete(&self, now: SystemTime);
     /// Called when an error occurred during the reception of this object
@@ -103,11 +110,11 @@ pub trait ObjectWriter {
     /// Called when the sender has interrupted the transmission of this object
     fn interrupted(&self, now: SystemTime);
     /// Indicates whether MD5 checksum verification is enabled for this object.
-///
-/// - `true`: The MD5 checksum will be verified. If the checksum is invalid,
-///   the object will transition to an error state.
-/// - `false`: The MD5 checksum will be skipped. Even if the checksum is invalid
-///   or missing, the object will proceed to a complete state without error.
+    ///
+    /// - `true`: The MD5 checksum will be verified. If the checksum is invalid,
+    ///   the object will transition to an error state.
+    /// - `false`: The MD5 checksum will be skipped. Even if the checksum is invalid
+    ///   or missing, the object will proceed to a complete state without error.
     fn enable_md5_check(&self) -> bool;
 }
 

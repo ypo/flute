@@ -142,7 +142,7 @@ impl ObjectWriter for ObjectWriterFS {
         Ok(())
     }
 
-    fn write(&self, data: &[u8], _now: SystemTime) {
+    fn write(&self, _sbn: u32, data: &[u8], _now: SystemTime) {
         let mut inner = self.inner.borrow_mut();
         if inner.writer.is_none() {
             return;
