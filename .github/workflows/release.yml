@@ -35,6 +35,11 @@ jobs:
       - name: Install cargo-set-version
         run: cargo install cargo-set-version
 
+      - name: Install xmllint
+        run: |
+          sudo apt update
+          sudo apt-get install -y libxml2-utils
+
       - name: Run Tests
         uses: actions-rs/cargo@v1
         with:
