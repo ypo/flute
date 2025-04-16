@@ -257,6 +257,7 @@ mod tests {
         transfer_file_size: usize,
         temp_file: bool,
         target_acquisition: Option<TargetAcquisition>,
+        enable_md5_check: bool,
     ) {
         let content_type = "application/octet-stream";
 
@@ -280,7 +281,9 @@ mod tests {
 
         let input_content_location = obj.content_location.clone();
 
-        let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new(true));
+        let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new(
+            enable_md5_check,
+        ));
         let mut receiver = receiver::MultiReceiver::new(output.clone(), None, false);
         receiver.add_listener(TestMultiReceiverObserver::new());
 
@@ -319,6 +322,24 @@ mod tests {
             100000,
             false,
             None,
+            true,
+        );
+    }
+
+    #[test]
+    pub fn test_receiver_no_code_no_md5() {
+        init();
+        test_receiver_with_oti(
+            &flute::core::Oti::new_no_code(1400, 64),
+            None,
+            false,
+            flute::core::lct::Cenc::Null,
+            true,
+            None,
+            100000,
+            false,
+            None,
+            false,
         );
     }
 
@@ -341,6 +362,7 @@ mod tests {
             100000,
             false,
             None,
+            true,
         );
     }
 
@@ -359,6 +381,7 @@ mod tests {
             Some(TargetAcquisition::WithinDuration(
                 std::time::Duration::from_secs(4),
             )),
+            true,
         );
     }
 
@@ -375,6 +398,7 @@ mod tests {
             100000,
             true,
             None,
+            true,
         );
     }
 
@@ -391,6 +415,7 @@ mod tests {
             100000000,
             true,
             None,
+            true,
         );
     }
 
@@ -414,6 +439,7 @@ mod tests {
             100000,
             false,
             None,
+            true,
         );
     }
 
@@ -430,6 +456,7 @@ mod tests {
             100000,
             false,
             None,
+            true,
         );
     }
 
@@ -446,6 +473,7 @@ mod tests {
             100000,
             false,
             None,
+            true,
         );
     }
 
@@ -462,6 +490,7 @@ mod tests {
             100000,
             false,
             None,
+            true,
         );
     }
 
@@ -480,6 +509,7 @@ mod tests {
             100000,
             false,
             None,
+            true,
         );
     }
 
@@ -497,6 +527,7 @@ mod tests {
             100000,
             false,
             None,
+            true,
         );
     }
 
@@ -516,6 +547,7 @@ mod tests {
             100000,
             false,
             None,
+            true,
         );
     }
 
@@ -535,6 +567,7 @@ mod tests {
             100000,
             false,
             None,
+            true,
         );
     }
 
@@ -552,6 +585,7 @@ mod tests {
             100000,
             false,
             None,
+            true,
         );
     }
 
@@ -569,6 +603,7 @@ mod tests {
             100000,
             false,
             None,
+            true,
         );
     }
 
@@ -587,6 +622,7 @@ mod tests {
             100000,
             false,
             None,
+            true,
         );
     }
 
@@ -605,6 +641,7 @@ mod tests {
             100000,
             false,
             None,
+            true,
         );
     }
 
@@ -622,6 +659,7 @@ mod tests {
             100000,
             false,
             None,
+            true,
         );
     }
 
@@ -640,6 +678,7 @@ mod tests {
             100000,
             false,
             None,
+            true,
         );
     }
 
@@ -720,6 +759,7 @@ mod tests {
             0,
             false,
             None,
+            true,
         );
     }
 
