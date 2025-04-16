@@ -86,7 +86,6 @@ impl FdtReceiver {
                 &lct::TOI_FDT,
                 Some(fdt_id),
                 fdt_builder,
-                true,
                 1024 * 1024,
                 now,
             ))),
@@ -121,7 +120,9 @@ impl FdtReceiver {
                     self.meta = Some(obj.create_meta());
                     self.obj = None
                 }
-                objectreceiver::State::Interrupted => self.inner.borrow_mut().state = FDTState::Error,
+                objectreceiver::State::Interrupted => {
+                    self.inner.borrow_mut().state = FDTState::Error
+                }
                 objectreceiver::State::Error => self.inner.borrow_mut().state = FDTState::Error,
             }
         }
@@ -266,5 +267,9 @@ impl ObjectWriter for FdtWriter {
     fn interrupted(&self, _now: SystemTime) {
         let mut inner = self.inner.borrow_mut();
         inner.state = FDTState::Error;
+    }
+
+    fn enable_md5_check(&self) -> bool {
+        false
     }
 }

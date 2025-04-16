@@ -280,7 +280,7 @@ mod tests {
 
         let input_content_location = obj.content_location.clone();
 
-        let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new());
+        let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new(true));
         let mut receiver = receiver::MultiReceiver::new(output.clone(), None, false);
         receiver.add_listener(TestMultiReceiverObserver::new());
 
@@ -657,7 +657,7 @@ mod tests {
             None,
             None,
         );
-        let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new());
+        let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new(true));
         let mut receiver = receiver::MultiReceiver::new(output.clone(), None, false);
         let mut sender = create_sender(
             vec![obj],
@@ -747,7 +747,7 @@ mod tests {
             None,
         );
 
-        let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new());
+        let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new(true));
         let mut receiver = receiver::MultiReceiver::new(output.clone(), None, false);
 
         let mut sender_config: sender::Config = Default::default();
@@ -824,7 +824,7 @@ mod tests {
             None,
         );
         obj.max_transfer_count = max_transfert_count as u32;
-        let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new());
+        let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new(true));
         let mut receiver_config = receiver::Config::default();
         receiver_config.object_receive_once = false;
         let mut receiver =

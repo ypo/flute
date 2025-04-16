@@ -50,7 +50,7 @@
 //!    local.run_until(async move {
 //!        let nonsend_data = nonsend_data.clone();
 //!        task::spawn_local(async move {
-//!            let writer = Rc::new(writer::ObjectWriterFSBuilder::new(&std::path::Path::new("./flute_dir")).unwrap_or_else(|_| std::process::exit(0)));
+//!            let writer = Rc::new(writer::ObjectWriterFSBuilder::new(&std::path::Path::new("./flute_dir"), true).unwrap_or_else(|_| std::process::exit(0)));
 //!            let mut receiver = MultiReceiver::new(writer, None, false);
 //!            // ... run the receiver
 //!        }).await.unwrap();
@@ -111,7 +111,8 @@
 //! let udp_socket = UdpSocket::bind(format!("{}:{}", endpoint.destination_group_address, endpoint.port)).expect("Fail to bind");
 //!
 //! // Create a writer able to write received files to the filesystem
-//! let writer = Rc::new(writer::ObjectWriterFSBuilder::new(&std::path::Path::new("./flute_dir"))
+//! let enable_md5_check = true;
+//! let writer = Rc::new(writer::ObjectWriterFSBuilder::new(&std::path::Path::new("./flute_dir"), enable_md5_check)
 //!     .unwrap_or_else(|_| std::process::exit(0)));
 //!
 //! // Create a multi-receiver capable of de-multiplexing several FLUTE sessions

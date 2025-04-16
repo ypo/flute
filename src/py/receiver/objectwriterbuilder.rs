@@ -12,7 +12,7 @@ impl ObjectWriterBuilder {
     #[new]
     fn new(path: &str) -> PyResult<Self> {
         let writer =
-            crate::receiver::writer::ObjectWriterFSBuilder::new(std::path::Path::new(path))
+            crate::receiver::writer::ObjectWriterFSBuilder::new(std::path::Path::new(path), true)
                 .map_err(|e| PyTypeError::new_err(e.0.to_string()))?;
         Ok(Self {
             inner: Rc::new(writer),
@@ -21,7 +21,7 @@ impl ObjectWriterBuilder {
 
     #[staticmethod]
     fn new_buffer() -> Self {
-        let writer = crate::receiver::writer::ObjectWriterBufferBuilder::new();
+        let writer = crate::receiver::writer::ObjectWriterBufferBuilder::new(true);
         Self {
             inner: Rc::new(writer),
         }

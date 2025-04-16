@@ -6,7 +6,8 @@
 //! ```
 //! use flute::receiver::writer;
 //!
-//! let writer = writer::ObjectWriterFSBuilder::new(&std::path::Path::new("./destination_dir")).ok();
+//! let enable_md5_check = true;
+//! let writer = writer::ObjectWriterFSBuilder::new(&std::path::Path::new("./destination_dir"), enable_md5_check).ok();
 //! ```
 //!
 
@@ -101,6 +102,13 @@ pub trait ObjectWriter {
     fn error(&self, now: SystemTime);
     /// Called when the sender has interrupted the transmission of this object
     fn interrupted(&self, now: SystemTime);
+    /// Indicates whether MD5 checksum verification is enabled for this object.
+///
+/// - `true`: The MD5 checksum will be verified. If the checksum is invalid,
+///   the object will transition to an error state.
+/// - `false`: The MD5 checksum will be skipped. Even if the checksum is invalid
+///   or missing, the object will proceed to a complete state without error.
+    fn enable_md5_check(&self) -> bool;
 }
 
 impl std::fmt::Debug for dyn ObjectWriterBuilder {

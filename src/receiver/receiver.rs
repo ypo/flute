@@ -30,8 +30,6 @@ pub struct Config {
     pub object_timeout: Option<Duration>,
     /// Maximum cache size that can be allocated to received an object. Default is 10MB.
     pub object_max_cache_size: Option<usize>,
-    /// Enable MD5 check of the received objects. Default `true`
-    pub enable_md5_check: bool,
     /// When set to `true`, the receiver will only reconstruct each object once.
     /// If the same object is transferred again, it will be automatically discarded.
     pub object_receive_once: bool,
@@ -46,7 +44,6 @@ impl Default for Config {
             session_timeout: None,
             object_timeout: Some(Duration::from_secs(10)),
             object_max_cache_size: None,
-            enable_md5_check: true,
             object_receive_once: true,
             enable_fdt_expiration_check: true,
         }
@@ -665,7 +662,6 @@ impl Receiver {
             toi,
             None,
             self.writer.clone(),
-            self.config.enable_md5_check,
             self.config
                 .object_max_cache_size
                 .unwrap_or(10 * 1024 * 1024),

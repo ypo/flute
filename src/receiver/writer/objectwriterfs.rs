@@ -11,17 +11,19 @@ use std::{cell::RefCell, io::Write, time::SystemTime};
 #[derive(Debug)]
 pub struct ObjectWriterFSBuilder {
     dest: std::path::PathBuf,
+    enable_md5_check: bool,
 }
 
 impl ObjectWriterFSBuilder {
     /// Return a new `ObjectWriterBuffer`
-    pub fn new(dest: &std::path::Path) -> Result<ObjectWriterFSBuilder> {
+    pub fn new(dest: &std::path::Path, enable_md5_check: bool) -> Result<ObjectWriterFSBuilder> {
         if !dest.is_dir() {
             return Err(FluteError::new(format!("{:?} is not a directory", dest)));
         }
 
         Ok(ObjectWriterFSBuilder {
             dest: dest.to_path_buf(),
+            enable_md5_check,
         })
     }
 }
@@ -42,6 +44,7 @@ impl ObjectWriterBuilder for ObjectWriterFSBuilder {
                 writer: None,
             }),
             meta: meta.clone(),
+            enable_md5_check: self.enable_md5_check,
         })
     }
 
@@ -82,6 +85,7 @@ pub struct ObjectWriterFS {
     dest: std::path::PathBuf,
     inner: RefCell<ObjectWriterFSInner>,
     meta: ObjectMetadata,
+    enable_md5_check: bool,
 }
 
 ///
@@ -173,5 +177,9 @@ impl ObjectWriter for ObjectWriterFS {
 
     fn interrupted(&self, now: SystemTime) {
         self.error(now);
+    }
+
+    fn enable_md5_check(&self) -> bool {
+        self.enable_md5_check
     }
 }
