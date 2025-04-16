@@ -83,7 +83,6 @@ impl ObjectReceiver {
         toi: &u128,
         _fdt_instance_id: Option<u32>,
         object_writer_builder: Rc<dyn ObjectWriterBuilder>,
-        enable_md5_check: bool,
         max_size_allocated: usize,
         now: SystemTime,
     ) -> ObjectReceiver {
@@ -99,7 +98,7 @@ impl ObjectReceiver {
             transfer_length: None,
             cenc: None,
             content_md5: None,
-            enable_md5_check,
+            enable_md5_check: false,
             blocks_variable_size: false,
             a_large: 0,
             a_small: 0,
@@ -357,9 +356,7 @@ impl ObjectReceiver {
         #[cfg(feature = "opentelemetry")]
         let _span = self.logger.as_mut().map(|l| l.fdt_attached());
 
-        if self.enable_md5_check {
-            self.content_md5 = file.content_md5.clone();
-        }
+        self.content_md5 = file.content_md5.clone();
         self.fdt_instance_id = Some(fdt_instance_id);
 
         self.cache_duration = file.get_cache_duration(fdt.get_expiration_date(), server_time);
@@ -435,6 +432,10 @@ impl ObjectReceiver {
             now,
         );
 
+        if self.content_md5.is_some() {
+            self.enable_md5_check = object_writer.enable_md5_check();
+        }
+
         debug_assert!(self.block_writer.is_none());
         self.object_writer = Some(ObjectWriterSession {
             writer: object_writer,
@@ -454,7 +455,7 @@ impl ObjectReceiver {
                 transfer_length as usize,
                 self.content_length.clone(),
                 self.cenc.unwrap(),
-                self.content_md5.is_some(),
+                self.enable_md5_check,
             ));
         }
 

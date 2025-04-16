@@ -70,7 +70,8 @@ impl MultiReceiver {
     ///
     /// let tsi: u64 = 1;
     /// // Write object to a buffer
-    /// let writer = Rc::new(ObjectWriterBufferBuilder::new());
+    /// let enable_md5_check = true;
+    /// let writer = Rc::new(ObjectWriterBufferBuilder::new(enable_md5_check));
     /// let mut receiver = MultiReceiver::new(writer.clone(), None, true);
     /// let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_owned(), 3000);
     /// receiver.add_listen_tsi(endpoint, tsi)

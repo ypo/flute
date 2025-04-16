@@ -9,6 +9,8 @@ use std::{cell::RefCell, rc::Rc, time::SystemTime};
 pub struct ObjectWriterBufferBuilder {
     /// List of all objects received
     pub objects: RefCell<Vec<Rc<RefCell<ObjectWriterBuffer>>>>,
+    /// True when MD5 check is enabled
+    pub enable_md5_check: bool,
 }
 
 ///
@@ -17,6 +19,7 @@ pub struct ObjectWriterBufferBuilder {
 #[derive(Debug)]
 struct ObjectWriterBufferWrapper {
     inner: Rc<RefCell<ObjectWriterBuffer>>,
+    enable_md5_check: bool,
 }
 
 #[derive(Debug)]
@@ -38,16 +41,17 @@ pub struct ObjectWriterBuffer {
 
 impl ObjectWriterBufferBuilder {
     /// Return a new `ObjectWriterBuffer`
-    pub fn new() -> ObjectWriterBufferBuilder {
+    pub fn new(enable_md5_check: bool) -> ObjectWriterBufferBuilder {
         ObjectWriterBufferBuilder {
             objects: RefCell::new(Vec::new()),
+            enable_md5_check,
         }
     }
 }
 
 impl Default for ObjectWriterBufferBuilder {
     fn default() -> Self {
-        Self::new()
+        Self::new(true)
     }
 }
 
@@ -69,7 +73,10 @@ impl ObjectWriterBuilder for ObjectWriterBufferBuilder {
             end_time: None,
         }));
 
-        let obj_wrapper = Box::new(ObjectWriterBufferWrapper { inner: obj.clone() });
+        let obj_wrapper = Box::new(ObjectWriterBufferWrapper {
+            inner: obj.clone(),
+            enable_md5_check: self.enable_md5_check,
+        });
         self.objects.borrow_mut().push(obj);
         obj_wrapper
     }
@@ -128,5 +135,9 @@ impl ObjectWriter for ObjectWriterBufferWrapper {
         log::error!("Object reception interrupted");
         inner.error = true;
         inner.end_time = Some(now);
+    }
+
+    fn enable_md5_check(&self) -> bool {
+        self.enable_md5_check
     }
 }
