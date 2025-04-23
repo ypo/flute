@@ -3,7 +3,7 @@ use super::blockwriter::BlockWriter;
 use super::writer::ObjectWriterBuilder;
 use crate::common::udpendpoint::UDPEndpoint;
 use crate::common::{alc, fdtinstance::FdtInstance, lct, oti, partition};
-use crate::receiver::writer::{ObjectMetadata, ObjectWriter};
+use crate::receiver::writer::{ObjectMetadata, ObjectWriter, ObjectWriterBuilderResult};
 use crate::tools::error::{FluteError, Result};
 use std::collections::VecDeque;
 use std::rc::Rc;
@@ -424,13 +424,23 @@ impl ObjectReceiver {
             return;
         }
 
-        let object_writer = self.object_writer_builder.new_object_writer(
+        let object_writer = match self.object_writer_builder.new_object_writer(
             &self.endpoint,
             &self.tsi,
             &self.toi,
             &self.create_meta(),
             now,
-        );
+        ) {
+            ObjectWriterBuilderResult::StoreObject(object_writer) => object_writer,
+            ObjectWriterBuilderResult::ObjectAlreadyReceived => {
+                self.state = State::Completed;
+                return;
+            }
+            ObjectWriterBuilderResult::Abort => {
+                self.state = State::Error;
+                return;
+            }
+        };
 
         if self.content_md5.is_some() {
             self.enable_md5_check = object_writer.enable_md5_check();

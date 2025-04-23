@@ -1,4 +1,4 @@
-use super::{ObjectMetadata, ObjectWriter, ObjectWriterBuilder};
+use super::{ObjectMetadata, ObjectWriter, ObjectWriterBuilder, ObjectWriterBuilderResult};
 use crate::{
     common::udpendpoint::UDPEndpoint,
     error::{FluteError, Result},
@@ -36,8 +36,8 @@ impl ObjectWriterBuilder for ObjectWriterFSBuilder {
         _toi: &u128,
         meta: &ObjectMetadata,
         _now: std::time::SystemTime,
-    ) -> Box<dyn ObjectWriter> {
-        Box::new(ObjectWriterFS {
+    ) -> ObjectWriterBuilderResult {
+        ObjectWriterBuilderResult::StoreObject(Box::new(ObjectWriterFS {
             dest: self.dest.clone(),
             inner: RefCell::new(ObjectWriterFSInner {
                 destination: None,
@@ -45,7 +45,7 @@ impl ObjectWriterBuilder for ObjectWriterFSBuilder {
             }),
             meta: meta.clone(),
             enable_md5_check: self.enable_md5_check,
-        })
+        }))
     }
 
     fn set_cache_duration(

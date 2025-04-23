@@ -1,5 +1,5 @@
 use super::objectreceiver;
-use super::writer::ObjectWriterBuilder;
+use super::writer::{ObjectWriterBuilder, ObjectWriterBuilderResult};
 use crate::common::udpendpoint::UDPEndpoint;
 use crate::common::{alc, fdtinstance::FdtInstance, lct};
 use crate::{receiver::writer::ObjectMetadata, tools};
@@ -203,10 +203,10 @@ impl ObjectWriterBuilder for FdtWriterBuilder {
         _toi: &u128,
         _meta: &ObjectMetadata,
         _now: std::time::SystemTime,
-    ) -> Box<dyn ObjectWriter> {
-        Box::new(FdtWriter {
+    ) -> ObjectWriterBuilderResult {
+        ObjectWriterBuilderResult::StoreObject(Box::new(FdtWriter {
             inner: self.inner.clone(),
-        })
+        }))
     }
 
     fn set_cache_duration(
