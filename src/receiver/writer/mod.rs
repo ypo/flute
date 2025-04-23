@@ -83,8 +83,7 @@ pub trait ObjectWriterBuilder {
         endpoint: &UDPEndpoint,
         tsi: &u64,
         toi: &u128,
-        content_location: &str,
-        duration: &Duration,
+        meta: &ObjectMetadata,
         now: std::time::SystemTime,
     );
     /// Called when an FDT is received
