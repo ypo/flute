@@ -214,8 +214,7 @@ impl ObjectWriterBuilder for FdtWriterBuilder {
         _endpoint: &UDPEndpoint,
         _tsi: &u64,
         _toi: &u128,
-        _content_location: &str,
-        _duration: &std::time::Duration,
+        _meta: &ObjectMetadata,
         _now: std::time::SystemTime,
     ) {
     }

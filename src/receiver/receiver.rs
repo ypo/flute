@@ -2,7 +2,7 @@ use super::fdtreceiver;
 use super::fdtreceiver::FdtReceiver;
 use super::objectreceiver;
 use super::objectreceiver::ObjectReceiver;
-use super::writer::ObjectWriterBuilder;
+use super::writer::{ObjectMetadata, ObjectWriterBuilder};
 use crate::common::udpendpoint::UDPEndpoint;
 use crate::common::{alc, lct};
 use crate::tools::error::FluteError;
@@ -53,7 +53,7 @@ impl Default for Config {
 #[derive(Debug, Clone)]
 pub struct ObjectCompletedMeta {
     expiration_date: SystemTime,
-    content_location: String,
+    metadata: ObjectMetadata,
 }
 
 ///
@@ -442,30 +442,32 @@ impl Receiver {
                 .iter()
                 .map(|f| (f.toi.parse().unwrap_or_default(), f.content_md5.as_ref()))
                 .collect();
-            let remove_candidates: std::collections::HashMap<u128, ObjectCompletedMeta> = self
+            let mut remove_candidates: std::collections::HashMap<u128, ObjectCompletedMeta> = self
                 .objects_completed
                 .iter()
-                .filter_map(|(toi, meta)| match files_toi.contains_key(toi) {
-                    true => None,
-                    false => Some((*toi, meta.clone())),
-                })
+                .filter_map(
+                    |(toi, object_completed)| match files_toi.contains_key(toi) {
+                        true => None,
+                        false => Some((*toi, object_completed.clone())),
+                    },
+                )
                 .collect();
 
             if !remove_candidates.is_empty() {
                 let content_locations: std::collections::HashSet<&str> =
                     files.iter().map(|f| f.content_location.as_str()).collect();
                 let duration = std::time::Duration::from_secs(4);
-                for (toi, meta) in &remove_candidates {
-                    let content_location = meta.content_location.to_string();
-                    if !content_locations.contains(content_location.as_str())
-                        && meta.expiration_date > now + duration
+                for (toi, object_completed) in &mut remove_candidates {
+                    if !content_locations
+                        .contains(object_completed.metadata.content_location.as_str())
+                        && object_completed.expiration_date > now + duration
                     {
+                        object_completed.metadata.cache_duration = Some(duration);
                         self.writer.set_cache_duration(
                             &self.endpoint,
                             &self.tsi,
                             toi,
-                            &meta.content_location,
-                            &duration,
+                            &object_completed.metadata,
                             now,
                         );
                     }
@@ -480,24 +482,24 @@ impl Receiver {
             let cache_duration = file.get_cache_duration(expiration_date, server_time);
             if let Some(obj) = self.objects_completed.get_mut(&toi) {
                 if let Some(cache_duration) = cache_duration {
-                    let new_duration = now
+                    let new_expiration_date = now
                         .checked_add(cache_duration)
                         .unwrap_or(now + std::time::Duration::from_secs(3600 * 24 * 360 * 10));
 
-                    let diff = match new_duration < obj.expiration_date {
-                        true => obj.expiration_date.duration_since(new_duration),
-                        false => new_duration.duration_since(obj.expiration_date),
+                    let diff = match new_expiration_date < obj.expiration_date {
+                        true => obj.expiration_date.duration_since(new_expiration_date),
+                        false => new_expiration_date.duration_since(obj.expiration_date),
                     }
                     .unwrap();
 
                     if diff.as_secs() > 1 {
-                        obj.expiration_date = new_duration;
+                        obj.expiration_date = new_expiration_date;
+                        obj.metadata.cache_duration = Some(cache_duration);
                         self.writer.set_cache_duration(
                             &self.endpoint,
                             &self.tsi,
                             &toi,
-                            &obj.content_location,
-                            &cache_duration,
+                            &obj.metadata,
                             now,
                         );
                     }
@@ -581,7 +583,7 @@ impl Receiver {
                             obj.toi,
                             ObjectCompletedMeta {
                                 expiration_date: obj.cache_expiration_date.unwrap(),
-                                content_location: obj.content_location.as_ref().unwrap().clone(),
+                                metadata: obj.create_meta(),
                             },
                         );
                     } else {
@@ -713,15 +715,17 @@ impl Drop for Receiver {
         if let Some(fdt) = self.fdt_current.front_mut() {
             if let Some(instance) = fdt.fdt_instance() {
                 if instance.full_fdt == Some(true) {
-                    let duration = std::time::Duration::from_secs(0);
-                    for obj in &self.objects_completed {
-                        log::info!("Remove from cache {}", &obj.1.content_location.to_string());
+                    for obj in &mut self.objects_completed {
+                        log::info!(
+                            "Remove from cache {}",
+                            &obj.1.metadata.content_location.to_string()
+                        );
+                        obj.1.metadata.cache_duration = Some(Duration::from_secs(0));
                         self.writer.set_cache_duration(
                             &self.endpoint,
                             &self.tsi,
                             obj.0,
-                            &obj.1.content_location,
-                            &duration,
+                            &obj.1.metadata,
                             self.last_timestamp.unwrap_or_else(|| SystemTime::now()),
                         );
                     }
