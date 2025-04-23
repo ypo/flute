@@ -1,4 +1,4 @@
-use super::{ObjectMetadata, ObjectWriter, ObjectWriterBuilder};
+use super::{ObjectMetadata, ObjectWriter, ObjectWriterBuilder, ObjectWriterBuilderResult};
 use crate::{common::udpendpoint::UDPEndpoint, tools::error::Result};
 use std::{cell::RefCell, rc::Rc, time::SystemTime};
 
@@ -63,7 +63,7 @@ impl ObjectWriterBuilder for ObjectWriterBufferBuilder {
         _toi: &u128,
         meta: &ObjectMetadata,
         now: std::time::SystemTime,
-    ) -> Box<dyn ObjectWriter> {
+    ) -> ObjectWriterBuilderResult {
         let obj = Rc::new(RefCell::new(ObjectWriterBuffer {
             complete: false,
             error: false,
@@ -78,7 +78,7 @@ impl ObjectWriterBuilder for ObjectWriterBufferBuilder {
             enable_md5_check: self.enable_md5_check,
         });
         self.objects.borrow_mut().push(obj);
-        obj_wrapper
+        ObjectWriterBuilderResult::StoreObject(obj_wrapper)
     }
 
     fn set_cache_duration(

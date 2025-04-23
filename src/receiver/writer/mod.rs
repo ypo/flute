@@ -52,6 +52,19 @@ pub struct ObjectMetadata {
 }
 
 ///
+/// Represents the result when the creation of an `ObjectWriter` is requested.
+///
+#[derive(Debug)]
+pub enum ObjectWriterBuilderResult {
+    /// Indicates that the object must be stored using the provided writer.
+    StoreObject(Box<dyn ObjectWriter>),
+    /// Indicates that the object has already been received and does not need to be stored again.
+    ObjectAlreadyReceived,
+    /// Indicates that an error occurred and the object cannot be stored.
+    Abort,
+}
+
+///
 /// A trait for building an `ObjectWriter`
 ///
 pub trait ObjectWriterBuilder {
@@ -63,7 +76,7 @@ pub trait ObjectWriterBuilder {
         toi: &u128,
         meta: &ObjectMetadata,
         now: std::time::SystemTime,
-    ) -> Box<dyn ObjectWriter>;
+    ) -> ObjectWriterBuilderResult;
     /// Update cache duration of an object
     fn set_cache_duration(
         &self,
