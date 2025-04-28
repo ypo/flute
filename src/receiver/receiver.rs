@@ -520,7 +520,6 @@ impl Receiver {
             if payload_id.sbn == 0 && payload_id.esi == 0 {
                 self.objects_completed.remove(&pkt.lct.toi);
             } else {
-                log::warn!("Skip packet tsi={} toi={}", payload_id.sbn, payload_id.esi);
                 return Ok(());
             }
         }
