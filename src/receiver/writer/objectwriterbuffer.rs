@@ -110,9 +110,10 @@ impl ObjectWriter for ObjectWriterBufferWrapper {
         Ok(())
     }
 
-    fn write(&self, _sbn: u32, data: &[u8], _now: SystemTime) {
+    fn write(&self, _sbn: u32, data: &[u8], _now: SystemTime) -> Result<()> {
         let mut inner = self.inner.borrow_mut();
         inner.data.extend(data);
+        Ok(())
     }
 
     fn complete(&self, now: SystemTime) {

@@ -105,6 +105,8 @@ pub trait ObjectWriterBuilder {
 ///
 pub trait ObjectWriter {
     /// Open the destination
+    /// 
+    /// Returns `Ok(())` if the destination is opened successfully, or an error if it fails.
     fn open(&self, now: SystemTime) -> Result<()>;
     /// Writes a data block associated with a specific Source Block Number (SBN).
     ///
@@ -114,7 +116,9 @@ pub trait ObjectWriter {
     /// * `data` - A byte slice representing the content to be written.
     /// * `now` - The current system time, typically used for timestamping or aging logic.
     ///
-    fn write(&self, sbn: u32, data: &[u8], now: SystemTime);
+    /// Returns `Ok(())` if the destination is opened successfully, or an error if it fails.
+    /// In case of an error, the object will move to error state
+    fn write(&self, sbn: u32, data: &[u8], now: SystemTime) -> Result<()>;
     /// Called when all the data has been written
     fn complete(&self, now: SystemTime);
     /// Called when an error occurred during the reception of this object
