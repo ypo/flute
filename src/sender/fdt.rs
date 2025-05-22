@@ -269,7 +269,11 @@ impl Fdt {
             .duration_since(self.last_publish.unwrap())
             .unwrap_or_default();
 
-        self.duration < duration + std::time::Duration::from_secs(5)
+        if self.duration > std::time::Duration::from_secs(30) {
+            return self.duration + std::time::Duration::from_secs(5) < duration;
+        }
+
+        self.duration <= duration
     }
 
     pub fn get_next_fdt_transfer(&mut self, now: SystemTime) -> Option<Arc<FileDesc>> {
