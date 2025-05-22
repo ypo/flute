@@ -141,15 +141,24 @@ impl ObjectWriter for ObjectWriterFS {
         Ok(())
     }
 
-    fn write(&self, _sbn: u32, data: &[u8], _now: SystemTime) {
+    fn write(&self, _sbn: u32, data: &[u8], _now: SystemTime) -> Result<()> {
         let mut inner = self.inner.borrow_mut();
         if inner.writer.is_none() {
-            return;
+            return Ok(());
         }
-        match inner.writer.as_mut().unwrap().write_all(data) {
-            Ok(_) => {}
-            Err(e) => log::error!("Fail to write file {:?}", e),
-        };
+        inner
+            .writer
+            .as_mut()
+            .unwrap()
+            .write_all(data)
+            .map_err(|e| {
+                log::error!("Fail to write data to file {:?} {:?}", inner.destination, e);
+                FluteError::new(format!(
+                    "Fail to write data to file {:?} {:?}",
+                    inner.destination, e
+                ))
+            })?;
+        Ok(())
     }
 
     fn complete(&self, _now: SystemTime) {

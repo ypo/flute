@@ -88,7 +88,7 @@ impl BlockWriter {
         };
 
         if self.cenc == lct::Cenc::Null {
-            self.write_pkt_cenc_null(data, writer, now);
+            self.write_pkt_cenc_null(data, writer, now)?;
         } else {
             self.decode_write_pkt(data, writer, now)?;
         }
@@ -124,11 +124,11 @@ impl BlockWriter {
         self.buffer.resize(data.len(), 0);
     }
 
-    fn write_pkt_cenc_null(&mut self, data: &[u8], writer: &dyn ObjectWriter, now: SystemTime) {
+    fn write_pkt_cenc_null(&mut self, data: &[u8], writer: &dyn ObjectWriter, now: SystemTime) -> Result<()> {
         if let Some(ctx) = self.md5_context.as_mut() {
             ctx.consume(data)
         }
-        writer.write(self.sbn, data, now);
+        writer.write(self.sbn, data, now)
     }
 
     fn decode_write_pkt(
@@ -177,7 +177,7 @@ impl BlockWriter {
                 ctx.consume(&self.buffer[..size])
             }
 
-            writer.write(self.sbn, &self.buffer[..size], now);
+            writer.write(self.sbn, &self.buffer[..size], now)?;
 
             if let Some(content_length_left) = self.content_length_left.as_mut() {
                 *content_length_left = content_length_left.saturating_sub(size);
