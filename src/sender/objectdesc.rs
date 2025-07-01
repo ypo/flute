@@ -17,7 +17,7 @@ use std::time::SystemTime;
 ///
 /// The `CacheControl` enum represents different directives used for controlling caching behavior.
 /// It is commonly used in web development to indicate caching preferences for specific files or resources.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum CacheControl {
     /// Specifies that the receiver should not cache the specific file or resource.
     NoCache,
@@ -29,6 +29,9 @@ pub enum CacheControl {
     /// Specifies the expected expiry time for the file or resource, allowing the server
     /// to indicate when the cached version should no longer be considered valid.
     Expires(std::time::Duration),
+
+    /// Specifies the expected expiry time for the file or resource, using a specific timestamp.
+    ExpiresAt(SystemTime),
 }
 
 /// Concert CacheControl to fdtinstance::CacheControl
@@ -43,6 +46,12 @@ pub fn create_fdt_cache_control(cc: &CacheControl, now: SystemTime) -> fdtinstan
         CacheControl::Expires(duration) => {
             let expires = now + *duration;
             let ntp = tools::system_time_to_ntp(expires).unwrap_or_default();
+            fdtinstance::CacheControl {
+                value: fdtinstance::CacheControlChoice::Expires((ntp >> 32) as u32),
+            }
+        }
+        CacheControl::ExpiresAt(timestamp) => {
+            let ntp = tools::system_time_to_ntp(*timestamp).unwrap_or_default();
             fdtinstance::CacheControl {
                 value: fdtinstance::CacheControlChoice::Expires((ntp >> 32) as u32),
             }
