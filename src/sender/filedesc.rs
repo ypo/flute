@@ -191,6 +191,14 @@ impl FileDesc {
         info.total_nb_transfer
     }
 
+    pub fn can_transfer_be_stopped(&self) -> bool {
+        if self.object.allow_immediate_stop_before_first_transfer == Some(true) {
+            return true;
+        }
+
+        self.total_nb_transfer() > 0
+    }
+
     pub fn transfer_started(&self, now: SystemTime) {
         let mut info = self.transfer_info.write().unwrap();
         info.init(&self.object, &self.oti, now);

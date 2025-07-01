@@ -64,8 +64,9 @@ impl SenderSession {
 
             debug_assert!(self.file.is_some());
             let file = self.file.as_ref().unwrap();
-            let must_stop_transfer =
-                !self.transfer_fdt_only && file.total_nb_transfer() > 0 && !fdt.is_added(file.toi);
+            let must_stop_transfer = !self.transfer_fdt_only
+                && file.can_transfer_be_stopped()
+                && !fdt.is_added(file.toi);
 
             if must_stop_transfer {
                 log::debug!("File has already been transferred and is removed from the FDT, stop the transfer {}", file.object.content_location.to_string());

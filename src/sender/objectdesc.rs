@@ -206,6 +206,9 @@ pub struct ObjectDesc {
     pub optel_propagator: Option<HashMap<String, String>>,
     /// Optional ETag or entity-tag as defined in RFC 2616
     pub e_tag: Option<String>,
+    /// If `true`, the object can be stopped immediately before the first transfer
+    /// if `false` (default) then transfer is stopped only after being transferred at least once
+    pub allow_immediate_stop_before_first_transfer: Option<bool>,
 }
 
 impl ObjectDesc {
@@ -328,6 +331,7 @@ impl ObjectDesc {
             toi: None,
             optel_propagator: None,
             e_tag: None,
+            allow_immediate_stop_before_first_transfer: None,
         }))
     }
 
@@ -408,6 +412,7 @@ impl ObjectDesc {
             toi: None,
             optel_propagator: None,
             e_tag: None,
+            allow_immediate_stop_before_first_transfer: None,
         }))
     }
 }
