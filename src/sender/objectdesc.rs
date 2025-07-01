@@ -17,7 +17,7 @@ use std::time::SystemTime;
 ///
 /// The `CacheControl` enum represents different directives used for controlling caching behavior.
 /// It is commonly used in web development to indicate caching preferences for specific files or resources.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum CacheControl {
     /// Specifies that the receiver should not cache the specific file or resource.
     NoCache,
@@ -29,6 +29,9 @@ pub enum CacheControl {
     /// Specifies the expected expiry time for the file or resource, allowing the server
     /// to indicate when the cached version should no longer be considered valid.
     Expires(std::time::Duration),
+
+    /// Specifies the expected expiry time for the file or resource, using a specific timestamp.
+    ExpiresAt(SystemTime),
 }
 
 /// Concert CacheControl to fdtinstance::CacheControl
@@ -43,6 +46,12 @@ pub fn create_fdt_cache_control(cc: &CacheControl, now: SystemTime) -> fdtinstan
         CacheControl::Expires(duration) => {
             let expires = now + *duration;
             let ntp = tools::system_time_to_ntp(expires).unwrap_or_default();
+            fdtinstance::CacheControl {
+                value: fdtinstance::CacheControlChoice::Expires((ntp >> 32) as u32),
+            }
+        }
+        CacheControl::ExpiresAt(timestamp) => {
+            let ntp = tools::system_time_to_ntp(*timestamp).unwrap_or_default();
             fdtinstance::CacheControl {
                 value: fdtinstance::CacheControlChoice::Expires((ntp >> 32) as u32),
             }
@@ -197,6 +206,9 @@ pub struct ObjectDesc {
     pub optel_propagator: Option<HashMap<String, String>>,
     /// Optional ETag or entity-tag as defined in RFC 2616
     pub e_tag: Option<String>,
+    /// If `true`, the object can be stopped immediately before the first transfer
+    /// if `false` (default) then transfer is stopped only after being transferred at least once
+    pub allow_immediate_stop_before_first_transfer: Option<bool>,
 }
 
 impl ObjectDesc {
@@ -319,6 +331,7 @@ impl ObjectDesc {
             toi: None,
             optel_propagator: None,
             e_tag: None,
+            allow_immediate_stop_before_first_transfer: None,
         }))
     }
 
@@ -399,6 +412,7 @@ impl ObjectDesc {
             toi: None,
             optel_propagator: None,
             e_tag: None,
+            allow_immediate_stop_before_first_transfer: None,
         }))
     }
 }
