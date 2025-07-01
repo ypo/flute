@@ -1,6 +1,6 @@
 [package]
 name = "flute"
-version = "1.9.1"
+version = "1.9.2"
 authors = ["Yannick Poirier <contact@yannickpoirier.fr>"]
 edition = "2021"
 license = "MIT"
