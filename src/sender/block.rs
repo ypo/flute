@@ -91,11 +91,7 @@ impl Block {
             .chunks(oti.encoding_symbol_length as usize)
             .enumerate()
             .map(|(index, chunk)| {
-                Box::new(DataFecShard::new(
-                    chunk,
-                    index as u32,
-                    fec::ShardType::SourceSymbol,
-                )) as Box<dyn FecShard>
+                Box::new(DataFecShard::new(chunk, index as u32)) as Box<dyn FecShard>
             })
             .collect()
     }

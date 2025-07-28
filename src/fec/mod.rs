@@ -1,27 +1,19 @@
 pub mod nocode;
+pub mod raptor;
 pub mod raptorq;
 pub mod rscodec;
-pub mod raptor;
 
 use crate::tools::error::Result;
-
-#[derive(Debug, Copy, Clone)]
-pub enum ShardType {
-    SourceSymbol,
-    RepairSymbol,
-}
 
 pub trait FecShard: Send + Sync + std::fmt::Debug {
     fn data(&self) -> &[u8];
     fn esi(&self) -> u32;
-    fn _get_type(&self) -> ShardType;
 }
 
 #[derive(Debug)]
 pub struct DataFecShard {
     shard: Vec<u8>,
     index: u32,
-    shard_type: ShardType,
 }
 
 impl FecShard for DataFecShard {
@@ -32,18 +24,13 @@ impl FecShard for DataFecShard {
     fn esi(&self) -> u32 {
         self.index
     }
-
-    fn _get_type(&self) -> ShardType {
-        self.shard_type
-    }
 }
 
 impl DataFecShard {
-    pub fn new(shard: &[u8], index: u32, shard_type: ShardType) -> Self {
+    pub fn new(shard: &[u8], index: u32) -> Self {
         DataFecShard {
             shard: shard.to_vec(),
             index,
-            shard_type,
         }
     }
 }

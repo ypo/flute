@@ -1,4 +1,4 @@
-use super::{DataFecShard, FecDecoder, FecEncoder, FecShard, ShardType};
+use super::{DataFecShard, FecDecoder, FecEncoder, FecShard};
 use crate::error::{FluteError, Result};
 
 pub struct RaptorEncoder {
@@ -27,10 +27,6 @@ impl FecEncoder for RaptorEncoder {
             let shard = DataFecShard {
                 shard: encoder.fountain(esi as u32),
                 index: esi as u32,
-                shard_type: match esi >= nb_source_symbols {
-                    true => ShardType::RepairSymbol,
-                    false => ShardType::SourceSymbol,
-                },
             };
             log::info!("Encode shard {}", shard.shard.len());
             output.push(Box::new(shard));

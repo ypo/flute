@@ -1,7 +1,7 @@
 use crate::common::oti::RaptorQSchemeSpecific;
 use crate::error::{FluteError, Result};
 
-use super::{FecDecoder, FecEncoder, FecShard, ShardType};
+use super::{FecDecoder, FecEncoder, FecShard};
 
 pub struct RaptorQEncoder {
     config: raptorq::ObjectTransmissionInformation,
@@ -11,7 +11,6 @@ pub struct RaptorQEncoder {
 #[derive(Debug)]
 struct RaptorFecShard {
     pkt: raptorq::EncodingPacket,
-    shard_type: ShardType,
 }
 
 impl FecShard for RaptorFecShard {
@@ -20,9 +19,6 @@ impl FecShard for RaptorFecShard {
     }
     fn esi(&self) -> u32 {
         self.pkt.payload_id().encoding_symbol_id()
-    }
-    fn _get_type(&self) -> ShardType {
-        self.shard_type
     }
 }
 
@@ -66,17 +62,11 @@ impl FecEncoder for RaptorQEncoder {
         let mut output: Vec<Box<dyn FecShard>> = Vec::new();
 
         for pkt in src_pkt {
-            output.push(Box::new(RaptorFecShard {
-                pkt,
-                shard_type: ShardType::SourceSymbol,
-            }));
+            output.push(Box::new(RaptorFecShard { pkt }));
         }
 
         for pkt in repair_pkt {
-            output.push(Box::new(RaptorFecShard {
-                pkt,
-                shard_type: ShardType::RepairSymbol,
-            }));
+            output.push(Box::new(RaptorFecShard { pkt }));
         }
 
         Ok(output)
