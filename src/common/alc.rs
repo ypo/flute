@@ -165,7 +165,7 @@ pub fn new_alc_pkt(
 }
 
 /// Parse a buffer to AlcPkt
-pub fn parse_alc_pkt(data: &[u8]) -> Result<AlcPkt> {
+pub fn parse_alc_pkt<'a>(data: &'a [u8]) -> Result<AlcPkt<'a>> {
     let lct_header = lct::parse_lct_header(data)?;
 
     let fec: oti::FECEncodingID = lct_header
