@@ -69,7 +69,7 @@ impl Block {
         self.read_index as usize == self.shards.len()
     }
 
-    pub fn read(&mut self) -> Option<(EncodingSymbol, bool)> {
+    pub fn read<'a>(&'a mut self) -> Option<(EncodingSymbol<'a>, bool)> {
         if self.is_empty() {
             return None;
         }
