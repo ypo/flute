@@ -1,6 +1,6 @@
 use crate::tools::error::{FluteError, Result};
 
-use super::{DataFecShard, FecDecoder, FecEncoder, FecShard, ShardType};
+use super::{DataFecShard, FecDecoder, FecEncoder, FecShard};
 
 #[derive(Debug)]
 pub struct RSCodecParam {
@@ -148,10 +148,6 @@ impl FecEncoder for RSGalois8Codec {
                 Box::new(DataFecShard {
                     shard,
                     index: index as u32,
-                    shard_type: match index < self.params.nb_source_symbols {
-                        true => ShardType::SourceSymbol,
-                        _ => ShardType::RepairSymbol,
-                    },
                 }) as Box<dyn FecShard>
             })
             .collect();

@@ -69,7 +69,7 @@ impl Block {
         self.read_index as usize == self.shards.len()
     }
 
-    pub fn read(&mut self) -> Option<(EncodingSymbol, bool)> {
+    pub fn read<'a>(&'a mut self) -> Option<(EncodingSymbol<'a>, bool)> {
         if self.is_empty() {
             return None;
         }
@@ -91,11 +91,7 @@ impl Block {
             .chunks(oti.encoding_symbol_length as usize)
             .enumerate()
             .map(|(index, chunk)| {
-                Box::new(DataFecShard::new(
-                    chunk,
-                    index as u32,
-                    fec::ShardType::SourceSymbol,
-                )) as Box<dyn FecShard>
+                Box::new(DataFecShard::new(chunk, index as u32)) as Box<dyn FecShard>
             })
             .collect()
     }
