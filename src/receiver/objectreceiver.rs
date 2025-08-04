@@ -3,7 +3,9 @@ use super::blockwriter::BlockWriter;
 use super::writer::ObjectWriterBuilder;
 use crate::common::udpendpoint::UDPEndpoint;
 use crate::common::{alc, fdtinstance::FdtInstance, lct, oti, partition};
-use crate::receiver::writer::{ObjectMetadata, ObjectWriter, ObjectWriterBuilderResult};
+use crate::receiver::writer::{
+    ObjectCacheControl, ObjectMetadata, ObjectWriter, ObjectWriterBuilderResult,
+};
 use crate::tools::error::{FluteError, Result};
 use std::collections::VecDeque;
 use std::rc::Rc;
@@ -62,7 +64,6 @@ pub struct ObjectReceiver {
     block_writer: Option<BlockWriter>,
     pub fdt_instance_id: Option<u32>,
     last_activity: Instant,
-    pub cache_expiration_date: Option<SystemTime>,
     pub content_location: Option<String>,
     nb_allocated_blocks: usize,
     total_allocated_blocks_size: usize,
@@ -70,7 +71,7 @@ pub struct ObjectReceiver {
     logger: Option<ObjectReceiverLogger>,
     pub content_length: Option<usize>,
     content_type: Option<String>,
-    cache_duration: Option<Duration>,
+    pub cache_control: Option<ObjectCacheControl>,
     groups: Vec<String>,
     last_timestamp: SystemTime,
     pub e_tag: Option<String>,
@@ -111,7 +112,6 @@ impl ObjectReceiver {
             toi: *toi,
             endpoint: endpoint.clone(),
             last_activity: Instant::now(),
-            cache_expiration_date: None,
             content_location: match *toi == lct::TOI_FDT {
                 true => Some("flute://fdt".to_string()),
                 false => None,
@@ -122,7 +122,7 @@ impl ObjectReceiver {
             logger: None,
             content_length: None,
             content_type: None,
-            cache_duration: None,
+            cache_control: None,
             groups: Vec::new(),
             last_timestamp: now,
             e_tag: None,
@@ -294,7 +294,6 @@ impl ObjectReceiver {
         fdt_instance_id: u32,
         fdt: &FdtInstance,
         now: std::time::SystemTime,
-        server_time: std::time::SystemTime,
     ) -> bool {
         debug_assert!(self.toi != lct::TOI_FDT);
         self.last_timestamp = now;
@@ -359,12 +358,7 @@ impl ObjectReceiver {
         self.content_md5 = file.content_md5.clone();
         self.fdt_instance_id = Some(fdt_instance_id);
 
-        self.cache_duration = file.get_cache_duration(fdt.get_expiration_date(), server_time);
-        self.cache_expiration_date = self.cache_duration.map(|v| {
-            now.checked_add(v)
-                .unwrap_or(now + std::time::Duration::from_secs(3600 * 24 * 360 * 10))
-        });
-
+        self.cache_control = Some(file.get_object_cache_control(fdt.get_expiration_date()));
         self.content_length = file.content_length.map(|c| c as usize);
         self.content_type = file.content_type.clone();
         self.groups = groups;
@@ -387,7 +381,7 @@ impl ObjectReceiver {
                 .unwrap_or("file:///".to_string()),
             content_length: self.content_length.clone(),
             content_type: self.content_type.clone(),
-            cache_duration: self.cache_duration.clone(),
+            cache_control: self.cache_control.unwrap_or(ObjectCacheControl::NoCache),
             groups: match self.groups.is_empty() {
                 true => None,
                 false => Some(self.groups.clone()),

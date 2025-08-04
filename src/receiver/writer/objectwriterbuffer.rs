@@ -81,7 +81,7 @@ impl ObjectWriterBuilder for ObjectWriterBufferBuilder {
         ObjectWriterBuilderResult::StoreObject(obj_wrapper)
     }
 
-    fn set_cache_duration(
+    fn update_cache_control(
         &self,
         _endpoint: &UDPEndpoint,
         _tsi: &u64,
