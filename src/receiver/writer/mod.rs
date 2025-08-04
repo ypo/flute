@@ -21,6 +21,53 @@ use crate::core::Oti;
 use crate::tools::error::Result;
 
 ///
+/// Cache-Duration for an object.
+///
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ObjectCacheControl {
+    /// No cache duration, the object should not be cached
+    NoCache,
+    /// Should be cached permanently
+    MaxStale,
+    /// Cache duration with a specific time
+    ExpiresAt(SystemTime),
+    /// When hint when there is not cache-control directive for this object
+    ExpiresAtHint(SystemTime),
+}
+
+impl ObjectCacheControl {
+    /// Hint if the cache control should be updated
+    pub fn should_update(&self, cache_control: ObjectCacheControl) -> bool {
+        match self {
+            ObjectCacheControl::NoCache => cache_control != ObjectCacheControl::NoCache,
+            ObjectCacheControl::MaxStale => cache_control != ObjectCacheControl::MaxStale,
+            ObjectCacheControl::ExpiresAt(expires_at) => {
+                if let ObjectCacheControl::ExpiresAt(d) = cache_control {
+                    let diff = match d < *expires_at {
+                        true => expires_at.duration_since(d).unwrap_or_default(),
+                        false => d.duration_since(*expires_at).unwrap_or_default(),
+                    };
+                    return diff > std::time::Duration::from_secs(1);
+                }
+
+                true
+            }
+            ObjectCacheControl::ExpiresAtHint(expires_at) => {
+                if let ObjectCacheControl::ExpiresAtHint(d) = cache_control {
+                    let diff = match d < *expires_at {
+                        true => expires_at.duration_since(d).unwrap_or_default(),
+                        false => d.duration_since(*expires_at).unwrap_or_default(),
+                    };
+                    return diff > std::time::Duration::from_secs(1);
+                }
+
+                true
+            }
+        }
+    }
+}
+
+///
 /// Struct representing metadata for an object.
 ///
 #[derive(Debug, Clone)]
@@ -35,8 +82,8 @@ pub struct ObjectMetadata {
     /// This field describes the format of the object's content,
     /// and can be used to determine how to handle or process the object.
     pub content_type: Option<String>,
-    /// Object cache duration hint
-    pub cache_duration: Option<Duration>,
+    /// Object Cache Control
+    pub cache_control: ObjectCacheControl,
     /// List of groups
     pub groups: Option<Vec<String>>,
     /// Object MD5
@@ -77,8 +124,8 @@ pub trait ObjectWriterBuilder {
         meta: &ObjectMetadata,
         now: std::time::SystemTime,
     ) -> ObjectWriterBuilderResult;
-    /// Update cache duration of an object
-    fn set_cache_duration(
+    /// Triggered when the cache control of an object is updated
+    fn update_cache_control(
         &self,
         endpoint: &UDPEndpoint,
         tsi: &u64,
@@ -105,7 +152,7 @@ pub trait ObjectWriterBuilder {
 ///
 pub trait ObjectWriter {
     /// Open the destination
-    /// 
+    ///
     /// Returns `Ok(())` if the destination is opened successfully, or an error if it fails.
     fn open(&self, now: SystemTime) -> Result<()>;
     /// Writes a data block associated with a specific Source Block Number (SBN).

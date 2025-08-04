@@ -209,7 +209,7 @@ impl ObjectWriterBuilder for FdtWriterBuilder {
         }))
     }
 
-    fn set_cache_duration(
+    fn update_cache_control(
         &self,
         _endpoint: &UDPEndpoint,
         _tsi: &u64,

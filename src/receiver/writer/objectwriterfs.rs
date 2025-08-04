@@ -48,7 +48,7 @@ impl ObjectWriterBuilder for ObjectWriterFSBuilder {
         }))
     }
 
-    fn set_cache_duration(
+    fn update_cache_control(
         &self,
         _endpoint: &UDPEndpoint,
         _tsi: &u64,

@@ -1,8 +1,11 @@
 use std::time::SystemTime;
 
-use crate::tools::{
-    self,
-    error::{FluteError, Result},
+use crate::{
+    receiver::writer::ObjectCacheControl,
+    tools::{
+        self,
+        error::{FluteError, Result},
+    },
 };
 
 use quick_xml::de::from_reader;
@@ -530,32 +533,35 @@ impl FdtInstance {
 }
 
 impl File {
-    pub fn get_cache_duration(
+    pub fn get_object_cache_control(
         &self,
         fdt_expiration_time: Option<SystemTime>,
-        server_time: SystemTime,
-    ) -> Option<std::time::Duration> {
+    ) -> ObjectCacheControl {
         if let Some(cc) = &self.cache_control {
-            return match cc.value {
-                CacheControlChoice::NoCache(_) => Some(std::time::Duration::ZERO),
-                CacheControlChoice::MaxStale(_) => {
-                    Some(std::time::Duration::from_secs(10 * 3600 * 24 * 360))
-                }
+            let ret = match cc.value {
+                CacheControlChoice::NoCache(_) => Some(ObjectCacheControl::NoCache),
+                CacheControlChoice::MaxStale(_) => Some(ObjectCacheControl::MaxStale),
                 CacheControlChoice::Expires(time) => {
-                    let expiration_time = match tools::ntp_to_system_time((time as u64) << 32) {
-                        Ok(res) => res,
-                        _ => return None,
-                    };
-                    Some(
-                        expiration_time
-                            .duration_since(server_time)
-                            .unwrap_or_default(),
-                    )
+                    match tools::ntp_to_system_time((time as u64) << 32) {
+                        Ok(res) => Some(ObjectCacheControl::ExpiresAt(res)),
+                        Err(_) => {
+                            log::warn!("Invalid NTP timestamp in Cache-Control Expires");
+                            None
+                        }
+                    }
                 }
             };
+
+            if let Some(ret) = ret {
+                return ret;
+            }
         }
 
-        fdt_expiration_time.map(|v| v.duration_since(server_time).unwrap_or_default())
+        // If no Cache-Control is set, we use the FDT expiration time
+        let guess_cache_duration: Option<ObjectCacheControl> =
+            fdt_expiration_time.map(|v| ObjectCacheControl::ExpiresAtHint(v));
+
+        guess_cache_duration.unwrap_or(ObjectCacheControl::NoCache)
     }
 
     pub fn get_transfer_length(&self) -> u64 {

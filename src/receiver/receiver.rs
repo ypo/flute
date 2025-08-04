@@ -5,6 +5,7 @@ use super::objectreceiver::ObjectReceiver;
 use super::writer::{ObjectMetadata, ObjectWriterBuilder};
 use crate::common::udpendpoint::UDPEndpoint;
 use crate::common::{alc, lct};
+use crate::receiver::writer::ObjectCacheControl;
 use crate::tools::error::FluteError;
 use crate::tools::error::Result;
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
@@ -52,7 +53,6 @@ impl Default for Config {
 
 #[derive(Debug, Clone)]
 pub struct ObjectCompletedMeta {
-    expiration_date: SystemTime,
     metadata: ObjectMetadata,
 }
 
@@ -409,19 +409,18 @@ impl Receiver {
     fn attach_latest_fdt_to_objects(&mut self, now: std::time::SystemTime) -> Option<()> {
         let fdt = self.fdt_current.front_mut()?;
         let fdt_id = fdt.fdt_id;
-        let server_time = fdt.get_server_time(now);
         let fdt_instance = fdt.fdt_instance()?;
         log::debug!("TSI={} Attach FDT id {}", self.tsi, fdt_id);
         let mut check_state = Vec::new();
         for obj in &mut self.objects {
-            let success = obj.1.attach_fdt(fdt_id, fdt_instance, now, server_time);
+            let success = obj.1.attach_fdt(fdt_id, fdt_instance, now);
             if success {
                 check_state.push(*obj.0);
             }
         }
 
         for toi in check_state {
-            self.check_object_state(toi, now);
+            self.check_object_state(toi);
         }
 
         Some(())
@@ -432,10 +431,9 @@ impl Receiver {
         now: std::time::SystemTime,
     ) -> Option<()> {
         let fdt = self.fdt_current.front_mut()?;
-        let server_time = fdt.get_server_time(now);
         let fdt_instance = fdt.fdt_instance()?;
         let files = fdt_instance.file.as_ref()?;
-        let expiration_date = fdt_instance.get_expiration_date();
+        let fdt_expiration_date = fdt_instance.get_expiration_date();
 
         if let Some(true) = fdt_instance.full_fdt {
             let files_toi: std::collections::HashMap<u128, Option<&String>> = files
@@ -456,14 +454,14 @@ impl Receiver {
             if !remove_candidates.is_empty() {
                 let content_locations: std::collections::HashSet<&str> =
                     files.iter().map(|f| f.content_location.as_str()).collect();
-                let duration = std::time::Duration::from_secs(4);
+                let cache_control =
+                    ObjectCacheControl::ExpiresAt(now + std::time::Duration::from_secs(4));
                 for (toi, object_completed) in &mut remove_candidates {
                     if !content_locations
                         .contains(object_completed.metadata.content_location.as_str())
-                        && object_completed.expiration_date > now + duration
                     {
-                        object_completed.metadata.cache_duration = Some(duration);
-                        self.writer.set_cache_duration(
+                        object_completed.metadata.cache_control = cache_control;
+                        self.writer.update_cache_control(
                             &self.endpoint,
                             &self.tsi,
                             toi,
@@ -479,30 +477,17 @@ impl Receiver {
 
         for file in files {
             let toi: u128 = file.toi.parse().unwrap_or_default();
-            let cache_duration = file.get_cache_duration(expiration_date, server_time);
+            let cache_control = file.get_object_cache_control(fdt_expiration_date);
             if let Some(obj) = self.objects_completed.get_mut(&toi) {
-                if let Some(cache_duration) = cache_duration {
-                    let new_expiration_date = now
-                        .checked_add(cache_duration)
-                        .unwrap_or(now + std::time::Duration::from_secs(3600 * 24 * 360 * 10));
-
-                    let diff = match new_expiration_date < obj.expiration_date {
-                        true => obj.expiration_date.duration_since(new_expiration_date),
-                        false => new_expiration_date.duration_since(obj.expiration_date),
-                    }
-                    .unwrap();
-
-                    if diff.as_secs() > 1 {
-                        obj.expiration_date = new_expiration_date;
-                        obj.metadata.cache_duration = Some(cache_duration);
-                        self.writer.set_cache_duration(
-                            &self.endpoint,
-                            &self.tsi,
-                            &toi,
-                            &obj.metadata,
-                            now,
-                        );
-                    }
+                if obj.metadata.cache_control.should_update(cache_control) {
+                    obj.metadata.cache_control = cache_control;
+                    self.writer.update_cache_control(
+                        &self.endpoint,
+                        &self.tsi,
+                        &toi,
+                        &obj.metadata,
+                        now,
+                    );
                 }
             }
         }
@@ -545,12 +530,12 @@ impl Receiver {
         };
 
         obj.push(pkt, now);
-        self.check_object_state(pkt.lct.toi, now);
+        self.check_object_state(pkt.lct.toi);
 
         Ok(())
     }
 
-    fn check_object_state(&mut self, toi: u128, now: SystemTime) {
+    fn check_object_state(&mut self, toi: u128) {
         let obj = self.objects.get_mut(&toi);
         if obj.is_none() {
             return;
@@ -571,22 +556,17 @@ impl Receiver {
                         obj.toi
                     );
 
-                    if obj.cache_expiration_date.is_some() {
-                        debug_assert!(obj.content_location.is_some());
-                        log::debug!(
-                            "Insert {:?} for a duration of {:?}",
-                            obj.content_location,
-                            obj.cache_expiration_date.unwrap().duration_since(now)
-                        );
+                    if obj.cache_control != Some(ObjectCacheControl::NoCache) {
                         self.objects_completed.insert(
                             obj.toi,
                             ObjectCompletedMeta {
-                                expiration_date: obj.cache_expiration_date.unwrap(),
                                 metadata: obj.create_meta(),
                             },
                         );
                     } else {
-                        log::error!("No cache expiration date for {:?}", obj.content_location);
+                        if obj.cache_control.is_none() {
+                            log::error!("No cache expiration date for {:?}", obj.content_location);
+                        }
                     }
                 }
                 objectreceiver::State::Interrupted => {
@@ -672,11 +652,10 @@ impl Receiver {
         let mut is_attached = false;
         for (fdt_index, fdt) in (&mut self.fdt_current.iter_mut()).enumerate() {
             let fdt_id = fdt.fdt_id;
-            let server_time = fdt.get_server_time(now);
             fdt.update_expired_state(now);
             if fdt.state() == fdtreceiver::FDTState::Complete {
                 if let Some(fdt_instance) = fdt.fdt_instance() {
-                    let success = obj.attach_fdt(fdt_id, fdt_instance, now, server_time);
+                    let success = obj.attach_fdt(fdt_id, fdt_instance, now);
                     if success {
                         is_attached = true;
                         if fdt_index != 0 {
@@ -714,13 +693,15 @@ impl Drop for Receiver {
         if let Some(fdt) = self.fdt_current.front_mut() {
             if let Some(instance) = fdt.fdt_instance() {
                 if instance.full_fdt == Some(true) {
+                    let now = self.last_timestamp.unwrap_or_else(|| SystemTime::now());
                     for obj in &mut self.objects_completed {
                         log::info!(
                             "Remove from cache {}",
                             &obj.1.metadata.content_location.to_string()
                         );
-                        obj.1.metadata.cache_duration = Some(Duration::from_secs(0));
-                        self.writer.set_cache_duration(
+
+                        obj.1.metadata.cache_control = ObjectCacheControl::ExpiresAt(now);
+                        self.writer.update_cache_control(
                             &self.endpoint,
                             &self.tsi,
                             obj.0,
