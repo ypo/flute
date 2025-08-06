@@ -160,6 +160,16 @@ impl ObjectDataSource {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+/// Carousel Repeat Mode
+pub enum CarouselRepeatMode {
+    /// Waits for a specified duration at the end of transfer before starting the next one.
+    DelayBetweenTransfers(std::time::Duration),
+
+    /// Ensures each transfer starts at a fixed interval. interval = (transfer + delay).
+    IntervalBetweenStartTimes(std::time::Duration),
+}
+
 ///
 /// Object (file) that can be send over FLUTE
 ///
@@ -191,10 +201,14 @@ pub struct ObjectDesc {
     /// Repeat the transfer the same object multiple times
     pub max_transfer_count: u32,
     /// Specifies the desired duration for transferring the object to the receiver.
+    /// When enabled, the transfer bitrate of this object is adapted to reach the transfer duration.
     pub target_acquisition: Option<TargetAcquisition>,
-    /// If defined, object is transmitted in a carousel every `carousel_delay_ns`
-    pub carousel_delay: Option<std::time::Duration>,
-    /// Optional start transfer of the object at a specific time
+    /// Controls how an object is repeatedly transferred in a carousel loop.
+    /// When set, the object remains in the carousel and is retransmitted at regular intervals
+    /// until it is explicitly removed.
+    pub carousel_mode: Option<CarouselRepeatMode>,
+    /// Optional: specifies an absolute system time at which the first transfer of the object should start.
+    /// If not set, the transfer starts immediately.
     pub transfer_start_time: Option<SystemTime>,
     /// Define object cache control
     pub cache_control: Option<CacheControl>,
@@ -230,7 +244,7 @@ impl ObjectDesc {
         content_type: &str,
         cache_in_ram: bool,
         max_transfer_count: u32,
-        carousel_delay: Option<std::time::Duration>,
+        carousel_mode: Option<CarouselRepeatMode>,
         target_acquisition: Option<TargetAcquisition>,
         cache_control: Option<CacheControl>,
         groups: Option<Vec<String>>,
@@ -258,7 +272,7 @@ impl ObjectDesc {
                 content_type.to_string(),
                 content_location,
                 max_transfer_count,
-                carousel_delay,
+                carousel_mode,
                 target_acquisition,
                 cache_control,
                 groups,
@@ -279,7 +293,7 @@ impl ObjectDesc {
                 content_type,
                 &content_location,
                 max_transfer_count,
-                carousel_delay,
+                carousel_mode,
                 target_acquisition,
                 cache_control,
                 groups,
@@ -296,7 +310,7 @@ impl ObjectDesc {
         content_type: &str,
         content_location: &url::Url,
         max_transfer_count: u32,
-        carousel_delay: Option<std::time::Duration>,
+        carousel_mode: Option<CarouselRepeatMode>,
         target_acquisition: Option<TargetAcquisition>,
         cache_control: Option<CacheControl>,
         groups: Option<Vec<String>>,
@@ -323,7 +337,7 @@ impl ObjectDesc {
             md5,
             oti,
             max_transfer_count,
-            carousel_delay,
+            carousel_mode,
             target_acquisition,
             transfer_start_time: None,
             cache_control,
@@ -341,7 +355,7 @@ impl ObjectDesc {
         content_type: &str,
         content_location: &url::Url,
         max_transfer_count: u32,
-        carousel_delay: Option<std::time::Duration>,
+        carousel_mode: Option<CarouselRepeatMode>,
         target_acquisition: Option<TargetAcquisition>,
         cache_control: Option<CacheControl>,
         groups: Option<Vec<String>>,
@@ -355,7 +369,7 @@ impl ObjectDesc {
             content_type.to_string(),
             content_location.clone(),
             max_transfer_count,
-            carousel_delay,
+            carousel_mode,
             target_acquisition,
             cache_control,
             groups,
@@ -371,7 +385,7 @@ impl ObjectDesc {
         content_type: String,
         content_location: url::Url,
         max_transfer_count: u32,
-        carousel_delay: Option<std::time::Duration>,
+        carousel_mode: Option<CarouselRepeatMode>,
         target_acquisition: Option<TargetAcquisition>,
         cache_control: Option<CacheControl>,
         groups: Option<Vec<String>>,
@@ -404,7 +418,7 @@ impl ObjectDesc {
             md5,
             oti,
             max_transfer_count,
-            carousel_delay,
+            carousel_mode,
             target_acquisition,
             transfer_start_time: None,
             cache_control,

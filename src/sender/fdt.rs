@@ -4,6 +4,7 @@ use super::sender::FDTPublishMode;
 use super::toiallocator::{Toi, ToiAllocator};
 use super::{objectdesc, ObjectDesc};
 use crate::common::{fdtinstance::FdtInstance, lct, oti};
+use crate::sender::objectdesc::CarouselRepeatMode;
 use crate::sender::observer;
 use crate::sender::TOIMaxLength;
 use crate::tools;
@@ -25,7 +26,7 @@ pub struct Fdt {
     complete: Option<bool>,
     cenc: lct::Cenc,
     duration: std::time::Duration,
-    carousel: std::time::Duration,
+    carousel_mode: CarouselRepeatMode,
     inband_sct: bool,
     last_publish: Option<SystemTime>,
     observers: ObserverList,
@@ -41,7 +42,7 @@ impl Fdt {
         default_oti: &oti::Oti,
         cenc: lct::Cenc,
         duration: std::time::Duration,
-        carousel: std::time::Duration,
+        carousel_mode: CarouselRepeatMode,
         inband_sct: bool,
         observers: ObserverList,
         toi_max_length: TOIMaxLength,
@@ -60,7 +61,7 @@ impl Fdt {
             complete: None,
             cenc,
             duration,
-            carousel,
+            carousel_mode,
             inband_sct,
             last_publish: None,
             observers,
@@ -227,7 +228,7 @@ impl Fdt {
             "text/xml",
             &url::Url::parse("file:///").unwrap(),
             1,
-            Some(self.carousel),
+            Some(self.carousel_mode),
             None,
             None,
             self.groups.clone(),
@@ -439,7 +440,9 @@ mod tests {
             &oti,
             lct::Cenc::Null,
             std::time::Duration::from_secs(3600),
-            std::time::Duration::from_secs(1),
+            crate::sender::objectdesc::CarouselRepeatMode::DelayBetweenTransfers(
+                std::time::Duration::from_secs(1),
+            ),
             true,
             ObserverList::new(),
             crate::sender::TOIMaxLength::ToiMax112,

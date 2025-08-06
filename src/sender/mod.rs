@@ -23,6 +23,7 @@ pub use objectdesc::ObjectDataSource;
 pub use objectdesc::ObjectDataStream;
 pub use objectdesc::ObjectDataStreamTrait;
 pub use objectdesc::TargetAcquisition;
+pub use objectdesc::CarouselRepeatMode;
 pub use observer::Event;
 pub use observer::FileInfo;
 pub use observer::Subscriber;

@@ -5,6 +5,7 @@ use super::FDTPublishMode;
 use crate::common::oti::SchemeSpecific;
 use crate::common::{fdtinstance, oti, partition};
 use crate::error::{FluteError, Result};
+use crate::sender::objectdesc::CarouselRepeatMode;
 use std::sync::atomic::AtomicBool;
 use std::sync::RwLock;
 use std::time::SystemTime;
@@ -14,7 +15,8 @@ struct TransferInfo {
     transferring: bool,
     transfer_count: u32,
     total_nb_transfer: u64,
-    last_transfer: Option<SystemTime>,
+    last_transfer_end_time: Option<SystemTime>,
+    last_transfer_start_time: Option<SystemTime>,
     next_transfer_timestamp: Option<SystemTime>,
     packet_transmission_tick: Option<std::time::Duration>,
     transfer_start_time: Option<SystemTime>,
@@ -23,6 +25,7 @@ struct TransferInfo {
 impl TransferInfo {
     fn init(&mut self, object: &ObjectDesc, oti: &oti::Oti, now: SystemTime) {
         self.transferring = true;
+        self.last_transfer_start_time = Some(now);
         let mut packet_transmission_tick = None;
         if let Some(target_acquisition_latency) = object.target_acquisition.as_ref() {
             packet_transmission_tick = match target_acquisition_latency {
@@ -57,7 +60,7 @@ impl TransferInfo {
             self.next_transfer_timestamp = Some(now)
         }
 
-        if self.transfer_count == object.max_transfer_count && object.carousel_delay.is_some() {
+        if self.transfer_count == object.max_transfer_count && object.carousel_mode.is_some() {
             self.transfer_count = 0;
         }
     }
@@ -66,7 +69,7 @@ impl TransferInfo {
         self.transferring = false;
         self.transfer_count += 1;
         self.total_nb_transfer += 1;
-        self.last_transfer = Some(now);
+        self.last_transfer_end_time = Some(now);
     }
 
     fn tick(&mut self) {
@@ -175,7 +178,8 @@ impl FileDesc {
             transfer_info: RwLock::new(TransferInfo {
                 transferring: false,
                 transfer_count: 0,
-                last_transfer: None,
+                last_transfer_start_time: None,
+                last_transfer_end_time: None,
                 total_nb_transfer: 0,
                 next_transfer_timestamp: None,
                 packet_transmission_tick: None,
@@ -214,7 +218,7 @@ impl FileDesc {
         if self.object.max_transfer_count > info.transfer_count {
             return false;
         }
-        self.object.carousel_delay.is_none()
+        self.object.carousel_mode.is_none()
     }
 
     pub fn is_transferring(&self) -> bool {
@@ -234,14 +238,15 @@ impl FileDesc {
 
     pub fn reset_last_transfer(&self, start_time: Option<SystemTime>) {
         let mut info = self.transfer_info.write().unwrap();
-        info.last_transfer = None;
+        info.last_transfer_end_time = None;
+        info.last_transfer_start_time = None;
         if start_time.is_some() {
             info.transfer_start_time = start_time;
         }
     }
 
     pub fn is_last_transfer(&self) -> bool {
-        if self.object.carousel_delay.is_some() {
+        if self.object.carousel_mode.is_some() {
             return false;
         }
 
@@ -271,17 +276,33 @@ impl FileDesc {
             }
         }
 
+        if info.transferring {
+            return false;
+        }
+
         if self.object.max_transfer_count > info.transfer_count {
             return true;
         }
 
-        if self.object.carousel_delay.is_none() || info.last_transfer.is_none() {
+        if self.object.carousel_mode.is_none()
+            || info.last_transfer_end_time.is_none()
+            || info.last_transfer_start_time.is_none()
+        {
             return true;
         }
 
-        let delay = self.object.carousel_delay.as_ref().unwrap();
-        let last_transfer = info.last_transfer.as_ref().unwrap();
-        now.duration_since(*last_transfer).unwrap_or_default() > *delay
+        let carousel_mode = self.object.carousel_mode.as_ref().unwrap();
+        let (last_time, interval) = match carousel_mode {
+            CarouselRepeatMode::DelayBetweenTransfers(interval) => {
+                (info.last_transfer_end_time.as_ref().unwrap(), interval)
+            }
+            CarouselRepeatMode::IntervalBetweenStartTimes(interval) => {
+                (info.last_transfer_start_time.as_ref().unwrap(), interval)
+            }
+        };
+
+        let last_transfer_interval = now.duration_since(*last_time).unwrap_or_default();
+        last_transfer_interval > *interval
     }
 
     pub fn is_published(&self) -> bool {
