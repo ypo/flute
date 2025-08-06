@@ -5,6 +5,7 @@ use super::{objectdesc, ObjectDesc, Subscriber, Toi};
 use crate::common::{alc, lct, oti, Profile};
 use crate::core::UDPEndpoint;
 use crate::error::FluteError;
+use crate::sender::objectdesc::CarouselRepeatMode;
 use crate::tools::error::Result;
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -91,8 +92,8 @@ pub enum FDTPublishMode {
 pub struct Config {
     /// Max duration of the FDT before expiration.
     pub fdt_duration: std::time::Duration,
-    /// Repeat rate of the FDT in the carousel
-    pub fdt_carousel: std::time::Duration,
+    /// Controls how the FDT is repeatedly transferred in a carousel loop.
+    pub fdt_carousel_mode: CarouselRepeatMode,
     /// First FDT ID.
     pub fdt_start_id: u32,
     /// Content Encoding of the FDT.
@@ -149,7 +150,9 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             fdt_duration: std::time::Duration::from_secs(3600),
-            fdt_carousel: std::time::Duration::from_secs(1),
+            fdt_carousel_mode: CarouselRepeatMode::DelayBetweenTransfers(
+                std::time::Duration::from_secs(1),
+            ),
             fdt_start_id: 1,
             fdt_cenc: lct::Cenc::Null,
             fdt_inband_sct: true,
@@ -200,7 +203,7 @@ impl Sender {
             oti,
             config.fdt_cenc,
             config.fdt_duration,
-            config.fdt_carousel,
+            config.fdt_carousel_mode,
             config.fdt_inband_sct,
             observers.clone(),
             config.toi_max_length,

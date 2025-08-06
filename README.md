@@ -340,6 +340,121 @@ while sender.nb_objects() > 0  {
 }
 ```
 
+## Carouseling
+
+The FLUTE library supports carouseling, a mechanism that continuously re-transmits files in a loop. This is useful for scenarios such as broadcasting where a receiver may join at any time and still receive the full file.
+
+A file remains in the carousel and is re-transferred repeatedly until explicitly removed. The repetition behavior is controlled by the `CarouselRepeatMode` when creating an object,  which offers two modes:
+
+
+### Fixed Delay After Each Transfer
+
+This mode waits for a fixed delay after the end of each transfer before starting the next one using `CarouselRepeatMode::DelayBetweenTransfers`.
+
+```
+| Transfer Object | Fixed Delay | Transfer Object | Fixed Delay | ...
+```
+
+```rust
+use flute::sender::Sender;
+use flute::sender::ObjectDesc;
+use flute::sender::CarouselRepeatMode;
+use flute::core::lct::Cenc;
+use flute::core::UDPEndpoint;
+use std::net::UdpSocket;
+use std::time::SystemTime;
+
+// Create UDP Socket
+let udp_socket = UdpSocket::bind("0.0.0.0:0").unwrap();
+udp_socket.connect("224.0.0.1:3400").expect("Connection failed");
+
+// Create FLUTE Sender
+let tsi = 1;
+let oti = Default::default();
+let config = Default::default();
+let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_string(), 3400);
+let mut sender = Sender::new(endpoint, tsi, &oti, &config);
+
+// 10s delay after each transfer
+let carousel_mode = CarouselRepeatMode::DelayBetweenTransfers(std::time::Duration::from_secs(10))
+
+// Create an Object
+let mut obj = ObjectDesc::create_from_buffer(b"hello world".to_vec(), "text/plain",
+&url::Url::parse("file:///hello.txt").unwrap(), 1, 
+carousel_mode, None, None, None, Cenc::Null, true, None, true).unwrap();
+
+// Add object(s) (files) to the FLUTE sender (priority queue 0)
+sender.add_object(0, obj);
+
+// Always call publish after adding objects
+sender.publish(SystemTime::now());
+
+// Send FLUTE packets over UDP/IP
+while sender.nb_objects() > 0  {
+    if let Some(pkt) = sender.read(SystemTime::now()) {
+        udp_socket.send(&pkt).unwrap();
+    } else {
+       std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+}
+```
+
+### Fix interval between 2 transfer start
+
+`CarouselRepeatMode::IntervalBetweenStartTimes` : This mode ensures each new transfer starts at a fixed interval, regardless of the duration of the previous one.
+
+> ⚠️ **Note**: If the transfer of an object takes longer than the specified interval, the actual interval will be longer.  
+> It is the application's responsibility to ensure that the FLUTE channel bitrate is high enough to meet the interval timing.
+
+```
+| Transfer Object 1 | Adaptative Delay | Transfer Object 1 | Adaptative Delay |
+| ------------Fixed Interval-----------| ----------- Fixed Interval-----------|
+```
+
+```rust
+use flute::sender::Sender;
+use flute::sender::ObjectDesc;
+use flute::sender::CarouselRepeatMode;
+use flute::core::lct::Cenc;
+use flute::core::UDPEndpoint;
+use std::net::UdpSocket;
+use std::time::SystemTime;
+
+// Create UDP Socket
+let udp_socket = UdpSocket::bind("0.0.0.0:0").unwrap();
+udp_socket.connect("224.0.0.1:3400").expect("Connection failed");
+
+// Create FLUTE Sender
+let tsi = 1;
+let oti = Default::default();
+let config = Default::default();
+let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_string(), 3400);
+let mut sender = Sender::new(endpoint, tsi, &oti, &config);
+
+// Configure a fixed interval between 2 transfer start
+let carousel_mode = CarouselRepeatMode::IntervalBetweenStartTimes(std::time::Duration::from_secs(10))
+
+// Create an Object
+let mut obj = ObjectDesc::create_from_buffer(b"hello world".to_vec(), "text/plain",
+&url::Url::parse("file:///hello.txt").unwrap(), 1, 
+carousel_mode, None, None, None, Cenc::Null, true, None, true).unwrap();
+
+// Add object(s) (files) to the FLUTE sender (priority queue 0)
+sender.add_object(0, obj);
+
+// Always call publish after adding objects
+sender.publish(SystemTime::now());
+
+// Send FLUTE packets over UDP/IP
+while sender.nb_objects() > 0  {
+    if let Some(pkt) = sender.read(SystemTime::now()) {
+        udp_socket.send(&pkt).unwrap();
+    } else {
+       std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+}
+```
+
 # Python bindings
 
 [![PyPI version](https://badge.fury.io/py/flute-alc.svg)](https://badge.fury.io/py/flute-alc)
