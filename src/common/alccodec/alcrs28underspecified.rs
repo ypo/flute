@@ -70,8 +70,7 @@ impl AlcCodec for AlcRS28UnderSpecified {
             fec_instance_id,
             maximum_source_block_length: maximum_source_block_length as u32,
             encoding_symbol_length,
-            max_number_of_parity_symbols: num_encoding_symbols as u32
-                - maximum_source_block_length as u32,
+            max_number_of_parity_symbols: (num_encoding_symbols as u32).checked_sub(maximum_source_block_length as u32).unwrap_or_default(),
             scheme_specific: None,
             inband_fti: true,
         };
