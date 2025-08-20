@@ -435,46 +435,6 @@ impl Receiver {
         let files = fdt_instance.file.as_ref()?;
         let fdt_expiration_date = fdt_instance.get_expiration_date();
 
-        if let Some(true) = fdt_instance.full_fdt {
-            let files_toi: std::collections::HashMap<u128, Option<&String>> = files
-                .iter()
-                .map(|f| (f.toi.parse().unwrap_or_default(), f.content_md5.as_ref()))
-                .collect();
-            let mut remove_candidates: std::collections::HashMap<u128, ObjectCompletedMeta> = self
-                .objects_completed
-                .iter()
-                .filter_map(
-                    |(toi, object_completed)| match files_toi.contains_key(toi) {
-                        true => None,
-                        false => Some((*toi, object_completed.clone())),
-                    },
-                )
-                .collect();
-
-            if !remove_candidates.is_empty() {
-                let content_locations: std::collections::HashSet<&str> =
-                    files.iter().map(|f| f.content_location.as_str()).collect();
-                let cache_control =
-                    ObjectCacheControl::ExpiresAt(now + std::time::Duration::from_secs(4));
-                for (toi, object_completed) in &mut remove_candidates {
-                    if !content_locations
-                        .contains(object_completed.metadata.content_location.as_str())
-                    {
-                        object_completed.metadata.cache_control = cache_control;
-                        self.writer.update_cache_control(
-                            &self.endpoint,
-                            &self.tsi,
-                            toi,
-                            &object_completed.metadata,
-                            now,
-                        );
-                    }
-                }
-                self.objects_completed
-                    .retain(|f, _| !remove_candidates.contains_key(f));
-            }
-        }
-
         for file in files {
             let toi: u128 = file.toi.parse().unwrap_or_default();
             let cache_control = file.get_object_cache_control(fdt_expiration_date);
@@ -610,10 +570,6 @@ impl Receiver {
             None => return,
         };
 
-        if let Some(true) = instance.full_fdt {
-            return;
-        }
-
         let before = self.objects_completed.len();
         if let Some(files) = instance.file.as_ref() {
             let current_tois: std::collections::HashSet<u128> = files
@@ -683,34 +639,5 @@ impl Receiver {
         }
 
         self.objects.insert(*toi, obj);
-    }
-}
-
-impl Drop for Receiver {
-    fn drop(&mut self) {
-        log::info!("Drop Flute Receiver");
-
-        if let Some(fdt) = self.fdt_current.front_mut() {
-            if let Some(instance) = fdt.fdt_instance() {
-                if instance.full_fdt == Some(true) {
-                    let now = self.last_timestamp.unwrap_or_else(|| SystemTime::now());
-                    for obj in &mut self.objects_completed {
-                        log::info!(
-                            "Remove from cache {}",
-                            &obj.1.metadata.content_location.to_string()
-                        );
-
-                        obj.1.metadata.cache_control = ObjectCacheControl::ExpiresAt(now);
-                        self.writer.update_cache_control(
-                            &self.endpoint,
-                            &self.tsi,
-                            obj.0,
-                            &obj.1.metadata,
-                            self.last_timestamp.unwrap_or_else(|| SystemTime::now()),
-                        );
-                    }
-                }
-            }
-        }
     }
 }

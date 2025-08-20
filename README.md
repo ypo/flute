@@ -85,7 +85,7 @@ let obj = ObjectDesc::create_from_buffer(b"hello world".to_vec(), "text/plain",
 &url::Url::parse("file:///hello.txt").unwrap(), 1, None, None, None, None, Cenc::Null, true, None, true).unwrap();
 sender.add_object(0, obj);
 
-// Always call publish after adding objects
+// Always call publish after adding objects when FDT publish mode is FullFDT
 sender.publish(SystemTime::now());
 
 // Send FLUTE packets over UDP/IP
@@ -279,7 +279,7 @@ obj.target_acquisition = Some(TargetAcquisition::WithinDuration(std::time::Durat
 // Add object(s) (files) to the FLUTE sender (priority queue 0)
 sender.add_object(0, obj);
 
-// Always call publish after adding objects
+// Always call publish after adding objects when FDT publish mode is FullFDT when FDT publish mode is FullFDT
 sender.publish(SystemTime::now());
 
 // Send FLUTE packets over UDP/IP
@@ -328,7 +328,7 @@ obj.target_acquisition = Some(TargetAcquisition::WithinTime(target_end_time));
 // Add object(s) (files) to the FLUTE sender (priority queue 0)
 sender.add_object(0, obj);
 
-// Always call publish after adding objects
+// Always call publish after adding objects when FDT publish mode is FullFDT
 sender.publish(SystemTime::now());
 
 // Send FLUTE packets over UDP/IP
@@ -387,7 +387,7 @@ Some(carousel_mode), None, None, None, Cenc::Null, true, None, true).unwrap();
 // Add object(s) (files) to the FLUTE sender (priority queue 0)
 sender.add_object(0, obj);
 
-// Always call publish after adding objects
+// Always call publish after adding objects when FDT publish mode is FullFDT
 sender.publish(SystemTime::now());
 
 // Send FLUTE packets over UDP/IP
@@ -443,7 +443,7 @@ Some(carousel_mode), None, None, None, Cenc::Null, true, None, true).unwrap();
 // Add object(s) (files) to the FLUTE sender (priority queue 0)
 sender.add_object(0, obj);
 
-// Always call publish after adding objects
+// Always call publish after adding objects when FDT publish mode is FullFDT
 sender.publish(SystemTime::now());
 
 // Send FLUTE packets over UDP/IP

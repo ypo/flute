@@ -69,12 +69,12 @@ impl PriorityQueue {
 // This enum defines when and how the FDT is updated and sent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FDTPublishMode {
-    /// Manual publishing mode.
+    /// FullFDT publishing mode.
     ///
     /// - The FDT is published only when `publish()` is explicitly called.
     /// - It includes all objects that have been inserted up to the time of publication.
     /// - Provides full control over when the FDT is updated and sent.
-    Manual,
+    FullFDT,
 
     /// Automatic publishing mode.
     ///
@@ -82,7 +82,7 @@ pub enum FDTPublishMode {
     /// - It contains only the objects that are currently being transferred.
     /// - Ensures that each transmission is accompanied by an up-to-date FDT,  
     ///   May result in smaller but more frequent FDT updates.
-    Automatic,
+    ObjectsBeingTransferred,
 }
 
 ///
@@ -165,7 +165,7 @@ impl Default for Config {
             toi_max_length: TOIMaxLength::ToiMax112,
             toi_initial_value: Some(1),
             groups: None,
-            fdt_publish_mode: FDTPublishMode::Manual,
+            fdt_publish_mode: FDTPublishMode::FullFDT,
         }
     }
 }
@@ -282,7 +282,7 @@ impl Sender {
 
     /// Add an object to the FDT
     ///
-    /// After calling this function, a call to `publish()` to publish your modifications
+    /// If FDT is configured in FullFDT mode, after calling this function, a call to `publish()` to publish your modifications
     ///
     /// If a TOI as been set to the ObjectDesc, there is no need to release it
     ///
@@ -369,7 +369,7 @@ impl Sender {
     /// An updated version of the FDT will be generated and transferred
     /// Multiple modifications can be made (ex: several call to 'add_object()`) before publishing a new FDT version
     ///
-    /// Required only if fdt_publish_mode is set to manual
+    /// Required only if fdt_publish_mode is set to FullFDT
     pub fn publish(&mut self, now: SystemTime) -> Result<()> {
         self.fdt.publish(now)
     }

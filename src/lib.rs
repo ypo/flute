@@ -85,7 +85,7 @@
 //! &url::Url::parse("file:///hello.txt").unwrap(), 1, None, None, None, None, Cenc::Null, true, None, true).unwrap();
 //! sender.add_object(0, obj);
 //!
-//! // Always call publish after adding objects
+//! // Always call publish after adding objects when FDT publish mode is FullFDT
 //! sender.publish(SystemTime::now());
 //!
 //! // Send FLUTE packets over UDP/IP
@@ -279,7 +279,7 @@
 //! // Add object(s) (files) to the FLUTE sender (priority queue 0)
 //! sender.add_object(0, obj);
 //!
-//! // Always call publish after adding objects
+//! // Always call publish after adding objects when FDT publish mode is FullFDT when FDT publish mode is FullFDT
 //! sender.publish(SystemTime::now());
 //!
 //! // Send FLUTE packets over UDP/IP
@@ -328,7 +328,7 @@
 //! // Add object(s) (files) to the FLUTE sender (priority queue 0)
 //! sender.add_object(0, obj);
 //!
-//! // Always call publish after adding objects
+//! // Always call publish after adding objects when FDT publish mode is FullFDT
 //! sender.publish(SystemTime::now());
 //! 
 //! // Send FLUTE packets over UDP/IP
@@ -387,7 +387,7 @@
 //! // Add object(s) (files) to the FLUTE sender (priority queue 0)
 //! sender.add_object(0, obj);
 //! 
-//! // Always call publish after adding objects
+//! // Always call publish after adding objects when FDT publish mode is FullFDT
 //! sender.publish(SystemTime::now());
 //! 
 //! // Send FLUTE packets over UDP/IP
@@ -443,7 +443,7 @@
 //! // Add object(s) (files) to the FLUTE sender (priority queue 0)
 //! sender.add_object(0, obj);
 //! 
-//! // Always call publish after adding objects
+//! // Always call publish after adding objects when FDT publish mode is FullFDT
 //! sender.publish(SystemTime::now());
 //! 
 //! // Send FLUTE packets over UDP/IP
