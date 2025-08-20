@@ -69,7 +69,7 @@ pub struct ObjectReceiver {
     total_allocated_blocks_size: usize,
     #[cfg(feature = "opentelemetry")]
     logger: Option<ObjectReceiverLogger>,
-    pub content_length: Option<usize>,
+    content_length: Option<usize>,
     content_type: Option<String>,
     pub cache_control: Option<ObjectCacheControl>,
     groups: Vec<String>,

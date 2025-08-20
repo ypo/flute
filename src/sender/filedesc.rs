@@ -264,7 +264,7 @@ impl FileDesc {
             return false;
         }
 
-        if fdt_publish_mode == FDTPublishMode::Manual && !self.is_published() {
+        if fdt_publish_mode == FDTPublishMode::FullFDT && !self.is_published() {
             log::warn!("File with TOI {} is not published", self.toi);
             return false;
         }

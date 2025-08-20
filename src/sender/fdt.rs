@@ -81,8 +81,8 @@ impl Fdt {
         };
 
         let files = match self.publish_mode {
-            FDTPublishMode::Automatic => self.get_files_being_transferred(),
-            FDTPublishMode::Manual => self.files.values().map(|desc| desc.as_ref()).collect(),
+            FDTPublishMode::ObjectsBeingTransferred => self.get_files_being_transferred(),
+            FDTPublishMode::FullFDT => self.files.values().map(|desc| desc.as_ref()).collect(),
         };
 
         FdtInstance {
@@ -125,7 +125,10 @@ impl Fdt {
             xmlns_mbms_2012: None,
             xmlns_mbms_2015: None,
             xmlns_sv: None,
-            full_fdt: None,
+            full_fdt: match self.publish_mode {
+                FDTPublishMode::FullFDT => Some(true),
+                FDTPublishMode::ObjectsBeingTransferred => None,
+            },
             base_url_1: None,
             base_url_2: None,
             group: self.groups.clone(),
@@ -327,10 +330,10 @@ impl Fdt {
         file.transfer_started(now);
 
         match self.publish_mode {
-            FDTPublishMode::Automatic => {
+            FDTPublishMode::ObjectsBeingTransferred => {
                 self.publish(now).ok();
             }
-            FDTPublishMode::Manual => {}
+            FDTPublishMode::FullFDT => {}
         }
 
         Some(file.clone())
@@ -448,7 +451,7 @@ mod tests {
             crate::sender::TOIMaxLength::ToiMax112,
             Some(1),
             Some(vec!["Group1".to_owned()]),
-            crate::sender::FDTPublishMode::Manual,
+            crate::sender::FDTPublishMode::FullFDT,
         );
         let obj1 = objectdesc::ObjectDesc::create_from_buffer(
             Vec::new(),

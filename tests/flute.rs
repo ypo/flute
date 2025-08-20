@@ -69,7 +69,7 @@ mod tests {
             assert!(sender.is_added(toi));
         }
 
-        if config.fdt_publish_mode == sender::FDTPublishMode::Manual {
+        if config.fdt_publish_mode == sender::FDTPublishMode::FullFDT {
             sender.publish(std::time::SystemTime::now()).unwrap();
         }
 
@@ -348,7 +348,7 @@ mod tests {
         init();
 
         let config = sender::Config {
-            fdt_publish_mode: sender::FDTPublishMode::Automatic,
+            fdt_publish_mode: sender::FDTPublishMode::ObjectsBeingTransferred,
             ..Default::default()
         };
 
