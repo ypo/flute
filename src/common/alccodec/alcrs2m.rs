@@ -70,13 +70,14 @@ impl AlcCodec for AlcRS2m {
         let encoding_symbol_length = u16::from_be_bytes(fti[10..12].as_ref().try_into().unwrap());
         let b = u16::from_be_bytes(fti[12..14].as_ref().try_into().unwrap());
         let max_n = u16::from_be_bytes(fti[14..16].as_ref().try_into().unwrap());
+        let max_number_of_parity_symbols = (max_n as u32).saturating_sub(b as u32);
 
         let oti = oti::Oti {
             fec_encoding_id: oti::FECEncodingID::ReedSolomonGF2M,
             fec_instance_id: 0,
             maximum_source_block_length: b as u32,
             encoding_symbol_length,
-            max_number_of_parity_symbols: max_n as u32 - b as u32,
+            max_number_of_parity_symbols,
             scheme_specific: Some(SchemeSpecific::ReedSolomon(ReedSolomonGF2MSchemeSpecific {
                 g: match g {
                     0 => 1,
