@@ -104,7 +104,7 @@ impl dyn ObjectDataStreamTrait + '_ {
         }
 
         reader.seek(std::io::SeekFrom::Start(0))?;
-        Ok(context.compute())
+        Ok(context.finalize())
     }
 }
 

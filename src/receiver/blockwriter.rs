@@ -105,7 +105,7 @@ impl BlockWriter {
                 self.decoder_read(writer, now)?;
             }
 
-            let output = self.md5_context.take().map(|ctx| ctx.compute().0);
+            let output = self.md5_context.take().map(|ctx| ctx.finalize().0);
             self.md5 =
                 output.map(|output| base64::engine::general_purpose::STANDARD.encode(output));
         }
@@ -124,7 +124,12 @@ impl BlockWriter {
         self.buffer.resize(data.len(), 0);
     }
 
-    fn write_pkt_cenc_null(&mut self, data: &[u8], writer: &dyn ObjectWriter, now: SystemTime) -> Result<()> {
+    fn write_pkt_cenc_null(
+        &mut self,
+        data: &[u8],
+        writer: &dyn ObjectWriter,
+        now: SystemTime,
+    ) -> Result<()> {
         if let Some(ctx) = self.md5_context.as_mut() {
             ctx.consume(data)
         }
