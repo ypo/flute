@@ -331,7 +331,10 @@ impl FileDesc {
             content_length: Some(self.object.content_length),
             transfer_length: Some(self.object.transfer_length),
             content_type: Some(self.object.content_type.clone()),
-            content_encoding: Some(self.object.cenc.to_str().to_string()),
+            content_encoding: match &self.object.cenc {
+                crate::core::lct::Cenc::Null => None,
+                _ => Some(self.object.cenc.to_str().to_string()),
+            },
             content_md5: self.object.md5.clone(),
             fec_oti_fec_encoding_id: oti_attributes
                 .as_ref()
