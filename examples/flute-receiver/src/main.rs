@@ -29,9 +29,12 @@ fn main() {
 
     log::info!("Create FLUTE, write objects to {:?}", dest_dir);
 
+    let mut config = flute::receiver::Config::default();
+    config.object_receive_once = true; // receive objects only once. If the same object is repeated, it will be ignored
+
     let enable_md5_check = true;
     let writer = Rc::new(writer::ObjectWriterFSBuilder::new(dest_dir, enable_md5_check).unwrap());
-    let mut receiver = MultiReceiver::new(writer, None, false);
+    let mut receiver = MultiReceiver::new(writer, Some(config), false);
 
     // Receive from 224.0.0.1:3400 on 127.0.0.1 (lo) interface
     let socket = msocket::MSocket::new(&endpoint, Some("127.0.0.1"), false)
