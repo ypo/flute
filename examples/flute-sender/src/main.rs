@@ -1,6 +1,6 @@
 use flute::{
-    core::UDPEndpoint,
     core::lct::Cenc,
+    core::UDPEndpoint,
     sender::{ObjectDesc, Sender},
 };
 use std::{net::UdpSocket, time::SystemTime};
@@ -54,14 +54,19 @@ fn main() {
             true,
         )
         .unwrap();
-        sender.add_object(0, obj).unwrap();
+        sender.add_object(0, obj).expect("Add object failed");
     }
 
     log::info!("Publish FDT update");
-    sender.publish(SystemTime::now()).unwrap();
+    sender.publish(SystemTime::now()).expect("Publish failed");
+
+    // Send a "close session" packet to notify the receiver that the
+    // previous session should be terminated,  a new one is about to start.
+    let close_session_pkt = sender.read_close_session(SystemTime::now());
+    udp_socket.send(&close_session_pkt).expect("Send failed");
 
     while let Some(pkt) = sender.read(SystemTime::now()) {
-        udp_socket.send(&pkt).unwrap();
+        udp_socket.send(&pkt).expect("Send failed");
         std::thread::sleep(std::time::Duration::from_millis(1));
     }
 }
