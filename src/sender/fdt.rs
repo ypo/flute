@@ -274,7 +274,11 @@ impl Fdt {
             .unwrap_or_default();
 
         if self.duration > std::time::Duration::from_secs(30) {
-            return self.duration + std::time::Duration::from_secs(5) < duration;
+            return self.duration - std::time::Duration::from_secs(5) < duration;
+        }
+
+        if self.duration > std::time::Duration::from_secs(10) {
+            return self.duration - std::time::Duration::from_secs(1) < duration;
         }
 
         self.duration <= duration
