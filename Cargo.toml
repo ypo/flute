@@ -32,7 +32,7 @@ md5 = "0.8"
 pyo3 = { version = "0.25", features = ["extension-module"], optional = true }
 pyo3-log = { version = "0.12", optional = true }
 raptorq = "2.0"
-raptor-code = "1.0"
+raptor-code = "1.0.9"
 opentelemetry = { version = "0.30", optional = true  }
 opentelemetry-semantic-conventions = { version = "0.30" , optional = true }
 rand = "0.9"
