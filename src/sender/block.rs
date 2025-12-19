@@ -25,6 +25,10 @@ impl Block {
         block_length: u64,
         oti: &Oti,
     ) -> Result<Box<Block>> {
+        if oti.encoding_symbol_length == 0 {
+            return Err(FluteError::new("Encoding symbol length is null"));
+        }
+
         let nb_source_symbols: usize =
             num_integer::div_ceil(buffer.len(), oti.encoding_symbol_length as usize);
         log::debug!(

@@ -78,6 +78,10 @@ impl AlcCodec for AlcRaptorQ {
             al
         );
 
+        if symbol_size == 0 {
+            return Err(FluteError::new("Symbol size is null"));
+        }
+
         if z == 0 {
             return Err(FluteError::new("Z is null"));
         }

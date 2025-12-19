@@ -110,6 +110,12 @@ impl BlockDecoder {
             return;
         }
 
+        debug_assert!(self.decoder.is_some());
+        if self.decoder.is_none() {
+            log::error!("Decoder has been deallocated");
+            return;
+        }
+
         let payload = &pkt.data[pkt.data_payload_offset..];
         let decoder = self.decoder.as_mut().unwrap();
         decoder.push_symbol(payload, payload_id.esi);
