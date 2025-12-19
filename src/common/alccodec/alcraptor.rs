@@ -70,6 +70,10 @@ impl AlcCodec for AlcRaptor {
         let n = fti[12];
         let al = fti[13];
 
+        if symbol_size == 0 {
+            return Err(FluteError::new("Symbol size is null"));
+        }
+
         if z == 0 {
             return Err(FluteError::new("Z is null"));
         }
