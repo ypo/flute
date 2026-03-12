@@ -4,7 +4,7 @@ mod tests {
     use flute::receiver::ReceiverEndpoint;
     use flute::sender::PriorityQueue;
     use flute::sender::TargetAcquisition;
-    use rand::RngCore;
+    use rand::Rng;
 
     use std::cell::RefCell;
     use std::collections::HashSet;
