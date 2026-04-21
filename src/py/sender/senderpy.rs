@@ -83,17 +83,15 @@ impl Sender {
             content_location.as_ref(),
             content_type,
             true,
-            1,
-            None,
-            None,
-            None,
-            None,
-            cenc,
             true,
-            oti,
-            true,
+            crate::sender::TransferConfig {
+                cenc,
+                inband_cenc: true,
+                oti,
+                ..Default::default()
+            },
         )
-        .map_err(|e| PyTypeError::new_err(e.0.to_string()))?;
+        .map_err(|e| PyTypeError::new_err(e.0.to_string()))?;;
 
         self.0
             .add_object(0, object)

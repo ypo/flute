@@ -116,7 +116,7 @@ impl SenderSession {
                     &self.endpoint,
                     self.tsi,
                     file.toi,
-                    file.object.optel_propagator.as_ref(),
+                    file.object.config.optel_propagator.as_ref(),
                 ));
             }
         }

@@ -27,7 +27,7 @@ impl TransferInfo {
         self.transferring = true;
         self.last_transfer_start_time = Some(now);
         let mut packet_transmission_tick = None;
-        if let Some(target_acquisition_latency) = object.target_acquisition.as_ref() {
+        if let Some(target_acquisition_latency) = object.config.target_acquisition.as_ref() {
             packet_transmission_tick = match target_acquisition_latency {
                 crate::sender::objectdesc::TargetAcquisition::AsFastAsPossible => None,
                 crate::sender::objectdesc::TargetAcquisition::WithinDuration(duration) => {
@@ -60,7 +60,9 @@ impl TransferInfo {
             self.next_transfer_timestamp = Some(now)
         }
 
-        if self.transfer_count == object.max_transfer_count && object.carousel_mode.is_some() {
+        if self.transfer_count == object.config.max_transfer_count
+            && object.config.carousel_mode.is_some()
+        {
             self.transfer_count = 0;
         }
     }
@@ -103,8 +105,8 @@ impl FileDesc {
         fdt_id: Option<u32>,
         sender_current_time: bool,
     ) -> Result<FileDesc> {
-        assert!(object.toi.is_some());
-        let mut oti = match &object.oti {
+        assert!(object.config.toi.is_some());
+        let mut oti = match &object.config.oti {
             Some(res) => res.clone(),
             None => default_oti.clone(),
         };
@@ -167,8 +169,8 @@ impl FileDesc {
             }
         }
 
-        let toi = object.toi.as_ref().unwrap().get();
-        let transfer_start_time = object.transfer_start_time.clone();
+        let toi = object.config.toi.as_ref().unwrap().get();
+        let transfer_start_time = object.config.transfer_start_time.clone();
         Ok(FileDesc {
             priority,
             object,
@@ -196,7 +198,12 @@ impl FileDesc {
     }
 
     pub fn can_transfer_be_stopped(&self) -> bool {
-        if self.object.allow_immediate_stop_before_first_transfer == Some(true) {
+        if self
+            .object
+            .config
+            .allow_immediate_stop_before_first_transfer
+            == Some(true)
+        {
             return true;
         }
 
@@ -215,10 +222,10 @@ impl FileDesc {
 
     pub fn is_expired(&self) -> bool {
         let info = self.transfer_info.read().unwrap();
-        if self.object.max_transfer_count > info.transfer_count {
+        if self.object.config.max_transfer_count > info.transfer_count {
             return false;
         }
-        self.object.carousel_mode.is_none()
+        self.object.config.carousel_mode.is_none()
     }
 
     pub fn is_transferring(&self) -> bool {
@@ -246,12 +253,12 @@ impl FileDesc {
     }
 
     pub fn is_last_transfer(&self) -> bool {
-        if self.object.carousel_mode.is_some() {
+        if self.object.config.carousel_mode.is_some() {
             return false;
         }
 
         let info = self.transfer_info.read().unwrap();
-        self.object.max_transfer_count == info.transfer_count + 1
+        self.object.config.max_transfer_count == info.transfer_count + 1
     }
 
     pub fn should_transfer_now(
@@ -280,18 +287,18 @@ impl FileDesc {
             return false;
         }
 
-        if self.object.max_transfer_count > info.transfer_count {
+        if self.object.config.max_transfer_count > info.transfer_count {
             return true;
         }
 
-        if self.object.carousel_mode.is_none()
+        if self.object.config.carousel_mode.is_none()
             || info.last_transfer_end_time.is_none()
             || info.last_transfer_start_time.is_none()
         {
             return true;
         }
 
-        let carousel_mode = self.object.carousel_mode.as_ref().unwrap();
+        let carousel_mode = self.object.config.carousel_mode.as_ref().unwrap();
         let (last_time, interval) = match carousel_mode {
             CarouselRepeatMode::DelayBetweenTransfers(interval) => {
                 (info.last_transfer_end_time.as_ref().unwrap(), interval)
@@ -317,13 +324,23 @@ impl FileDesc {
     pub fn to_file_xml(&self, now: SystemTime) -> fdtinstance::File {
         let oti_attributes = match self.oti.fec_encoding_id {
             oti::FECEncodingID::RaptorQ => Some(self.oti.get_attributes()), // for RaptorQ we need to add OTI for each object
-            _ => self.object.oti.as_ref().map(|oti| oti.get_attributes()),
+            _ => self
+                .object
+                .config
+                .oti
+                .as_ref()
+                .map(|oti| oti.get_attributes()),
         };
 
-        let optel_propagator = self.object.optel_propagator.as_ref().map(|propagator| {
-            let s = serde_json::to_string(&propagator).unwrap();
-            base64::engine::general_purpose::STANDARD.encode(s)
-        });
+        let optel_propagator = self
+            .object
+            .config
+            .optel_propagator
+            .as_ref()
+            .map(|propagator| {
+                let s = serde_json::to_string(&propagator).unwrap();
+                base64::engine::general_purpose::STANDARD.encode(s)
+            });
 
         fdtinstance::File {
             content_location: self.object.content_location.to_string(),
@@ -331,9 +348,9 @@ impl FileDesc {
             content_length: Some(self.object.content_length),
             transfer_length: Some(self.object.transfer_length),
             content_type: Some(self.object.content_type.clone()),
-            content_encoding: match &self.object.cenc {
+            content_encoding: match &self.object.config.cenc {
                 crate::core::lct::Cenc::Null => None,
-                _ => Some(self.object.cenc.to_str().to_string()),
+                _ => Some(self.object.config.cenc.to_str().to_string()),
             },
             content_md5: self.object.md5.clone(),
             fec_oti_fec_encoding_id: oti_attributes
@@ -356,6 +373,7 @@ impl FileDesc {
                 .and_then(|f| f.fec_oti_scheme_specific_info),
             cache_control: self
                 .object
+                .config
                 .cache_control
                 .as_ref()
                 .map(|cc| create_fdt_cache_control(cc, now)),
@@ -364,7 +382,7 @@ impl FileDesc {
             mbms_session_identity: None,
             decryption_key_uri: None,
             fec_redundancy_level: None,
-            file_etag: self.object.e_tag.clone(),
+            file_etag: self.object.config.e_tag.clone(),
             independent_unit_positions: None,
             delimiter: Some(0),
             delimiter2: Some(0),

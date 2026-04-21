@@ -43,15 +43,8 @@ fn main() {
             None,
             "application/octet-stream",
             true,
-            1,
-            None,
-            None,
-            None,
-            None,
-            Cenc::Null,
             true,
-            None,
-            true,
+            Default::default(),
         )
         .unwrap();
         sender.add_object(0, obj).expect("Add object failed");

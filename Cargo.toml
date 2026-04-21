@@ -37,6 +37,7 @@ opentelemetry = { version = "0.31", optional = true  }
 opentelemetry-semantic-conventions = { version = "0.31" , optional = true }
 rand = "0.10"
 utoipa = { version = "5", optional = true }
+typed-builder =  "0.23"
 
 [dev-dependencies]
 env_logger = "0.11"
