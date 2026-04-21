@@ -7,7 +7,8 @@ use std::{
 use pnet::util::Octets;
 
 use libc::{
-    ip_mreq_source as IpMreqSource, IPPROTO_IP, IP_ADD_SOURCE_MEMBERSHIP, IP_DROP_SOURCE_MEMBERSHIP,
+    ip_mreq_source as IpMreqSource, IPPROTO_IP, IP_ADD_SOURCE_MEMBERSHIP,
+    IP_DROP_SOURCE_MEMBERSHIP,
 };
 
 const fn to_in_addr(addr: &Ipv4Addr) -> libc::in_addr {

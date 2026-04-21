@@ -1,7 +1,0 @@
-[workspace]
-resolver = "2"
-members = [
-    "flute-receiver",
-    "flute-sender",
-]
-

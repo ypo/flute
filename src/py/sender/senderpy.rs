@@ -39,15 +39,11 @@ impl Sender {
             content.to_vec(),
             content_type,
             &content_location,
-            1,
-            None,
-            None,
-            None,
-            None,
-            crate::core::lct::Cenc::Null,
             true,
-            oti,
-            true,
+            crate::sender::TransferConfig {
+                oti,
+                ..Default::default()
+            },
         )
         .map_err(|e| PyTypeError::new_err(e.0.to_string()))?;
 
@@ -91,7 +87,7 @@ impl Sender {
                 ..Default::default()
             },
         )
-        .map_err(|e| PyTypeError::new_err(e.0.to_string()))?;;
+        .map_err(|e| PyTypeError::new_err(e.0.to_string()))?;
 
         self.0
             .add_object(0, object)
