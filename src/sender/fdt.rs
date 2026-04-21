@@ -161,7 +161,7 @@ impl Fdt {
             ));
         }
 
-        if obj.toi.is_none() {
+        if obj.config.toi.is_none() {
             obj.set_toi(self.allocate_toi());
         }
 
@@ -230,17 +230,17 @@ impl Fdt {
             content,
             "text/xml",
             &url::Url::parse("file:///").unwrap(),
-            1,
-            Some(self.carousel_mode),
-            None,
-            None,
-            self.groups.clone(),
-            self.cenc,
-            true,
-            None,
-            true,
+            false,
+            objectdesc::TransferConfig {
+                max_transfer_count: 1,
+                carousel_mode: Some(self.carousel_mode),
+                groups: self.groups.clone(),
+                cenc: self.cenc,
+                inband_cenc: true,
+                ..Default::default()
+            },
         )?;
-        obj.toi = Some(ToiAllocator::allocate_toi_fdt(&self.toi_allocator));
+        obj.config.toi = Some(ToiAllocator::allocate_toi_fdt(&self.toi_allocator));
         let filedesc = Arc::new(FileDesc::new(
             0,
             obj,
@@ -461,15 +461,13 @@ mod tests {
             Vec::new(),
             "plain/txt",
             &url::Url::parse("file:///object1").unwrap(),
-            2,
-            None,
-            None,
-            None,
-            Some(vec!["Test1".to_owned()]),
-            lct::Cenc::Null,
-            true,
-            None,
-            true,
+            false,
+            objectdesc::TransferConfig {
+                max_transfer_count: 2,
+                groups: Some(vec!["Test1".to_owned()]),
+                inband_cenc: true,
+                ..Default::default()
+            },
         )
         .unwrap();
 
@@ -477,15 +475,13 @@ mod tests {
             Vec::new(),
             "plain/txt",
             &url::Url::parse("file:///object2").unwrap(),
-            2,
-            None,
-            None,
-            None,
-            None,
-            lct::Cenc::Gzip,
-            true,
-            None,
-            true,
+            false,
+            objectdesc::TransferConfig {
+                max_transfer_count: 2,
+                cenc: lct::Cenc::Gzip,
+                inband_cenc: true,
+                ..Default::default()
+            },
         )
         .unwrap();
 

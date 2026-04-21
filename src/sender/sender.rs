@@ -455,7 +455,6 @@ impl Sender {
 #[cfg(test)]
 mod tests {
 
-    use crate::common::lct;
     use crate::core::UDPEndpoint;
 
     use super::objectdesc;
@@ -467,15 +466,11 @@ mod tests {
             buffer,
             "text",
             &url::Url::parse("file:///hello").unwrap(),
-            1,
-            None,
-            None,
-            None,
-            None,
-            lct::Cenc::Null,
-            true,
-            None,
-            true,
+            false,
+            objectdesc::TransferConfig {
+                inband_cenc: true,
+                ..Default::default()
+            },
         )
         .unwrap()
     }

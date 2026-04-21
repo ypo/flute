@@ -189,40 +189,219 @@ pub struct ObjectDesc {
     /// Size of the object after transfer-coding (`Cenc`) has been applied
     /// as defined in [rfc2616 4.4](https://www.rfc-editor.org/rfc/rfc2616#section-4.4)
     pub transfer_length: u64,
+    /// the MD5 sum of this object. Can be used by the FLUTE `receiver` to validate the integrity of the reception
+    pub md5: Option<String>,
+    /// Transfer configuration
+    pub config: TransferConfig,
+}
+
+///
+/// Shared transfer configuration for creating an `ObjectDesc`.
+///
+/// Groups together common optional parameters used across
+/// `CreateFromFile`, `CreateFromStream`, and `CreateFromBuffer`.
+#[derive(Debug, typed_builder::TypedBuilder)]
+pub struct TransferConfig {
+    /// Repeat the transfer the same object multiple times
+    #[builder(default = 1)]
+    pub max_transfer_count: u32,
+    /// Controls how an object is repeatedly transferred in a carousel loop
+    #[builder(default, setter(strip_option))]
+    pub carousel_mode: Option<CarouselRepeatMode>,
+    /// Specifies the desired duration for transferring the object to the receiver
+    #[builder(default, setter(strip_option))]
+    pub target_acquisition: Option<TargetAcquisition>,
+    /// Define object cache control
+    #[builder(default, setter(strip_option))]
+    pub cache_control: Option<CacheControl>,
+    /// Add file to a list of groups
+    #[builder(default, setter(strip_option))]
+    pub groups: Option<Vec<String>>,
     /// Content Encoding (compression)
+    #[builder(default = lct::Cenc::Null)]
     pub cenc: lct::Cenc,
     /// If `true`, Cenc extension are added to ALC/LCT packet
     /// Else Cenc is defined only inside the FDT
+    #[builder(default = false)]
     pub inband_cenc: bool,
-    /// the MD5 sum of this object. Can be used by the FLUTE `receiver`to validate the integrity of the reception
-    pub md5: Option<String>,
     /// If defined, FEC Object Transmission Information (OTI) overload the default OTI defined in the FDT
+    #[builder(default, setter(strip_option))]
     pub oti: Option<oti::Oti>,
-    /// Repeat the transfer the same object multiple times
-    pub max_transfer_count: u32,
-    /// Specifies the desired duration for transferring the object to the receiver.
-    /// When enabled, the transfer bitrate of this object is adapted to reach the transfer duration.
-    pub target_acquisition: Option<TargetAcquisition>,
-    /// Controls how an object is repeatedly transferred in a carousel loop.
-    /// When set, the object remains in the carousel and is retransmitted at regular intervals
-    /// until it is explicitly removed.
-    pub carousel_mode: Option<CarouselRepeatMode>,
     /// Optional: specifies an absolute system time at which the first transfer of the object should start.
     /// If not set, the transfer starts immediately.
+    #[builder(default, setter(strip_option))]
     pub transfer_start_time: Option<SystemTime>,
-    /// Define object cache control
-    pub cache_control: Option<CacheControl>,
-    /// Add file to a list of groups
-    pub groups: Option<Vec<String>>,
     /// Assign an optional TOI to this object
+    #[builder(default, setter(strip_option))]
     pub toi: Option<Box<Toi>>,
     /// Optional Opentelemetry propagator (only available with the `opentelemetry` feature)
+    #[builder(default, setter(strip_option))]
     pub optel_propagator: Option<HashMap<String, String>>,
     /// Optional ETag or entity-tag as defined in RFC 2616
+    #[builder(default, setter(strip_option))]
     pub e_tag: Option<String>,
     /// If `true`, the object can be stopped immediately before the first transfer
     /// if `false` (default) then transfer is stopped only after being transferred at least once
+    #[builder(default, setter(strip_option))]
     pub allow_immediate_stop_before_first_transfer: Option<bool>,
+}
+
+impl Default for TransferConfig {
+    fn default() -> Self {
+        TransferConfig {
+            max_transfer_count: 1,
+            carousel_mode: None,
+            target_acquisition: None,
+            cache_control: None,
+            groups: None,
+            cenc: lct::Cenc::Null,
+            inband_cenc: false,
+            oti: None,
+            transfer_start_time: None,
+            toi: None,
+            optel_propagator: None,
+            e_tag: None,
+            allow_immediate_stop_before_first_transfer: None,
+        }
+    }
+}
+
+///
+/// Typed builder for creating an `ObjectDesc` from a file.
+///
+/// # Example
+/// ```no_run
+/// use flute::sender::CreateFromFile;
+///
+/// let obj = CreateFromFile::builder()
+///     .path(std::path::PathBuf::from("/tmp/test.bin"))
+///     .content_type("application/octet-stream".to_string())
+///     .build()
+///     .create()
+///     .unwrap();
+/// ```
+#[derive(Debug, typed_builder::TypedBuilder)]
+pub struct CreateFromFile {
+    /// Path to the file
+    pub path: std::path::PathBuf,
+    /// Supply the resource location for this object
+    #[builder(default)]
+    pub content_location: Option<url::Url>,
+    /// Media type of the object
+    pub content_type: String,
+    /// If `true`, the file is read and cached in RAM
+    #[builder(default = true)]
+    pub cache_in_ram: bool,
+    /// If `true`, compute and attach the MD5 hash
+    #[builder(default = true)]
+    pub compute_md5: bool,
+    /// Transfer configuration (shared optional parameters)
+    #[builder(default)]
+    pub config: TransferConfig,
+}
+
+impl CreateFromFile {
+    /// Create the `ObjectDesc` from the configured file parameters.
+    pub fn create(self) -> Result<Box<ObjectDesc>> {
+        ObjectDesc::create_from_file(
+            &self.path,
+            self.content_location.as_ref(),
+            &self.content_type,
+            self.cache_in_ram,
+            self.compute_md5,
+            self.config,
+        )
+    }
+}
+
+///
+/// Typed builder for creating an `ObjectDesc` from a stream.
+///
+/// # Example
+/// ```no_run
+/// use flute::sender::CreateFromStream;
+///
+/// let file = std::fs::File::open("/tmp/test.bin").unwrap();
+/// let obj = CreateFromStream::builder()
+///     .stream(Box::new(file))
+///     .content_type("application/octet-stream".to_string())
+///     .content_location(url::Url::parse("file:///test.bin").unwrap())
+///     .build()
+///     .create()
+///     .unwrap();
+/// ```
+#[derive(Debug, typed_builder::TypedBuilder)]
+pub struct CreateFromStream {
+    /// Data stream source
+    pub stream: ObjectDataStream,
+    /// Media type of the object
+    pub content_type: String,
+    /// Supply the resource location for this object
+    pub content_location: url::Url,
+    /// If `true`, compute and attach the MD5 hash
+    #[builder(default = true)]
+    pub compute_md5: bool,
+    /// Transfer configuration (shared optional parameters)
+    #[builder(default)]
+    pub config: TransferConfig,
+}
+
+impl CreateFromStream {
+    /// Create the `ObjectDesc` from the configured stream parameters.
+    pub fn create(self) -> Result<Box<ObjectDesc>> {
+        ObjectDesc::create_from_stream(
+            self.stream,
+            &self.content_type,
+            &self.content_location,
+            self.compute_md5,
+            self.config,
+        )
+    }
+}
+
+///
+/// Typed builder for creating an `ObjectDesc` from a buffer.
+///
+/// # Example
+/// ```
+/// use flute::sender::CreateFromBuffer;
+///
+/// let data = vec![0u8; 1024];
+/// let obj = CreateFromBuffer::builder()
+///     .content(data)
+///     .content_type("application/octet-stream".to_string())
+///     .content_location(url::Url::parse("file:///test.bin").unwrap())
+///     .build()
+///     .create()
+///     .unwrap();
+/// ```
+#[derive(Debug, typed_builder::TypedBuilder)]
+pub struct CreateFromBuffer {
+    /// Buffer content
+    pub content: Vec<u8>,
+    /// Media type of the object
+    pub content_type: String,
+    /// Supply the resource location for this object
+    pub content_location: url::Url,
+    /// If `true`, compute and attach the MD5 hash
+    #[builder(default = true)]
+    pub compute_md5: bool,
+    /// Transfer configuration (shared optional parameters)
+    #[builder(default)]
+    pub config: TransferConfig,
+}
+
+impl CreateFromBuffer {
+    /// Create the `ObjectDesc` from the configured buffer parameters.
+    pub fn create(self) -> Result<Box<ObjectDesc>> {
+        ObjectDesc::create_from_buffer(
+            self.content,
+            &self.content_type,
+            &self.content_location,
+            self.compute_md5,
+            self.config,
+        )
+    }
 }
 
 impl ObjectDesc {
@@ -234,7 +413,7 @@ impl ObjectDesc {
     ///
     /// * `toi` - A boxed `Toi` object representing the Time of Interest to be assigned.
     pub fn set_toi(&mut self, toi: Box<Toi>) {
-        self.toi = Some(toi);
+        self.config.toi = Some(toi);
     }
 
     /// Return an `ObjectDesc` from a file
@@ -243,15 +422,8 @@ impl ObjectDesc {
         content_location: Option<&url::Url>,
         content_type: &str,
         cache_in_ram: bool,
-        max_transfer_count: u32,
-        carousel_mode: Option<CarouselRepeatMode>,
-        target_acquisition: Option<TargetAcquisition>,
-        cache_control: Option<CacheControl>,
-        groups: Option<Vec<String>>,
-        cenc: lct::Cenc,
-        inband_cenc: bool,
-        oti: Option<oti::Oti>,
-        md5: bool,
+        compute_md5: bool,
+        config: TransferConfig,
     ) -> Result<Box<ObjectDesc>> {
         let content_location = match content_location {
             Some(cl) => cl.clone(),
@@ -271,18 +443,11 @@ impl ObjectDesc {
                 content,
                 content_type.to_string(),
                 content_location,
-                max_transfer_count,
-                carousel_mode,
-                target_acquisition,
-                cache_control,
-                groups,
-                cenc,
-                inband_cenc,
-                oti,
-                md5,
+                compute_md5,
+                config,
             )
         } else {
-            if cenc != lct::Cenc::Null {
+            if config.cenc != lct::Cenc::Null {
                 return Err(FluteError::new(
                     "Compressed object is not compatible with file path",
                 ));
@@ -292,14 +457,8 @@ impl ObjectDesc {
                 Box::new(file),
                 content_type,
                 &content_location,
-                max_transfer_count,
-                carousel_mode,
-                target_acquisition,
-                cache_control,
-                groups,
-                inband_cenc,
-                oti,
-                md5,
+                compute_md5,
+                config,
             )
         }
     }
@@ -309,16 +468,10 @@ impl ObjectDesc {
         mut stream: ObjectDataStream,
         content_type: &str,
         content_location: &url::Url,
-        max_transfer_count: u32,
-        carousel_mode: Option<CarouselRepeatMode>,
-        target_acquisition: Option<TargetAcquisition>,
-        cache_control: Option<CacheControl>,
-        groups: Option<Vec<String>>,
-        inband_cenc: bool,
-        oti: Option<oti::Oti>,
-        md5: bool,
+        compute_md5: bool,
+        config: TransferConfig,
     ) -> Result<Box<ObjectDesc>> {
-        let md5 = match md5 {
+        let md5 = match compute_md5 {
             true => Some(stream.md5_base64()?),
             false => None,
         };
@@ -332,20 +485,8 @@ impl ObjectDesc {
             content_type: content_type.to_string(),
             content_length: transfer_length,
             transfer_length,
-            cenc: lct::Cenc::Null,
-            inband_cenc,
             md5,
-            oti,
-            max_transfer_count,
-            carousel_mode,
-            target_acquisition,
-            transfer_start_time: None,
-            cache_control,
-            groups,
-            toi: None,
-            optel_propagator: None,
-            e_tag: None,
-            allow_immediate_stop_before_first_transfer: None,
+            config,
         }))
     }
 
@@ -354,29 +495,15 @@ impl ObjectDesc {
         content: Vec<u8>,
         content_type: &str,
         content_location: &url::Url,
-        max_transfer_count: u32,
-        carousel_mode: Option<CarouselRepeatMode>,
-        target_acquisition: Option<TargetAcquisition>,
-        cache_control: Option<CacheControl>,
-        groups: Option<Vec<String>>,
-        cenc: lct::Cenc,
-        inband_cenc: bool,
-        oti: Option<oti::Oti>,
-        md5: bool,
+        compute_md5: bool,
+        config: TransferConfig,
     ) -> Result<Box<ObjectDesc>> {
         ObjectDesc::create_with_content(
             content,
             content_type.to_string(),
             content_location.clone(),
-            max_transfer_count,
-            carousel_mode,
-            target_acquisition,
-            cache_control,
-            groups,
-            cenc,
-            inband_cenc,
-            oti,
-            md5,
+            compute_md5,
+            config,
         )
     }
 
@@ -384,19 +511,12 @@ impl ObjectDesc {
         content: Vec<u8>,
         content_type: String,
         content_location: url::Url,
-        max_transfer_count: u32,
-        carousel_mode: Option<CarouselRepeatMode>,
-        target_acquisition: Option<TargetAcquisition>,
-        cache_control: Option<CacheControl>,
-        groups: Option<Vec<String>>,
-        cenc: lct::Cenc,
-        inband_cenc: bool,
-        oti: Option<oti::Oti>,
-        md5: bool,
+        compute_md5: bool,
+        config: TransferConfig,
     ) -> Result<Box<ObjectDesc>> {
         let content_length = content.len();
 
-        let md5 = match md5 {
+        let md5 = match compute_md5 {
             // https://www.rfc-editor.org/rfc/rfc2616#section-14.15
             true => {
                 Some(base64::engine::general_purpose::STANDARD.encode(md5::compute(&content).0))
@@ -404,7 +524,7 @@ impl ObjectDesc {
             false => None,
         };
 
-        let mut source = ObjectDataSource::from_vec(content, cenc)?;
+        let mut source = ObjectDataSource::from_vec(content, config.cenc)?;
         let transfer_length = source.len()?;
 
         Ok(Box::new(ObjectDesc {
@@ -413,20 +533,8 @@ impl ObjectDesc {
             content_type,
             content_length: content_length as u64,
             transfer_length,
-            cenc,
-            inband_cenc,
             md5,
-            oti,
-            max_transfer_count,
-            carousel_mode,
-            target_acquisition,
-            transfer_start_time: None,
-            cache_control,
-            groups,
-            toi: None,
-            optel_propagator: None,
-            e_tag: None,
-            allow_immediate_stop_before_first_transfer: None,
+            config,
         }))
     }
 }

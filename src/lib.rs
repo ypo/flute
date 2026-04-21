@@ -82,7 +82,7 @@
 //!
 //! // Add object(s) (files) to the FLUTE sender (priority queue 0)
 //! let obj = ObjectDesc::create_from_buffer(b"hello world".to_vec(), "text/plain",
-//! &url::Url::parse("file:///hello.txt").unwrap(), 1, None, None, None, None, Cenc::Null, true, None, true).unwrap();
+//! &url::Url::parse("file:///hello.txt").unwrap(), true, Default::default()).unwrap();
 //! sender.add_object(0, obj);
 //!
 //! // Always call publish after adding objects when FDT publish mode is FullFDT
@@ -224,11 +224,11 @@
 //!
 //! // Create an ObjectDesc for a low priority file
 //! let low_priority_obj = ObjectDesc::create_from_buffer(b"low priority".to_vec(), "text/plain",
-//! &url::Url::parse("file:///low_priority.txt").unwrap(), 1, None, None, None, None, Cenc::Null, true, None, true).unwrap();
+//! &url::Url::parse("file:///low_priority.txt").unwrap(), true, Default::default()).unwrap();
 //!
 //! // Create an ObjectDesc for a high priority file
 //! let high_priority_obj = ObjectDesc::create_from_buffer(b"high priority".to_vec(), "text/plain",
-//! &url::Url::parse("file:///high_priority.txt").unwrap(), 1, None, None, None, None, Cenc::Null, true, None, true).unwrap();
+//! &url::Url::parse("file:///high_priority.txt").unwrap(), true, Default::default()).unwrap();
 //!
 //! // Put Object to the low priority queue
 //! sender.add_object(PriorityQueue::LOW, low_priority_obj);
@@ -253,6 +253,7 @@
 //! use flute::sender::Sender;
 //! use flute::sender::ObjectDesc;
 //! use flute::sender::TargetAcquisition;
+//! use flute::sender::TransferConfig;
 //! use flute::core::lct::Cenc;
 //! use flute::core::UDPEndpoint;
 //! use std::net::UdpSocket;
@@ -270,11 +271,14 @@
 //! let mut sender = Sender::new(endpoint, tsi, &oti, &config);
 //!
 //! // Create an Object
-//! let mut obj = ObjectDesc::create_from_buffer(b"hello world".to_vec(), "text/plain",
-//! &url::Url::parse("file:///hello.txt").unwrap(), 1, None, None, None, None, Cenc::Null, true, None, true).unwrap();
 //! 
 //! // Set the Target Transfer Duration of this object to 2 seconds
-//! obj.target_acquisition = Some(TargetAcquisition::WithinDuration(std::time::Duration::from_secs(2)));
+//! let target_acquisition = TargetAcquisition::WithinDuration(std::time::Duration::from_secs(2));
+//! let transfer_config = TransferConfig::builder().target_acquisition(target_acquisition).build();
+//! 
+//! let mut obj = ObjectDesc::create_from_buffer(b"hello world".to_vec(), "text/plain",
+//! &url::Url::parse("file:///hello.txt").unwrap(), true, transfer_config).unwrap();
+//! 
 //! 
 //! // Add object(s) (files) to the FLUTE sender (priority queue 0)
 //! sender.add_object(0, obj);
@@ -301,6 +305,7 @@
 //! use flute::sender::Sender;
 //! use flute::sender::ObjectDesc;
 //! use flute::sender::TargetAcquisition;
+//! use flute::sender::TransferConfig;
 //! use flute::core::lct::Cenc;
 //! use flute::core::UDPEndpoint;
 //! use std::net::UdpSocket;
@@ -318,12 +323,14 @@
 //! let mut sender = Sender::new(endpoint, tsi, &oti, &config);
 //!
 //! // Create an Object
-//! let mut obj = ObjectDesc::create_from_buffer(b"hello world".to_vec(), "text/plain",
-//! &url::Url::parse("file:///hello.txt").unwrap(), 1, None, None, None, None, Cenc::Null, true, None, true).unwrap();
 //! 
 //! // Set the Target Transfer End Time of this object to 10 seconds from now
-//! let target_end_time = SystemTime::now() + std::time::Duration::from_secs(10);
-//! obj.target_acquisition = Some(TargetAcquisition::WithinTime(target_end_time));
+//! let target_end_time = TargetAcquisition::WithinTime(SystemTime::now() + std::time::Duration::from_secs(10));
+//! let transfer_config = TransferConfig::builder().target_acquisition(target_end_time).build();
+//! 
+//! let mut obj = ObjectDesc::create_from_buffer(b"hello world".to_vec(), "text/plain",
+//! &url::Url::parse("file:///hello.txt").unwrap(), true, transfer_config).unwrap();
+//!
 //! 
 //! // Add object(s) (files) to the FLUTE sender (priority queue 0)
 //! sender.add_object(0, obj);
@@ -360,7 +367,7 @@
 //! use flute::sender::Sender;
 //! use flute::sender::ObjectDesc;
 //! use flute::sender::CarouselRepeatMode;
-//! use flute::core::lct::Cenc;
+//! use flute::sender::TransferConfig;
 //! use flute::core::UDPEndpoint;
 //! use std::net::UdpSocket;
 //! use std::time::SystemTime;
@@ -378,11 +385,11 @@
 //! 
 //! // 10s delay after each transfer
 //! let carousel_mode = CarouselRepeatMode::DelayBetweenTransfers(std::time::Duration::from_secs(10));
+//! let transfer_config = TransferConfig::builder().carousel_mode(carousel_mode).build();
 //! 
 //! // Create an Object
 //! let mut obj = ObjectDesc::create_from_buffer(b"hello world".to_vec(), "text/plain",
-//! &url::Url::parse("file:///hello.txt").unwrap(), 1, 
-//! Some(carousel_mode), None, None, None, Cenc::Null, true, None, true).unwrap();
+//! &url::Url::parse("file:///hello.txt").unwrap(), true, transfer_config).unwrap();
 //! 
 //! // Add object(s) (files) to the FLUTE sender (priority queue 0)
 //! sender.add_object(0, obj);
@@ -416,7 +423,7 @@
 //! use flute::sender::Sender;
 //! use flute::sender::ObjectDesc;
 //! use flute::sender::CarouselRepeatMode;
-//! use flute::core::lct::Cenc;
+//! use flute::sender::TransferConfig;
 //! use flute::core::UDPEndpoint;
 //! use std::net::UdpSocket;
 //! use std::time::SystemTime;
@@ -434,11 +441,11 @@
 //! 
 //! // Configure a fixed interval between 2 transfer start
 //! let carousel_mode = CarouselRepeatMode::IntervalBetweenStartTimes(std::time::Duration::from_secs(10));
+//! let transfer_config = TransferConfig::builder().carousel_mode(carousel_mode).build();
 //! 
 //! // Create an Object
 //! let mut obj = ObjectDesc::create_from_buffer(b"hello world".to_vec(), "text/plain",
-//! &url::Url::parse("file:///hello.txt").unwrap(), 1, 
-//! Some(carousel_mode), None, None, None, Cenc::Null, true, None, true).unwrap();
+//! &url::Url::parse("file:///hello.txt").unwrap(), true, transfer_config).unwrap();
 //! 
 //! // Add object(s) (files) to the FLUTE sender (priority queue 0)
 //! sender.add_object(0, obj);

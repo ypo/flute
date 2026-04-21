@@ -91,15 +91,14 @@ mod tests {
                 buffer.clone(),
                 &content_type,
                 &content_location,
-                1,
-                None,
-                target_acquisition,
-                None,
-                None,
-                cenc,
-                inband_cenc,
-                object_oti.map(|e| e.clone()),
                 true,
+                sender::TransferConfig {
+                    target_acquisition,
+                    cenc,
+                    inband_cenc,
+                    oti: object_oti.map(|e| e.clone()),
+                    ..Default::default()
+                },
             )
             .unwrap(),
             buffer,
@@ -123,15 +122,13 @@ mod tests {
                 Some(&content_location),
                 &content_type,
                 false,
-                1,
-                None,
-                None,
-                None,
-                None,
-                cenc,
-                inband_cenc,
-                object_oti.map(|e| e.clone()),
                 true,
+                sender::TransferConfig {
+                    cenc,
+                    inband_cenc,
+                    oti: object_oti.map(|e| e.clone()),
+                    ..Default::default()
+                },
             )
             .unwrap(),
             buffer,
@@ -863,7 +860,7 @@ mod tests {
             None,
             None,
         );
-        obj.max_transfer_count = max_transfert_count as u32;
+        obj.config.max_transfer_count = max_transfert_count as u32;
         let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new(true));
         let mut receiver_config = receiver::Config::default();
         receiver_config.object_receive_once = false;

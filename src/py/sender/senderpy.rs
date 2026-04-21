@@ -39,15 +39,11 @@ impl Sender {
             content.to_vec(),
             content_type,
             &content_location,
-            1,
-            None,
-            None,
-            None,
-            None,
-            crate::core::lct::Cenc::Null,
             true,
-            oti,
-            true,
+            crate::sender::TransferConfig {
+                oti,
+                ..Default::default()
+            },
         )
         .map_err(|e| PyTypeError::new_err(e.0.to_string()))?;
 
@@ -83,15 +79,13 @@ impl Sender {
             content_location.as_ref(),
             content_type,
             true,
-            1,
-            None,
-            None,
-            None,
-            None,
-            cenc,
             true,
-            oti,
-            true,
+            crate::sender::TransferConfig {
+                cenc,
+                inband_cenc: true,
+                oti,
+                ..Default::default()
+            },
         )
         .map_err(|e| PyTypeError::new_err(e.0.to_string()))?;
 
