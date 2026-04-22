@@ -57,6 +57,26 @@ async fn main() {
    }).await;
 }
 ```
+## Command-Line Tools
+
+Install the sender and receiver binaries:
+
+```bash
+cargo install flute --features cli
+```
+
+### Send files
+
+```bash
+flute-sender --destination 224.0.0.1 --port 3400 file1.txt file2.txt
+```
+
+### Receive files
+
+```bash
+flute-receiver --group 224.0.0.1 --port 3400 --interface 127.0.0.1 /path/to/dest
+```
+
 ## UDP/IP Multicast files sender
 
 Transfer files over a UDP/IP network
@@ -463,26 +483,6 @@ while sender.nb_objects() > 0  {
 }
 ```
 
-
-## Command-Line Tools
-
-Install the sender and receiver binaries:
-
-```bash
-cargo install flute --features cli
-```
-
-### Send files
-
-```bash
-flute-sender --destination 224.0.0.1 --port 3400 file1.txt file2.txt
-```
-
-### Receive files
-
-```bash
-flute-receiver --group 224.0.0.1 --port 3400 --interface 127.0.0.1 /path/to/dest
-```
 
 # Python bindings
 
