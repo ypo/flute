@@ -1,25 +1,5 @@
 {{readme}}
 
-## Command-Line Tools
-
-Install the sender and receiver binaries:
-
-```bash
-cargo install flute --features cli
-```
-
-### Send files
-
-```bash
-flute-sender --destination 224.0.0.1 --port 3400 file1.txt file2.txt
-```
-
-### Receive files
-
-```bash
-flute-receiver --group 224.0.0.1 --port 3400 --interface 127.0.0.1 /path/to/dest
-```
-
 # Python bindings
 
 [![PyPI version](https://badge.fury.io/py/flute-alc.svg)](https://badge.fury.io/py/flute-alc)
