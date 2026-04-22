@@ -25,13 +25,14 @@ struct Cli {
     /// Destination directory for received files
     #[arg(required = true)]
     dest_dir: String,
+
+    /// Allow receiving the same object multiple times (by default, each object is received only once)
+    #[arg(long)]
+    no_receive_once: bool,
 }
 
 fn main() {
-    env_logger::builder()
-        .filter_level(log::LevelFilter::Info)
-        .try_init()
-        .ok();
+    env_logger::init();
 
     let cli = Cli::parse();
 
@@ -43,10 +44,8 @@ fn main() {
         std::process::exit(1);
     }
 
-    log::info!("Create FLUTE receiver, write objects to {:?}", dest_dir);
-
     let mut config = flute::receiver::Config::default();
-    config.object_receive_once = true;
+    config.object_receive_once = !cli.no_receive_once;
 
     let enable_md5_check = true;
     let writer = Rc::new(writer::ObjectWriterFSBuilder::new(dest_dir, enable_md5_check).unwrap());

@@ -42,6 +42,7 @@ clap = { version = "4", features = ["derive"], optional = true }
 env_logger = { version = "0.11", optional = true }
 pnet = { version = "0.34", optional = true }
 libc = { version = "0.2", optional = true }
+mime_guess = { version = "2", optional = true }
 
 [dev-dependencies]
 env_logger = "0.11"
@@ -51,11 +52,11 @@ tempfile = "3.10.1"
 python = ["pyo3", "pyo3-log"]
 optel = ["opentelemetry", "opentelemetry-semantic-conventions"]
 openapi = ["utoipa"]
-cli = ["clap", "env_logger", "pnet", "libc"]
+cli = ["clap", "env_logger", "pnet", "libc", "mime_guess"]
 
 [[bin]]
 name = "flute-sender"
-path = "src/bin/flute_sender.rs"
+path = "src/bin/flute_sender/main.rs"
 required-features = ["cli"]
 
 [[bin]]
