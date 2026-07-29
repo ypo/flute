@@ -1,11 +1,30 @@
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use flute::{
     core::{lct::Cenc, Oti, UDPEndpoint},
-    sender::{CarouselRepeatMode, Config, CreateFromFile, PriorityQueue, Sender, TransferConfig},
+    sender::{
+        CarouselRepeatMode, Config, CreateFromFile, FdtXmlProfile, PriorityQueue, Sender,
+        TransferConfig,
+    },
 };
 use std::{net::UdpSocket, time::SystemTime};
 
 mod token_bucket;
+
+#[derive(Clone, Copy, ValueEnum)]
+enum CliFdtXmlProfile {
+    Extended,
+    #[value(name = "ts-126-346-l6")]
+    Ts26346L6,
+}
+
+impl From<CliFdtXmlProfile> for FdtXmlProfile {
+    fn from(value: CliFdtXmlProfile) -> Self {
+        match value {
+            CliFdtXmlProfile::Extended => FdtXmlProfile::Extended,
+            CliFdtXmlProfile::Ts26346L6 => FdtXmlProfile::Ts26346L6,
+        }
+    }
+}
 
 #[derive(Parser)]
 #[command(name = "flute-sender", about = "Send files over UDP/FLUTE")]
@@ -73,6 +92,10 @@ struct Cli {
     /// Max number of files multiplexed in parallel
     #[arg(long, default_value_t = 3)]
     multiplex_files: u32,
+
+    /// FDT XML schema profile
+    #[arg(long, value_enum, default_value = "extended")]
+    fdt_xml_profile: CliFdtXmlProfile,
 
     /// Transmission bitrate in kbit/s (0 = unlimited)
     #[arg(short, long, default_value_t = 30000)]
@@ -143,6 +166,7 @@ fn main() {
     log::info!("Create FLUTE Sender");
     let mut sender_config = Config {
         interleave_blocks: cli.interleave_blocks,
+        fdt_xml_profile: cli.fdt_xml_profile.into(),
         ..Default::default()
     };
     sender_config.set_priority_queue(

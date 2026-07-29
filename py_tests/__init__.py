@@ -33,6 +33,18 @@ class SenderReceiverTestCase(TestCase):
 
         print("File transmitted !")
 
+    def test_fdt_xml_profile(self):
+        from flute import sender
+
+        config = sender.Config()
+        self.assertEqual(config.fdt_xml_profile, "extended")
+
+        config.fdt_xml_profile = "ts-126-346-l6"
+        self.assertEqual(config.fdt_xml_profile, "ts-126-346-l6")
+
+        with self.assertRaises(TypeError):
+            config.fdt_xml_profile = "unknown"
+
     def test_create_receiver(self):
         from flute import receiver
         print("------- test_create_receiver--------")

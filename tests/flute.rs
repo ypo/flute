@@ -324,6 +324,26 @@ mod tests {
     }
 
     #[test]
+    pub fn test_receiver_l6_fdt() {
+        init();
+        test_receiver_with_oti(
+            &flute::core::Oti::new_no_code(1400, 64),
+            None,
+            false,
+            flute::core::lct::Cenc::Null,
+            true,
+            Some(sender::Config {
+                fdt_xml_profile: sender::FdtXmlProfile::Ts26346L6,
+                ..Default::default()
+            }),
+            100000,
+            false,
+            None,
+            true,
+        );
+    }
+
+    #[test]
     pub fn test_receiver_no_code_no_md5() {
         init();
         test_receiver_with_oti(
