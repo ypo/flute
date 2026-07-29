@@ -85,6 +85,15 @@ pub enum FDTPublishMode {
     ObjectsBeingTransferred,
 }
 
+/// Selects the XML schema used to serialize the File Delivery Table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FdtXmlProfile {
+    /// Extended 3GPP FDT schema (default).
+    Extended,
+    /// Profiled FDT schema from 3GPP TS 26.346 clause L.6.1.
+    Ts26346L6,
+}
+
 ///
 /// Configuration of the `Sender`
 ///
@@ -102,6 +111,8 @@ pub struct Config {
     pub fdt_inband_sct: bool,
     /// FDT publish mode
     pub fdt_publish_mode: FDTPublishMode,
+    /// XML schema used to serialize the FDT.
+    pub fdt_xml_profile: FdtXmlProfile,
     /// A struct representing a set of priority queues for file transmission.
     /// Each priority queue is associated with a specific priority level determined by the key in the `BTreeMap`.
     /// A lower key indicates a higher priority.
@@ -166,6 +177,7 @@ impl Default for Config {
             toi_initial_value: Some(1),
             groups: None,
             fdt_publish_mode: FDTPublishMode::FullFDT,
+            fdt_xml_profile: FdtXmlProfile::Extended,
         }
     }
 }
@@ -210,6 +222,7 @@ impl Sender {
             config.toi_initial_value,
             config.groups.clone(),
             config.fdt_publish_mode,
+            config.fdt_xml_profile,
         );
 
         let fdt_session = SenderSession::new(

@@ -65,6 +65,28 @@ impl Config {
     }
 
     #[getter]
+    pub fn get_fdt_xml_profile(&self) -> PyResult<&'static str> {
+        match self.0.fdt_xml_profile {
+            crate::sender::FdtXmlProfile::Extended => Ok("extended"),
+            crate::sender::FdtXmlProfile::Ts26346L6 => Ok("ts-126-346-l6"),
+        }
+    }
+
+    #[setter]
+    pub fn set_fdt_xml_profile(&mut self, value: &str) -> PyResult<()> {
+        self.0.fdt_xml_profile = match value {
+            "extended" => crate::sender::FdtXmlProfile::Extended,
+            "ts-126-346-l6" => crate::sender::FdtXmlProfile::Ts26346L6,
+            _ => {
+                return Err(PyTypeError::new_err(
+                    "Wrong FDT XML profile, expected 'extended' or 'ts-126-346-l6'",
+                ))
+            }
+        };
+        Ok(())
+    }
+
+    #[getter]
     pub fn get_multiplex_files(&self) -> PyResult<u32> {
         Ok(self.0.priority_queues.get(&0).unwrap().multiplex_files)
     }

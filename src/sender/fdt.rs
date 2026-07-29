@@ -1,9 +1,9 @@
 use super::filedesc::FileDesc;
 use super::observer::ObserverList;
-use super::sender::FDTPublishMode;
+use super::sender::{FDTPublishMode, FdtXmlProfile};
 use super::toiallocator::{Toi, ToiAllocator};
 use super::{objectdesc, ObjectDesc};
-use crate::common::{fdtinstance::FdtInstance, lct, oti};
+use crate::common::{fdtinstance::FdtInstance, fdtinstance_l6::FdtInstanceL6, lct, oti};
 use crate::sender::objectdesc::CarouselRepeatMode;
 use crate::sender::observer;
 use crate::sender::TOIMaxLength;
@@ -33,6 +33,7 @@ pub struct Fdt {
     groups: Option<Vec<String>>,
     toi_allocator: Arc<ToiAllocator>,
     publish_mode: FDTPublishMode,
+    xml_profile: FdtXmlProfile,
 }
 
 impl Fdt {
@@ -49,6 +50,7 @@ impl Fdt {
         toi_initial_value: Option<u128>,
         groups: Option<Vec<String>>,
         publish_mode: FDTPublishMode,
+        xml_profile: FdtXmlProfile,
     ) -> Fdt {
         Fdt {
             _tsi: tsi,
@@ -68,6 +70,7 @@ impl Fdt {
             groups,
             toi_allocator: ToiAllocator::new(toi_max_length, toi_initial_value),
             publish_mode,
+            xml_profile,
         }
     }
 
@@ -395,7 +398,13 @@ impl Fdt {
             Ok(ser) => ser,
             Err(e) => return Err(FluteError::new(e.to_string())),
         };
-        match self.get_fdt_instance(now).serialize(ser) {
+
+        let instance = self.get_fdt_instance(now);
+        let result = match self.xml_profile {
+            FdtXmlProfile::Extended => instance.serialize(ser),
+            FdtXmlProfile::Ts26346L6 => FdtInstanceL6::try_from_fdt(&instance)?.serialize(ser),
+        };
+        match result {
             Ok(_) => {}
             Err(e) => return Err(FluteError::new(e.to_string())),
         };
@@ -456,6 +465,7 @@ mod tests {
             Some(1),
             Some(vec!["Group1".to_owned()]),
             crate::sender::FDTPublishMode::FullFDT,
+            crate::sender::FdtXmlProfile::Extended,
         );
         let obj1 = objectdesc::ObjectDesc::create_from_buffer(
             Vec::new(),
@@ -464,7 +474,9 @@ mod tests {
             false,
             objectdesc::TransferConfig {
                 max_transfer_count: 2,
+                cache_control: Some(crate::sender::CacheControl::NoCache),
                 groups: Some(vec!["Test1".to_owned()]),
+                e_tag: Some("object1-v1".to_owned()),
                 inband_cenc: true,
                 ..Default::default()
             },
@@ -529,5 +541,75 @@ mod tests {
             output_print
         );
         // log::info!("content={}", content);
+    }
+
+    #[test]
+    pub fn test_fdt_l6_profile() {
+        use std::{io::Write, process::Command};
+
+        crate::tests::init();
+        let mut fdt = create_fdt();
+        fdt.xml_profile = crate::sender::FdtXmlProfile::Ts26346L6;
+        let buffer = fdt.to_xml(SystemTime::now()).unwrap();
+        let content = String::from_utf8(buffer).unwrap();
+
+        assert!(content.contains("xmlns=\"urn:3GPP:metadata:2022:FLUTE:FDT\""));
+        assert!(!content.contains("xmlns:"));
+        assert!(content.contains("<schemaVersion>4</schemaVersion>"));
+        assert!(content.contains("File-ETag=\"object1-v1\""));
+        assert!(content.contains("<Cache-Control><no-cache>true</no-cache></Cache-Control>"));
+        assert!(!content.contains("<sv:schemaVersion>"));
+        assert!(!content.contains("mbms2007:Cache-Control"));
+        assert!(!content.contains("mbms2012:File-ETag"));
+
+        let parsed = crate::common::fdtinstance::FdtInstance::parse(content.as_bytes()).unwrap();
+        assert_eq!(parsed.schema_version, Some(4));
+        let parsed_file = parsed
+            .file
+            .as_ref()
+            .unwrap()
+            .iter()
+            .find(|file| file.content_location == "file:///object1")
+            .unwrap();
+        assert_eq!(parsed_file.file_etag.as_deref(), Some("object1-v1"));
+        assert!(matches!(
+            parsed_file.cache_control.as_ref().map(|cache| &cache.value),
+            Some(crate::common::fdtinstance::CacheControlChoice::NoCache(
+                Some(true)
+            ))
+        ));
+
+        let tmp_fdt_file = tempfile::Builder::new()
+            .prefix("TempFileL6")
+            .suffix(".xml")
+            .tempfile()
+            .unwrap();
+        write!(&tmp_fdt_file, "{}", content).unwrap();
+
+        let output = Command::new("xmllint")
+            .arg("--schema")
+            .arg("./assets/xsd/TS26346_FLUTE-FDT_Profiled.xsd")
+            .arg(tmp_fdt_file.path())
+            .arg("--noout")
+            .output()
+            .expect("failed to execute process");
+        let stderr = std::str::from_utf8(&output.stderr).expect("ascii to text went wrong");
+
+        assert!(
+            output.status.success(),
+            "\n\nL.6 validation failed\n\n{}\n\n{}\n\n",
+            stderr,
+            content
+        );
+    }
+
+    #[test]
+    pub fn test_fdt_l6_profile_requires_file() {
+        let mut fdt = create_fdt();
+        fdt.xml_profile = crate::sender::FdtXmlProfile::Ts26346L6;
+        fdt.files.clear();
+
+        let error = fdt.to_xml(SystemTime::now()).unwrap_err();
+        assert!(error.0.to_string().contains("requires at least one File"));
     }
 }

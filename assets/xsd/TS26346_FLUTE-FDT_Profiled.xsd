@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema targetNamespace="urn:3GPP:metadata:2022:FLUTE:FDT" version="3"
+    xmlns="urn:3GPP:metadata:2022:FLUTE:FDT"
+    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    elementFormDefault="qualified">
+    <xs:annotation>
+        <xs:documentation>Consolidated MBMS FLUTE File Delivery Table schema</xs:documentation>
+        <xs:documentation>3GPP TS 26.346 clause L.6.1</xs:documentation>
+        <xs:documentation>Copyright © 2025, 3GPP Organizational Partners (ARIB, ATIS, CCSA, ETSI,
+            TSDSI, TTA, TTC). All rights reserved.</xs:documentation>
+    </xs:annotation>
+
+    <xs:element name="FDT-Instance" type="FDT-InstanceType" />
+    <xs:complexType name="FDT-InstanceType">
+        <xs:sequence>
+            <xs:element name="File" type="FileType" maxOccurs="unbounded" />
+            <xs:element name="schemaVersion" type="xs:unsignedInt" />
+            <xs:any namespace="##other" processContents="skip" minOccurs="0"
+                maxOccurs="unbounded" />
+        </xs:sequence>
+        <xs:attribute name="Expires" type="xs:string" use="required" />
+        <xs:attribute name="Complete" type="xs:boolean" use="optional" />
+        <xs:attribute name="Content-Type" type="xs:string" use="optional" />
+        <xs:attribute name="Content-Encoding" type="xs:string" use="optional" />
+        <xs:attribute name="FEC-OTI-FEC-Encoding-ID" type="xs:unsignedLong" use="optional" />
+        <xs:attribute name="FEC-OTI-FEC-Instance-ID" type="xs:unsignedLong" use="optional" />
+        <xs:attribute name="FEC-OTI-Maximum-Source-Block-Length" type="xs:unsignedLong"
+            use="optional" />
+        <xs:attribute name="FEC-OTI-Encoding-Symbol-Length" type="xs:unsignedLong"
+            use="optional" />
+        <xs:attribute name="FEC-OTI-Max-Number-of-Encoding-Symbols" type="xs:unsignedLong"
+            use="optional" />
+        <xs:attribute name="FEC-OTI-Scheme-Specific-Info" type="xs:base64Binary" use="optional" />
+        <xs:anyAttribute processContents="skip" />
+    </xs:complexType>
+
+    <xs:complexType name="FileType">
+        <xs:sequence>
+            <xs:element name="Cache-Control" type="CacheControlType" minOccurs="0" />
+            <xs:any namespace="##other" processContents="skip" minOccurs="0"
+                maxOccurs="unbounded" />
+        </xs:sequence>
+        <xs:attribute name="Content-Location" type="xs:anyURI" use="required" />
+        <xs:attribute name="TOI" type="xs:positiveInteger" use="required" />
+        <xs:attribute name="Content-Length" type="xs:unsignedLong" use="optional" />
+        <xs:attribute name="Transfer-Length" type="xs:unsignedLong" use="optional" />
+        <xs:attribute name="Content-Type" type="xs:string" use="optional" />
+        <xs:attribute name="Content-Encoding" type="xs:string" use="optional" />
+        <xs:attribute name="Content-MD5" type="xs:base64Binary" use="optional" />
+        <xs:attribute name="FEC-OTI-FEC-Encoding-ID" type="xs:unsignedLong" use="optional" />
+        <xs:attribute name="FEC-OTI-FEC-Instance-ID" type="xs:unsignedLong" use="optional" />
+        <xs:attribute name="FEC-OTI-Maximum-Source-Block-Length" type="xs:unsignedLong"
+            use="optional" />
+        <xs:attribute name="FEC-OTI-Encoding-Symbol-Length" type="xs:unsignedLong"
+            use="optional" />
+        <xs:attribute name="FEC-OTI-Max-Number-of-Encoding-Symbols" type="xs:unsignedLong"
+            use="optional" />
+        <xs:attribute name="FEC-OTI-Scheme-Specific-Info" type="xs:base64Binary" use="optional" />
+        <xs:attribute name="FEC-Redundancy-Level" type="xs:unsignedInt" use="optional" />
+        <xs:attribute name="File-ETag" type="xs:string" use="optional" />
+        <xs:attribute name="Repair-Start" type="xs:dateTime" />
+        <xs:attribute name="Repair-Limit-Percentage" type="xs:unsignedInt" />
+        <xs:anyAttribute processContents="skip" />
+    </xs:complexType>
+    <xs:complexType name="CacheControlType">
+        <xs:choice>
+            <xs:element name="no-cache" type="xs:boolean" fixed="true" />
+            <xs:element name="max-stale" type="xs:boolean" fixed="true" />
+            <xs:element name="Expires" type="xs:unsignedInt" />
+        </xs:choice>
+        <xs:anyAttribute processContents="skip" />
+    </xs:complexType>
+</xs:schema>

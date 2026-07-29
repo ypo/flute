@@ -13,6 +13,7 @@ pub enum Profile {
 
 pub mod alc;
 pub mod fdtinstance;
+pub(crate) mod fdtinstance_l6;
 pub mod lct;
 pub mod oti;
 pub mod partition;
