@@ -214,15 +214,6 @@ impl Fdt {
     }
 
     pub fn nb_objects(&self) -> usize {
-        if self.files.len() > 100 {
-            let uri: Vec<String> = self
-                .files
-                .iter()
-                .map(|f| f.1.object.content_location.to_string())
-                .collect();
-            log::error!("{:?}", uri);
-        }
-
         self.files.len()
     }
 

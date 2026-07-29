@@ -442,6 +442,30 @@ fn raptor_scheme_specific(
     Ok(Some(SchemeSpecific::Raptor(scheme)))
 }
 
+fn build_oti(
+    fec_encoding_id: u8,
+    fec_instance_id: Option<u64>,
+    maximum_source_block_length: u64,
+    encoding_symbol_length: u64,
+    maximum_number_of_encoding_symbols: Option<u64>,
+    scheme_specific: Option<SchemeSpecific>,
+) -> Option<oti::Oti> {
+    let maximum_number_of_encoding_symbols =
+        maximum_number_of_encoding_symbols.unwrap_or(maximum_source_block_length);
+    let max_number_of_parity_symbols =
+        maximum_number_of_encoding_symbols.checked_sub(maximum_source_block_length)?;
+
+    Some(oti::Oti {
+        fec_encoding_id: fec_encoding_id.try_into().ok()?,
+        fec_instance_id: u16::try_from(fec_instance_id.unwrap_or(0)).ok()?,
+        maximum_source_block_length: u32::try_from(maximum_source_block_length).ok()?,
+        encoding_symbol_length: u16::try_from(encoding_symbol_length).ok()?,
+        max_number_of_parity_symbols: u32::try_from(max_number_of_parity_symbols).ok()?,
+        scheme_specific,
+        inband_fti: false,
+    })
+}
+
 impl FdtInstance {
     #[cfg(feature = "opentelemetry")]
     fn op_start(buffer: &[u8]) -> BoxedSpan {
@@ -491,17 +515,12 @@ impl FdtInstance {
     }
 
     pub fn get_oti(&self) -> Option<oti::Oti> {
-        if self.fec_oti_fec_encoding_id.is_none()
-            || self.fec_oti_maximum_source_block_length.is_none()
-            || self.fec_oti_encoding_symbol_length.is_none()
-        {
-            return None;
-        }
+        let fec_encoding_id = self.fec_oti_fec_encoding_id?;
+        let maximum_source_block_length = self.fec_oti_maximum_source_block_length?;
+        let encoding_symbol_length = self.fec_oti_encoding_symbol_length?;
+        let fec_encoding: oti::FECEncodingID = fec_encoding_id.try_into().ok()?;
 
-        let fec_encoding_id: oti::FECEncodingID =
-            self.fec_oti_fec_encoding_id.unwrap().try_into().ok()?;
-
-        let scheme_specific = match fec_encoding_id {
+        let scheme_specific = match fec_encoding {
             oti::FECEncodingID::ReedSolomonGF2M => {
                 reed_solomon_scheme_specific(&self.fec_oti_scheme_specific_info).unwrap_or(None)
             }
@@ -514,21 +533,14 @@ impl FdtInstance {
             _ => None,
         };
 
-        let fec_oti_max_number_of_encoding_symbols = self
-            .fec_oti_max_number_of_encoding_symbols
-            .unwrap_or(self.fec_oti_maximum_source_block_length.unwrap());
-
-        Some(oti::Oti {
+        build_oti(
             fec_encoding_id,
-            fec_instance_id: self.fec_oti_fec_instance_id.unwrap_or(0) as u16,
-            maximum_source_block_length: self.fec_oti_maximum_source_block_length.unwrap() as u32,
-            encoding_symbol_length: self.fec_oti_encoding_symbol_length.unwrap() as u16,
-            max_number_of_parity_symbols: (fec_oti_max_number_of_encoding_symbols
-                - self.fec_oti_maximum_source_block_length.unwrap())
-                as u32,
+            self.fec_oti_fec_instance_id,
+            maximum_source_block_length,
+            encoding_symbol_length,
+            self.fec_oti_max_number_of_encoding_symbols,
             scheme_specific,
-            inband_fti: false,
-        })
+        )
     }
 }
 
@@ -578,17 +590,12 @@ impl File {
     }
 
     pub fn get_oti(&self) -> Option<oti::Oti> {
-        if self.fec_oti_fec_encoding_id.is_none()
-            || self.fec_oti_maximum_source_block_length.is_none()
-            || self.fec_oti_encoding_symbol_length.is_none()
-        {
-            log::debug!("Cannot find OTI {:?}", self);
-            return None;
-        }
-        let fec_encoding_id: oti::FECEncodingID =
-            self.fec_oti_fec_encoding_id.unwrap().try_into().ok()?;
+        let fec_encoding_id = self.fec_oti_fec_encoding_id?;
+        let maximum_source_block_length = self.fec_oti_maximum_source_block_length?;
+        let encoding_symbol_length = self.fec_oti_encoding_symbol_length?;
+        let fec_encoding: oti::FECEncodingID = fec_encoding_id.try_into().ok()?;
 
-        let scheme_specific = match fec_encoding_id {
+        let scheme_specific = match fec_encoding {
             oti::FECEncodingID::ReedSolomonGF2M => {
                 reed_solomon_scheme_specific(&self.fec_oti_scheme_specific_info).unwrap_or(None)
             }
@@ -601,21 +608,14 @@ impl File {
             _ => None,
         };
 
-        let fec_oti_max_number_of_encoding_symbols = self
-            .fec_oti_max_number_of_encoding_symbols
-            .unwrap_or(self.fec_oti_maximum_source_block_length.unwrap());
-
-        Some(oti::Oti {
+        build_oti(
             fec_encoding_id,
-            fec_instance_id: self.fec_oti_fec_instance_id.unwrap_or(0) as u16,
-            maximum_source_block_length: self.fec_oti_maximum_source_block_length.unwrap() as u32,
-            encoding_symbol_length: self.fec_oti_encoding_symbol_length.unwrap() as u16,
-            max_number_of_parity_symbols: (fec_oti_max_number_of_encoding_symbols
-                - self.fec_oti_maximum_source_block_length.unwrap())
-                as u32,
+            self.fec_oti_fec_instance_id,
+            maximum_source_block_length,
+            encoding_symbol_length,
+            self.fec_oti_max_number_of_encoding_symbols,
             scheme_specific,
-            inband_fti: false,
-        })
+        )
     }
 
     #[cfg(feature = "opentelemetry")]
@@ -629,5 +629,63 @@ impl File {
             let decoded = String::from_utf8_lossy(&decoded);
             serde_json::from_str(&decoded).ok()
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_oti;
+    use crate::common::oti::FECEncodingID;
+
+    #[test]
+    fn build_oti_checks_numeric_ranges() {
+        let oti = build_oti(
+            FECEncodingID::NoCode as u8,
+            Some(u16::MAX as u64),
+            u32::MAX as u64,
+            u16::MAX as u64,
+            Some(u32::MAX as u64 + 10),
+            None,
+        )
+        .unwrap();
+        assert_eq!(oti.max_number_of_parity_symbols, 10);
+
+        assert!(build_oti(FECEncodingID::NoCode as u8, None, 10, 1, Some(9), None,).is_none());
+        assert!(build_oti(
+            FECEncodingID::NoCode as u8,
+            Some(u16::MAX as u64 + 1),
+            1,
+            1,
+            None,
+            None,
+        )
+        .is_none());
+        assert!(build_oti(
+            FECEncodingID::NoCode as u8,
+            None,
+            u32::MAX as u64 + 1,
+            1,
+            None,
+            None,
+        )
+        .is_none());
+        assert!(build_oti(
+            FECEncodingID::NoCode as u8,
+            None,
+            1,
+            u16::MAX as u64 + 1,
+            None,
+            None,
+        )
+        .is_none());
+        assert!(build_oti(
+            FECEncodingID::NoCode as u8,
+            None,
+            0,
+            1,
+            Some(u32::MAX as u64 + 1),
+            None,
+        )
+        .is_none());
     }
 }
