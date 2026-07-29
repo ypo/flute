@@ -168,7 +168,7 @@ impl Default for Config {
             fdt_cenc: lct::Cenc::Null,
             fdt_inband_sct: true,
             priority_queues: std::collections::BTreeMap::from([(
-                0,
+                PriorityQueue::HIGHEST,
                 PriorityQueue { multiplex_files: 3 },
             )]),
             interleave_blocks: 4,
