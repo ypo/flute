@@ -469,7 +469,7 @@ impl Oti {
     /// However, the returned value is limited to a maximum of 48 bits, which is the maximum transfer length supported by the FLUTE protocol.
     ///
     pub fn max_transfer_length(&self) -> usize {
-        let transfer_length: usize = match self.fec_encoding_id {
+        let transfer_length: u128 = match self.fec_encoding_id {
             FECEncodingID::NoCode => 0xFFFFFFFFFFFF, // 48 bits max
             FECEncodingID::ReedSolomonGF2M => 0xFFFFFFFFFFFF, // 48 bits max
             FECEncodingID::ReedSolomonGF28 => 0xFFFFFFFFFFFF, // 48 bits max
@@ -478,14 +478,11 @@ impl Oti {
             FECEncodingID::Raptor => 0xFFFFFFFFFFFF, // 48 bits max
         };
 
-        let max_sbn = self.max_source_blocks_number();
-        let block_size =
-            self.encoding_symbol_length as usize * self.maximum_source_block_length as usize;
-        let size = block_size * max_sbn;
-        if size > transfer_length {
-            return transfer_length;
-        }
-        size
+        let size = self.encoding_symbol_length as u128
+            * self.maximum_source_block_length as u128
+            * self.max_source_blocks_number() as u128;
+
+        size.min(transfer_length).min(usize::MAX as u128) as usize
     }
 
     /// Returns the maximum number of source blocks that a file can be divided into, according to the FEC Scheme used.
@@ -561,6 +558,8 @@ pub struct OtiAttributes {
 #[cfg(test)]
 mod tests {
 
+    use super::{FECEncodingID, Oti};
+
     #[test]
     pub fn test_oti() {
         crate::tests::init();
@@ -581,6 +580,26 @@ mod tests {
         log::info!(
             "RS28 (US) Max Transfer Length = {} bytes",
             rs28_under_specified.max_transfer_length()
+        );
+    }
+
+    #[test]
+    fn max_transfer_length_does_not_overflow() {
+        let exact = Oti::new_no_code(10, 20);
+        assert_eq!(exact.max_transfer_length(), 10 * 20 * u16::MAX as usize);
+
+        let oversized = Oti {
+            fec_encoding_id: FECEncodingID::ReedSolomonGF28UnderSpecified,
+            fec_instance_id: 0,
+            maximum_source_block_length: u32::MAX,
+            encoding_symbol_length: u16::MAX,
+            max_number_of_parity_symbols: 0,
+            scheme_specific: None,
+            inband_fti: true,
+        };
+        assert_eq!(
+            oversized.max_transfer_length(),
+            usize::try_from(0xFFFFFFFFFFFFu64).unwrap_or(usize::MAX)
         );
     }
 }
