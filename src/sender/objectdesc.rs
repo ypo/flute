@@ -189,7 +189,9 @@ pub struct ObjectDesc {
     /// Size of the object after transfer-coding (`Cenc`) has been applied
     /// as defined in [rfc2616 4.4](https://www.rfc-editor.org/rfc/rfc2616#section-4.4)
     pub transfer_length: u64,
-    /// the MD5 sum of this object. Can be used by the FLUTE `receiver` to validate the integrity of the reception
+    /// the MD5 sum of this object after content encoding (`Cenc`) has been applied,
+    /// as defined in [rfc2616 14.15](https://www.rfc-editor.org/rfc/rfc2616#section-14.15).
+    /// Can be used by the FLUTE `receiver` to validate the integrity of the reception
     pub md5: Option<String>,
     /// Transfer configuration
     pub config: TransferConfig,
@@ -516,15 +518,17 @@ impl ObjectDesc {
     ) -> Result<Box<ObjectDesc>> {
         let content_length = content.len();
 
-        let md5 = match compute_md5 {
-            // https://www.rfc-editor.org/rfc/rfc2616#section-14.15
-            true => {
-                Some(base64::engine::general_purpose::STANDARD.encode(md5::compute(&content).0))
+        let mut source = ObjectDataSource::from_vec(content, config.cenc)?;
+
+        // https://www.rfc-editor.org/rfc/rfc2616#section-14.15
+        // Content-MD5 is computed on the content-coded entity-body
+        let md5 = match (compute_md5, &source) {
+            (true, ObjectDataSource::Buffer(encoded)) => {
+                Some(base64::engine::general_purpose::STANDARD.encode(md5::compute(encoded).0))
             }
-            false => None,
+            _ => None,
         };
 
-        let mut source = ObjectDataSource::from_vec(content, config.cenc)?;
         let transfer_length = source.len()?;
 
         Ok(Box::new(ObjectDesc {
@@ -536,5 +540,71 @@ impl ObjectDesc {
             md5,
             config,
         }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_md5_computed_after_content_encoding() {
+        let content = b"hello flute ".repeat(1000);
+        let content_location = url::Url::parse("file:///hello").unwrap();
+
+        for cenc in [
+            lct::Cenc::Null,
+            lct::Cenc::Zlib,
+            lct::Cenc::Deflate,
+            lct::Cenc::Gzip,
+        ] {
+            let obj = ObjectDesc::create_from_buffer(
+                content.clone(),
+                "text/plain",
+                &content_location,
+                true,
+                TransferConfig {
+                    cenc,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+
+            let encoded = match &obj.source {
+                ObjectDataSource::Buffer(buffer) => buffer.clone(),
+                ObjectDataSource::Stream(_) => panic!("expected a buffer"),
+            };
+
+            let mut decoded = Vec::new();
+            match cenc {
+                lct::Cenc::Null => decoded.extend_from_slice(&encoded),
+                lct::Cenc::Zlib => {
+                    flate2::read::ZlibDecoder::new(encoded.as_slice())
+                        .read_to_end(&mut decoded)
+                        .unwrap();
+                }
+                lct::Cenc::Deflate => {
+                    flate2::read::DeflateDecoder::new(encoded.as_slice())
+                        .read_to_end(&mut decoded)
+                        .unwrap();
+                }
+                lct::Cenc::Gzip => {
+                    flate2::read::GzDecoder::new(encoded.as_slice())
+                        .read_to_end(&mut decoded)
+                        .unwrap();
+                }
+            };
+            assert_eq!(decoded, content);
+
+            let expected =
+                base64::engine::general_purpose::STANDARD.encode(md5::compute(&encoded).0);
+            assert_eq!(obj.md5.as_deref(), Some(expected.as_str()), "{:?}", cenc);
+
+            if cenc != lct::Cenc::Null {
+                let unencoded =
+                    base64::engine::general_purpose::STANDARD.encode(md5::compute(&content).0);
+                assert_ne!(obj.md5.as_deref(), Some(unencoded.as_str()), "{:?}", cenc);
+            }
+        }
     }
 }
