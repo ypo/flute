@@ -110,12 +110,27 @@ impl FecEncoder for RaptorEncoder {
     }
 }
 
+/// Raptor decoder of a source block
+///
+/// All the sub-blocks share the same K and the same ESI, so the Raptor code is applied identically
+/// to every byte of an encoding symbol. The full encoding symbols are therefore decoded with a single
+/// Raptor decoder, and the sub-blocks are de-interleaved once the K source symbols are recovered.
+///
+/// The Raptor code is systematic: when all the source symbols (ESI < K) are received, the block is
+/// rebuilt without running the Raptor decoder. The decoder is only started when at least K symbols
+/// are received and some source symbols are missing.
 pub struct RaptorDecoder {
     nb_source_symbols: usize,
     source_block_size: usize,
     encoding_symbol_length: usize,
     sub_symbols_length: Vec<usize>,
-    decoders: Vec<raptor_code::SourceBlockDecoder>,
+    /// Received source symbols, the source symbol `esi` is stored at `esi * T`
+    source_symbols: Vec<u8>,
+    source_received: Vec<bool>,
+    nb_source_received: usize,
+    /// Repair symbols received before the Raptor decoder is started
+    repair_symbols: Vec<(u32, Vec<u8>)>,
+    decoder: Option<raptor_code::SourceBlockDecoder>,
     data: Option<Vec<u8>>,
 }
 
@@ -132,25 +147,71 @@ impl RaptorDecoder {
             source_block_size
         );
         let sub_symbols_length = sub_symbols_length(encoding_symbol_length, scheme)?;
-        let decoders = sub_symbols_length
-            .iter()
-            .map(|_| raptor_code::SourceBlockDecoder::new(nb_source_symbols))
-            .collect();
 
         Ok(RaptorDecoder {
             nb_source_symbols,
             source_block_size,
             encoding_symbol_length,
             sub_symbols_length,
-            decoders,
+            source_symbols: vec![0; nb_source_symbols * encoding_symbol_length],
+            source_received: vec![false; nb_source_symbols],
+            nb_source_received: 0,
+            repair_symbols: Vec::new(),
+            decoder: None,
             data: None,
         })
+    }
+
+    fn all_source_symbols_received(&self) -> bool {
+        self.nb_source_received == self.nb_source_symbols
+    }
+
+    fn start_decoder(&mut self) {
+        log::debug!(
+            "Start Raptor decoder, {}/{} source symbols received",
+            self.nb_source_received,
+            self.nb_source_symbols
+        );
+        let t = self.encoding_symbol_length;
+        let mut decoder = raptor_code::SourceBlockDecoder::new(self.nb_source_symbols);
+        for (esi, _) in self
+            .source_received
+            .iter()
+            .enumerate()
+            .filter(|(_, received)| **received)
+        {
+            decoder.push_encoding_symbol(&self.source_symbols[esi * t..(esi + 1) * t], esi as u32);
+        }
+
+        for (esi, symbol) in std::mem::take(&mut self.repair_symbols) {
+            decoder.push_encoding_symbol(&symbol, esi);
+        }
+
+        self.decoder = Some(decoder);
+    }
+
+    /// The m-th source symbol is the concatenation of the m-th sub-symbol of each sub-block
+    /// and each sub-block is made of K contiguous sub-symbols
+    fn deinterleave_sub_blocks(&self, source_symbols: Vec<u8>) -> Vec<u8> {
+        if self.sub_symbols_length.len() == 1 {
+            return source_symbols;
+        }
+
+        let mut source_block = Vec::with_capacity(source_symbols.len());
+        let mut offset = 0;
+        for sub_symbol_length in &self.sub_symbols_length {
+            for symbol in source_symbols.chunks_exact(self.encoding_symbol_length) {
+                source_block.extend_from_slice(&symbol[offset..offset + sub_symbol_length]);
+            }
+            offset += sub_symbol_length;
+        }
+        source_block
     }
 }
 
 impl FecDecoder for RaptorDecoder {
     fn push_symbol(&mut self, encoding_symbol: &[u8], esi: u32) {
-        if self.data.is_some() {
+        if self.data.is_some() || self.all_source_symbols_received() {
             return;
         }
 
@@ -165,35 +226,78 @@ impl FecDecoder for RaptorDecoder {
 
         // The padding of the last source symbol might not be sent
         // https://www.rfc-editor.org/rfc/rfc5053.html#section-5.3.2
-        let mut symbol = encoding_symbol.to_vec();
-        symbol.resize(self.encoding_symbol_length, 0);
+        let t = self.encoding_symbol_length;
+        if (esi as usize) < self.nb_source_symbols {
+            let esi = esi as usize;
+            if self.source_received[esi] {
+                return;
+            }
 
-        let mut offset = 0;
-        for (decoder, sub_symbol_length) in self.decoders.iter_mut().zip(&self.sub_symbols_length) {
-            decoder.push_encoding_symbol(&symbol[offset..offset + sub_symbol_length], esi);
-            offset += sub_symbol_length;
+            let symbol = &mut self.source_symbols[esi * t..(esi + 1) * t];
+            symbol[..encoding_symbol.len()].copy_from_slice(encoding_symbol);
+            self.source_received[esi] = true;
+            self.nb_source_received += 1;
+
+            if let Some(decoder) = self.decoder.as_mut() {
+                decoder.push_encoding_symbol(symbol, esi as u32);
+            }
+        } else {
+            let mut symbol = encoding_symbol.to_vec();
+            symbol.resize(t, 0);
+            match self.decoder.as_mut() {
+                Some(decoder) => decoder.push_encoding_symbol(&symbol, esi),
+                None => self.repair_symbols.push((esi, symbol)),
+            }
+        }
+
+        if self.decoder.is_none()
+            && !self.all_source_symbols_received()
+            && self.nb_source_received + self.repair_symbols.len() >= self.nb_source_symbols
+        {
+            self.start_decoder();
         }
     }
 
     fn can_decode(&self) -> bool {
-        self.decoders
-            .iter()
-            .all(|decoder| decoder.fully_specified())
+        self.all_source_symbols_received()
+            || self
+                .decoder
+                .as_ref()
+                .map(|decoder| decoder.fully_specified())
+                .unwrap_or(false)
     }
 
     fn decode(&mut self) -> bool {
+        if self.data.is_some() {
+            return true;
+        }
+
         log::debug!("Decode source block length {}", self.source_block_size);
-        let mut source_block = Vec::new();
-        for (decoder, sub_symbol_length) in self.decoders.iter_mut().zip(&self.sub_symbols_length) {
-            match decoder.decode(self.nb_source_symbols * sub_symbol_length) {
-                Some(sub_block) => source_block.extend(sub_block),
+        let source_symbols = if self.all_source_symbols_received() {
+            std::mem::take(&mut self.source_symbols)
+        } else {
+            let length = self.nb_source_symbols * self.encoding_symbol_length;
+            match self
+                .decoder
+                .as_mut()
+                .and_then(|decoder| decoder.decode(length))
+            {
+                Some(source_symbols) => source_symbols,
                 None => return false,
             }
-        }
+        };
+
+        let mut source_block = self.deinterleave_sub_blocks(source_symbols);
 
         // Remove the padding of the last source symbol
         source_block.truncate(self.source_block_size);
         self.data = Some(source_block);
+
+        // Release the decoding buffers
+        self.decoder = None;
+        self.source_symbols = Vec::new();
+        self.source_received = Vec::new();
+        self.repair_symbols = Vec::new();
         true
     }
 
@@ -297,6 +401,77 @@ mod tests {
             let end = std::cmp::min(t, data.len() - shard.esi() as usize * t);
             decoder.push_symbol(&shard.data()[..end], shard.esi());
         }
+        assert!(decoder.can_decode());
+        assert!(decoder.decode());
+        assert_eq!(decoder.source_block().unwrap(), data.as_slice());
+    }
+
+    #[test]
+    pub fn test_raptor_decode_systematic_sub_blocks() {
+        crate::tests::init();
+        let k = 20;
+        let t = 1000;
+        let data = create_source_block(k * t - 100);
+
+        for n in [1u8, 2, 3, 4] {
+            let scheme = create_scheme(n, 4);
+            let encoder = RaptorEncoder::new(k, 10, t, &scheme).unwrap();
+            let shards = encoder.encode(&data).unwrap();
+
+            // Source symbols in reverse order, with a duplicate
+            let mut decoder = RaptorDecoder::new(k, data.len(), t, &scheme).unwrap();
+            decoder.push_symbol(shards[k - 1].data(), shards[k - 1].esi());
+            for shard in shards.iter().take(k).rev() {
+                assert!(!decoder.can_decode());
+                decoder.push_symbol(shard.data(), shard.esi());
+            }
+            assert!(decoder.can_decode());
+            assert!(
+                decoder.decoder.is_none(),
+                "Raptor decoder must not be started"
+            );
+            assert!(decoder.decode());
+            assert_eq!(decoder.source_block().unwrap(), data.as_slice(), "N={}", n);
+        }
+    }
+
+    #[test]
+    pub fn test_raptor_decode_repair_first() {
+        crate::tests::init();
+        let k = 20;
+        let t = 1000;
+        let data = create_source_block(k * t - 100);
+        let scheme = create_scheme(3, 4);
+        let encoder = RaptorEncoder::new(k, 10, t, &scheme).unwrap();
+        let shards = encoder.encode(&data).unwrap();
+
+        let mut decoder = RaptorDecoder::new(k, data.len(), t, &scheme).unwrap();
+        for shard in shards.iter().skip(k).chain(shards.iter().take(k).skip(5)) {
+            decoder.push_symbol(shard.data(), shard.esi());
+        }
+        assert!(decoder.decoder.is_some());
+        assert!(decoder.can_decode());
+        assert!(decoder.decode());
+        assert_eq!(decoder.source_block().unwrap(), data.as_slice());
+    }
+
+    #[test]
+    pub fn test_raptor_decode_late_source_symbol() {
+        crate::tests::init();
+        let k = 20;
+        let t = 1000;
+        let data = create_source_block(k * t - 100);
+        let scheme = create_scheme(2, 4);
+        let encoder = RaptorEncoder::new(k, 10, t, &scheme).unwrap();
+        let shards = encoder.encode(&data).unwrap();
+
+        // The Raptor decoder is started, then the missing source symbol completes the block
+        let mut decoder = RaptorDecoder::new(k, data.len(), t, &scheme).unwrap();
+        for shard in shards.iter().skip(1).take(k) {
+            decoder.push_symbol(shard.data(), shard.esi());
+        }
+        assert!(decoder.decoder.is_some());
+        decoder.push_symbol(shards[0].data(), shards[0].esi());
         assert!(decoder.can_decode());
         assert!(decoder.decode());
         assert_eq!(decoder.source_block().unwrap(), data.as_slice());
