@@ -198,6 +198,14 @@ impl FileDesc {
                     ));
                 }
 
+                // K'max <https://www.rfc-editor.org/rfc/rfc6330.html#section-5.1.2>
+                if a_large > 56403 {
+                    return Err(FluteError::new(format!(
+                        "Object transfer length of {} is partitioned into source blocks of {} symbols, RaptorQ requires at most 56403 symbols per block, your object is incompatible with the FEC parameters of your OTI",
+                        object.transfer_length, a_large
+                    )));
+                }
+
                 let nb_blocks:u8 = nb_blocks.try_into().map_err(|_| {
                     FluteError::new(format!(
                         "Object transfer length of {} requires the transmission of {} source blocks, the maximum is {}, your object is incompatible with the FEC parameters of your OTI",
@@ -643,6 +651,17 @@ mod tests {
         let mut oti = Oti::new_raptor(1024, 64, 20, 1, 4).unwrap();
         oti.scheme_specific = None;
         assert!(create_file_desc(1025, &oti).is_err());
+    }
+
+    #[test]
+    pub fn test_file_desc_raptorq_error() {
+        crate::tests::init();
+
+        // Source block above K'max (OTI not created with new_raptorq)
+        let mut oti = Oti::new_raptorq(16, 64, 20, 1, 4).unwrap();
+        oti.maximum_source_block_length = 60000;
+        assert!(create_file_desc(57000 * 16, &oti).is_err());
+        assert!(create_file_desc(56403 * 16, &oti).is_ok());
     }
 
     #[test]

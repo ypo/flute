@@ -133,7 +133,7 @@ impl Block {
                 oti.max_number_of_parity_symbols as usize,
                 oti.encoding_symbol_length as usize,
                 scheme,
-            );
+            )?;
 
             let shards = encoder.encode(buffer)?;
             Ok(shards)

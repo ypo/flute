@@ -362,7 +362,11 @@ impl Oti {
     /// An instance of the `Oti` struct
     ///     
     /// # Errors
-    /// Returns an error if the encoding symbols length is not a multiple of al parameter
+    /// Returns an error if
+    /// * `symbol_alignment` is 0
+    /// * the encoding symbols length is not a multiple of al parameter
+    /// * `sub_blocks_length` is not between 1 and `encoding_symbol_length` / `symbol_alignment` (a sub-symbol is at least Al bytes) <https://www.rfc-editor.org/rfc/rfc6330.html#section-4.4.1.2>
+    /// * `maximum_source_block_length` is not between 1 and 56403 (K'max) <https://www.rfc-editor.org/rfc/rfc6330.html#section-5.1.2>
     ///
     /// # Example
     ///
@@ -378,9 +382,27 @@ impl Oti {
         sub_blocks_length: u16,
         symbol_alignment: u8,
     ) -> Result<Oti> {
+        if symbol_alignment == 0 {
+            return Err(FluteError::new("Al must be at least 1"));
+        }
+
         if (encoding_symbol_length % symbol_alignment as u16) != 0 {
             return Err(FluteError::new(
                 "Encoding symbols length must be a multiple of Al",
+            ));
+        }
+
+        if sub_blocks_length == 0
+            || sub_blocks_length > encoding_symbol_length / symbol_alignment as u16
+        {
+            return Err(FluteError::new(
+                "Number of sub-blocks must be between 1 and encoding symbols length / Al",
+            ));
+        }
+
+        if !(1..=56403).contains(&maximum_source_block_length) {
+            return Err(FluteError::new(
+                "Maximum source block length must be between 1 and 56403",
             ));
         }
 
@@ -503,7 +525,7 @@ impl Oti {
             FECEncodingID::ReedSolomonGF2M => 0xFFFFFFFFFFFF, // 48 bits max
             FECEncodingID::ReedSolomonGF28 => 0xFFFFFFFFFFFF, // 48 bits max
             FECEncodingID::ReedSolomonGF28UnderSpecified => 0xFFFFFFFFFFFF, // 48 bits max
-            FECEncodingID::RaptorQ => 0xFFFFFFFFFFF, // 40 bits max
+            FECEncodingID::RaptorQ => 942574504275,  // RFC 6330 Errata 5548
             FECEncodingID::Raptor => 0xFFFFFFFFFFFF, // 48 bits max
         };
 
@@ -637,6 +659,31 @@ mod tests {
         // ESI is 16 bits
         assert!(Oti::new_raptor(1024, 8192, 57345, 1, 4).is_err());
         assert!(Oti::new_raptor(1024, 4, u16::MAX, 1, 4).is_err());
+    }
+
+    #[test]
+    fn new_raptorq_checks_parameters() {
+        assert!(Oti::new_raptorq(1024, 64, 20, 1, 4).is_ok());
+        assert!(Oti::new_raptorq(1023, 64, 20, 1, 1).is_ok());
+        assert!(Oti::new_raptorq(1024, 1, 0, 1, 4).is_ok());
+
+        // Al
+        assert!(Oti::new_raptorq(1024, 64, 20, 1, 0).is_err());
+        assert!(Oti::new_raptorq(1022, 64, 20, 1, 4).is_err());
+
+        // N
+        assert!(Oti::new_raptorq(1024, 64, 20, 256, 4).is_ok());
+        assert!(Oti::new_raptorq(16, 64, 20, 4, 4).is_ok());
+        assert!(Oti::new_raptorq(1024, 64, 20, 0, 4).is_err());
+        assert!(Oti::new_raptorq(16, 64, 20, 5, 4).is_err());
+        assert!(Oti::new_raptorq(0, 64, 20, 1, 4).is_err());
+
+        // K'max
+        assert!(Oti::new_raptorq(1024, 0, 20, 1, 4).is_err());
+        assert!(Oti::new_raptorq(1024, 56404, 20, 1, 4).is_err());
+
+        // ESI is 24 bits
+        assert!(Oti::new_raptorq(1024, 56403, u16::MAX, 1, 4).is_ok());
     }
 
     #[test]
