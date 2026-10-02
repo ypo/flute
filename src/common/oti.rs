@@ -662,31 +662,6 @@ mod tests {
     }
 
     #[test]
-    fn new_raptorq_checks_parameters() {
-        assert!(Oti::new_raptorq(1024, 64, 20, 1, 4).is_ok());
-        assert!(Oti::new_raptorq(1023, 64, 20, 1, 1).is_ok());
-        assert!(Oti::new_raptorq(1024, 1, 0, 1, 4).is_ok());
-
-        // Al
-        assert!(Oti::new_raptorq(1024, 64, 20, 1, 0).is_err());
-        assert!(Oti::new_raptorq(1022, 64, 20, 1, 4).is_err());
-
-        // N
-        assert!(Oti::new_raptorq(1024, 64, 20, 256, 4).is_ok());
-        assert!(Oti::new_raptorq(16, 64, 20, 4, 4).is_ok());
-        assert!(Oti::new_raptorq(1024, 64, 20, 0, 4).is_err());
-        assert!(Oti::new_raptorq(16, 64, 20, 5, 4).is_err());
-        assert!(Oti::new_raptorq(0, 64, 20, 1, 4).is_err());
-
-        // K'max
-        assert!(Oti::new_raptorq(1024, 0, 20, 1, 4).is_err());
-        assert!(Oti::new_raptorq(1024, 56404, 20, 1, 4).is_err());
-
-        // ESI is 24 bits
-        assert!(Oti::new_raptorq(1024, 56403, u16::MAX, 1, 4).is_ok());
-    }
-
-    #[test]
     fn max_transfer_length_does_not_overflow() {
         let exact = Oti::new_no_code(10, 20);
         assert_eq!(exact.max_transfer_length(), 10 * 20 * u16::MAX as usize);

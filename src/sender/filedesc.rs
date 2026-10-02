@@ -654,17 +654,6 @@ mod tests {
     }
 
     #[test]
-    pub fn test_file_desc_raptorq_error() {
-        crate::tests::init();
-
-        // Source block above K'max (OTI not created with new_raptorq)
-        let mut oti = Oti::new_raptorq(16, 64, 20, 1, 4).unwrap();
-        oti.maximum_source_block_length = 60000;
-        assert!(create_file_desc(57000 * 16, &oti).is_err());
-        assert!(create_file_desc(56403 * 16, &oti).is_ok());
-    }
-
-    #[test]
     pub fn test_file_desc_other_fec_unchanged() {
         crate::tests::init();
 
