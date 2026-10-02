@@ -85,6 +85,43 @@ impl TransferInfo {
     }
 }
 
+/// Raptor systematic indices J(K) are only defined for 4 <= K <= 8192
+/// <https://www.rfc-editor.org/rfc/rfc5053.html#section-5.7>
+///
+/// When the object is less than 4 symbols long, the symbol length is reduced to T' = floor(F / 4), rounded down to a multiple of Al
+/// <https://www.rfc-editor.org/rfc/rfc5053.html#section-4.1>, so the object is encoded with at least 4 symbols.
+fn raptor_encoding_symbol_length(
+    transfer_length: u64,
+    encoding_symbol_length: u16,
+    symbol_alignment: u8,
+) -> Result<u16> {
+    if symbol_alignment == 0 {
+        return Err(FluteError::new("Al must be at least 1"));
+    }
+
+    if encoding_symbol_length == 0 {
+        return Ok(encoding_symbol_length);
+    }
+
+    let nb_symbols = num_integer::div_ceil(transfer_length, encoding_symbol_length as u64);
+    if transfer_length == 0 || nb_symbols >= 4 {
+        return Ok(encoding_symbol_length);
+    }
+
+    let al = symbol_alignment as u64;
+    let symbol_length = transfer_length / 4 / al * al;
+    if symbol_length == 0 {
+        return Err(FluteError::new(format!(
+            "Object transfer length of {} is too small to be encoded with Raptor, a minimum of {} bytes is required with Al={}",
+            transfer_length,
+            4 * al,
+            al
+        )));
+    }
+
+    Ok(symbol_length as u16)
+}
+
 #[derive(Debug)]
 pub struct FileDesc {
     pub priority: u32,
@@ -119,12 +156,36 @@ impl FileDesc {
             )));
         }
 
+        if oti.fec_encoding_id == oti::FECEncodingID::Raptor {
+            let scheme = match oti.scheme_specific.as_mut() {
+                Some(SchemeSpecific::Raptor(scheme)) => scheme,
+                _ => {
+                    return Err(FluteError::new(
+                        "FEC Raptor is selected, however scheme parameters are not defined",
+                    ))
+                }
+            };
+
+            oti.encoding_symbol_length = raptor_encoding_symbol_length(
+                object.transfer_length,
+                oti.encoding_symbol_length,
+                scheme.symbol_alignment,
+            )?;
+
+            // A sub-symbol is at least Al bytes, so N can't be above T'/Al
+            // <https://www.rfc-editor.org/rfc/rfc5053.html#section-4.2>
+            let max_sub_blocks = oti.encoding_symbol_length / scheme.symbol_alignment as u16;
+            if scheme.sub_blocks_length as u16 > max_sub_blocks {
+                scheme.sub_blocks_length = max_sub_blocks as u8;
+            }
+        }
+
         if oti.fec_encoding_id == oti::FECEncodingID::RaptorQ
             || oti.fec_encoding_id == oti::FECEncodingID::Raptor
         {
             // Calculate the source block length of Raptor / RaptorQ
 
-            let (_, _, _, nb_blocks) = partition::block_partitioning(
+            let (a_large, a_small, nb_a_large, nb_blocks) = partition::block_partitioning(
                 oti.maximum_source_block_length as u64,
                 object.transfer_length,
                 oti.encoding_symbol_length as u64,
@@ -149,10 +210,15 @@ impl FileDesc {
                     scheme.source_blocks_length = nb_blocks;
                 }
             } else if oti.fec_encoding_id == oti::FECEncodingID::Raptor {
-                if oti.scheme_specific.is_none() {
-                    return Err(FluteError::new(
-                        "FEC Raptor is selected, however scheme parameters are not defined",
-                    ));
+                // A source block of 2 or 3 symbols is still possible, ex: a maximum source block length of 5
+                let is_valid_block = |k: u64| (4..=8192).contains(&k);
+                if (nb_a_large > 0 && !is_valid_block(a_large))
+                    || (nb_blocks > nb_a_large && !is_valid_block(a_small))
+                {
+                    return Err(FluteError::new(format!(
+                        "Object transfer length of {} is partitioned into source blocks of {}/{} symbols, Raptor requires 4 to 8192 symbols per block, your object is incompatible with the FEC parameters of your OTI",
+                        object.transfer_length, a_large, a_small
+                    )));
                 }
 
                 let nb_blocks:u16 = nb_blocks.try_into().map_err(|_| {
@@ -323,7 +389,10 @@ impl FileDesc {
 
     pub fn to_file_xml(&self, now: SystemTime) -> fdtinstance::File {
         let oti_attributes = match self.oti.fec_encoding_id {
-            oti::FECEncodingID::RaptorQ => Some(self.oti.get_attributes()), // for RaptorQ we need to add OTI for each object
+            // for RaptorQ and Raptor we need to add OTI for each object (Z, and T for Raptor, depend on the object)
+            oti::FECEncodingID::RaptorQ | oti::FECEncodingID::Raptor => {
+                Some(self.oti.get_attributes())
+            }
             _ => self
                 .object
                 .config
@@ -389,5 +458,207 @@ impl FileDesc {
             group: None,
             optel_propagator,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{raptor_encoding_symbol_length, FileDesc};
+    use crate::common::oti::{FECEncodingID, Oti, RaptorSchemeSpecific, SchemeSpecific};
+    use crate::error::Result;
+    use crate::sender::objectdesc::{ObjectDesc, TransferConfig};
+    use crate::sender::toiallocator::ToiAllocator;
+    use crate::sender::TOIMaxLength;
+
+    fn create_file_desc(transfer_length: usize, default_oti: &Oti) -> Result<FileDesc> {
+        let allocator = ToiAllocator::new(TOIMaxLength::ToiMax112, None);
+        let mut obj = ObjectDesc::create_from_buffer(
+            vec![0u8; transfer_length],
+            "application/octet-stream",
+            &url::Url::parse("file:///object").unwrap(),
+            false,
+            TransferConfig::default(),
+        )
+        .unwrap();
+        obj.set_toi(ToiAllocator::allocate(&allocator));
+        FileDesc::new(0, obj, default_oti, None, false)
+    }
+
+    fn get_raptor_scheme(oti: &Oti) -> &RaptorSchemeSpecific {
+        match oti.scheme_specific.as_ref() {
+            Some(SchemeSpecific::Raptor(scheme)) => scheme,
+            _ => panic!("Raptor scheme specific is missing"),
+        }
+    }
+
+    #[test]
+    pub fn test_raptor_encoding_symbol_length() {
+        crate::tests::init();
+
+        // (F, T, Al, T')
+        let cases = [
+            (0u64, 1024u16, 4u8, 1024u16),
+            (16, 1024, 4, 4),
+            (1024, 1024, 4, 256),
+            (1025, 1024, 4, 256),
+            (2048, 1024, 4, 512),
+            (2049, 1024, 4, 512),
+            (3072, 1024, 4, 768),
+            (3073, 1024, 4, 1024),
+            (100000, 1024, 4, 1024),
+            (1100, 1024, 8, 272),
+            (1100, 1023, 3, 273),
+            (1100, 1024, 1, 275),
+            (16, 8, 4, 4),
+        ];
+        for (f, t, al, expected) in cases {
+            assert_eq!(
+                raptor_encoding_symbol_length(f, t, al).unwrap(),
+                expected,
+                "F={} T={} Al={}",
+                f,
+                t,
+                al
+            );
+        }
+
+        // F < 4 * Al
+        assert!(raptor_encoding_symbol_length(1, 1024, 4).is_err());
+        assert!(raptor_encoding_symbol_length(12, 8, 4).is_err());
+        assert!(raptor_encoding_symbol_length(5, 4, 4).is_err());
+        assert!(raptor_encoding_symbol_length(1025, 1024, 0).is_err());
+    }
+
+    #[test]
+    pub fn test_raptor_encoding_symbol_length_min_4_symbols() {
+        crate::tests::init();
+        for (t, al) in [
+            (4u16, 4u8),
+            (8, 4),
+            (16, 4),
+            (64, 1),
+            (1023, 3),
+            (1024, 4),
+            (1024, 8),
+        ] {
+            for f in (4 * al as u64)..=(4 * t as u64) {
+                let symbol_length = raptor_encoding_symbol_length(f, t, al).unwrap();
+                let k = num_integer::div_ceil(f, symbol_length as u64);
+                assert_eq!(symbol_length % al as u16, 0, "F={} T={} Al={}", f, t, al);
+                assert!(k >= 4, "F={} T={} Al={} K={}", f, t, al, k);
+            }
+        }
+    }
+
+    #[test]
+    pub fn test_file_desc_raptor() {
+        crate::tests::init();
+        let oti = Oti::new_raptor(1024, 64, 20, 1, 4).unwrap();
+
+        // (F, T', Z)
+        let cases = [
+            (16usize, 4u16, 1u16),
+            (1024, 256, 1),
+            (1025, 256, 1),
+            (2048, 512, 1),
+            (2049, 512, 1),
+            (3072, 768, 1),
+            (3073, 1024, 1),
+            (100000, 1024, 2),
+        ];
+        for (transfer_length, t, z) in cases {
+            let file = create_file_desc(transfer_length, &oti).unwrap();
+            assert_eq!(file.oti.encoding_symbol_length, t);
+            assert_eq!(get_raptor_scheme(&file.oti).source_blocks_length, z);
+
+            // OTI of the File entry in the FDT
+            let file_oti = file
+                .to_file_xml(std::time::SystemTime::now())
+                .get_oti()
+                .unwrap();
+            assert_eq!(file_oti.fec_encoding_id, FECEncodingID::Raptor);
+            assert_eq!(file_oti.encoding_symbol_length, t);
+            assert_eq!(get_raptor_scheme(&file_oti).source_blocks_length, z);
+        }
+    }
+
+    #[test]
+    pub fn test_file_desc_raptor_sub_blocks() {
+        crate::tests::init();
+        let oti = Oti::new_raptor(1024, 64, 20, 8, 4).unwrap();
+
+        // (F, T', N)
+        let cases = [
+            (100000usize, 1024u16, 8u8),
+            (1025, 256, 8),
+            (100, 24, 6),
+            (16, 4, 1),
+        ];
+        for (transfer_length, t, n) in cases {
+            let file = create_file_desc(transfer_length, &oti).unwrap();
+            assert_eq!(file.oti.encoding_symbol_length, t);
+            assert_eq!(get_raptor_scheme(&file.oti).sub_blocks_length, n);
+
+            let file_oti = file
+                .to_file_xml(std::time::SystemTime::now())
+                .get_oti()
+                .unwrap();
+            assert_eq!(get_raptor_scheme(&file_oti).sub_blocks_length, n);
+        }
+    }
+
+    #[test]
+    pub fn test_file_desc_raptor_error() {
+        crate::tests::init();
+
+        // F < 4 * Al
+        let oti = Oti::new_raptor(8, 64, 2, 1, 4).unwrap();
+        assert!(create_file_desc(12, &oti).is_err());
+        assert!(create_file_desc(16, &oti).is_ok());
+        let oti = Oti::new_raptor(1024, 64, 2, 1, 4).unwrap();
+        assert!(create_file_desc(1, &oti).is_err());
+
+        // Source blocks of 2 or 3 symbols
+        let oti = Oti::new_raptor(1024, 4, 2, 1, 4).unwrap();
+        assert!(create_file_desc(4 * 1024, &oti).is_ok()); // 4
+        assert!(create_file_desc(5 * 1024, &oti).is_err()); // 3 + 2
+        assert!(create_file_desc(8 * 1024, &oti).is_ok()); // 4 + 4
+        assert!(create_file_desc(1025, &oti).is_err()); // T'=256 -> 3 + 2
+        let oti = Oti::new_raptor(1024, 5, 2, 1, 4).unwrap();
+        assert!(create_file_desc(6 * 1024, &oti).is_err()); // 3 + 3
+        let oti = Oti::new_raptor(1024, 6, 2, 1, 4).unwrap();
+        assert!(create_file_desc(7 * 1024, &oti).is_err()); // 4 + 3
+
+        // Source block above Kmax (OTI not created with new_raptor)
+        let mut oti = Oti::new_raptor(16, 64, 20, 1, 4).unwrap();
+        oti.maximum_source_block_length = 10000;
+        assert!(create_file_desc(9000 * 16, &oti).is_err());
+
+        let mut oti = Oti::new_raptor(1024, 64, 20, 1, 4).unwrap();
+        if let Some(SchemeSpecific::Raptor(scheme)) = oti.scheme_specific.as_mut() {
+            scheme.symbol_alignment = 0;
+        }
+        assert!(create_file_desc(1025, &oti).is_err());
+
+        let mut oti = Oti::new_raptor(1024, 64, 20, 1, 4).unwrap();
+        oti.scheme_specific = None;
+        assert!(create_file_desc(1025, &oti).is_err());
+    }
+
+    #[test]
+    pub fn test_file_desc_other_fec_unchanged() {
+        crate::tests::init();
+
+        let oti = Oti::new_no_code(1024, 64);
+        let file = create_file_desc(1025, &oti).unwrap();
+        assert_eq!(file.oti.encoding_symbol_length, 1024);
+        assert!(file
+            .to_file_xml(std::time::SystemTime::now())
+            .fec_oti_encoding_symbol_length
+            .is_none());
+
+        let oti = Oti::new_raptorq(1024, 64, 20, 1, 4).unwrap();
+        let file = create_file_desc(1025, &oti).unwrap();
+        assert_eq!(file.oti.encoding_symbol_length, 1024);
     }
 }

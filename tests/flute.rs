@@ -1,5 +1,6 @@
 mod tests {
     use flute::core::UDPEndpoint;
+    use flute::receiver::writer::ObjectWriterBuilder;
     use flute::receiver::MultiReceiverListener;
     use flute::receiver::ReceiverEndpoint;
     use flute::sender::PriorityQueue;
@@ -624,6 +625,38 @@ mod tests {
         );
     }
 
+    fn raptor_sub_blocks(inband_fti: bool) {
+        let mut oti: flute::core::Oti = flute::core::Oti::new_raptor(1400, 64, 20, 4, 4).unwrap();
+        oti.inband_fti = inband_fti;
+        // N is reduced to 1 for the object of 16 bytes (T'=4)
+        for size in [100000, 1025, 16] {
+            test_receiver_with_oti(
+                &oti,
+                None,
+                true,
+                flute::core::lct::Cenc::Null,
+                true,
+                None,
+                size,
+                false,
+                None,
+                true,
+            );
+        }
+    }
+
+    #[test]
+    pub fn test_receiver_raptor_sub_blocks() {
+        crate::tests::init();
+        raptor_sub_blocks(true);
+    }
+
+    #[test]
+    pub fn test_receiver_raptor_sub_blocks_outband_fti() {
+        crate::tests::init();
+        raptor_sub_blocks(false);
+    }
+
     #[test]
     pub fn test_receiver_raptorq_outband_fti() {
         crate::tests::init();
@@ -923,5 +956,349 @@ mod tests {
             .count();
         assert!(nb_complete_objects == max_transfert_count);
         assert!(nb_error_objects == 0);
+    }
+
+    struct ReceivedFdt {
+        xml_len: usize,
+        transfer_length: Option<usize>,
+        oti: Option<flute::core::Oti>,
+    }
+
+    /// Write the objects to buffers and keep the FDT instances received
+    struct TestObjectWriterBuilder {
+        objects: receiver::writer::ObjectWriterBufferBuilder,
+        fdts: RefCell<Vec<ReceivedFdt>>,
+    }
+
+    impl TestObjectWriterBuilder {
+        pub fn new() -> Self {
+            Self {
+                objects: receiver::writer::ObjectWriterBufferBuilder::new(true),
+                fdts: RefCell::new(Vec::new()),
+            }
+        }
+    }
+
+    impl ObjectWriterBuilder for TestObjectWriterBuilder {
+        fn new_object_writer(
+            &self,
+            endpoint: &UDPEndpoint,
+            tsi: &u64,
+            toi: &u128,
+            meta: &receiver::writer::ObjectMetadata,
+            now: std::time::SystemTime,
+        ) -> receiver::writer::ObjectWriterBuilderResult {
+            self.objects
+                .new_object_writer(endpoint, tsi, toi, meta, now)
+        }
+
+        fn update_cache_control(
+            &self,
+            endpoint: &UDPEndpoint,
+            tsi: &u64,
+            toi: &u128,
+            meta: &receiver::writer::ObjectMetadata,
+            now: std::time::SystemTime,
+        ) {
+            self.objects
+                .update_cache_control(endpoint, tsi, toi, meta, now)
+        }
+
+        fn fdt_received(
+            &self,
+            _endpoint: &UDPEndpoint,
+            _tsi: &u64,
+            fdt_xml: &str,
+            _expires: std::time::SystemTime,
+            meta: &receiver::writer::ObjectMetadata,
+            _transfer_duration: std::time::Duration,
+            _now: std::time::SystemTime,
+            _ext_time: Option<std::time::SystemTime>,
+        ) {
+            self.fdts.borrow_mut().push(ReceivedFdt {
+                xml_len: fdt_xml.len(),
+                transfer_length: meta.transfer_length,
+                oti: meta.oti.clone(),
+            });
+        }
+    }
+
+    const RAPTOR_SYMBOL_LENGTH: u16 = 1024;
+    const RAPTOR_SYMBOL_ALIGNMENT: u8 = 4;
+
+    fn create_raptor_oti(inband_fti: bool) -> flute::core::Oti {
+        let mut oti =
+            flute::core::Oti::new_raptor(RAPTOR_SYMBOL_LENGTH, 64, 20, 1, RAPTOR_SYMBOL_ALIGNMENT)
+                .unwrap();
+        oti.inband_fti = inband_fti;
+        oti
+    }
+
+    /// Symbol length used by the sender, reduced when the object is less than 4 symbols long
+    fn expected_raptor_symbol_length(transfer_length: usize) -> u16 {
+        let al = RAPTOR_SYMBOL_ALIGNMENT as usize;
+        match num_integer::div_ceil(transfer_length, RAPTOR_SYMBOL_LENGTH as usize) {
+            1..=3 => (transfer_length / 4 / al * al) as u16,
+            _ => RAPTOR_SYMBOL_LENGTH,
+        }
+    }
+
+    fn check_raptor_oti(
+        oti: Option<&flute::core::Oti>,
+        transfer_length: usize,
+        expected_symbol_length: u16,
+    ) {
+        let oti = oti.expect("OTI is missing");
+        assert_eq!(oti.fec_encoding_id, flute::core::FECEncodingID::Raptor);
+        assert_eq!(
+            oti.encoding_symbol_length, expected_symbol_length,
+            "transfer_length={}",
+            transfer_length
+        );
+        let nb_symbols =
+            num_integer::div_ceil(transfer_length, oti.encoding_symbol_length as usize);
+        assert!(
+            nb_symbols >= 4,
+            "transfer_length={} K={}",
+            transfer_length,
+            nb_symbols
+        );
+    }
+
+    fn create_raptor_object(index: usize, carousel: bool) -> (Box<sender::ObjectDesc>, Vec<u8>) {
+        let sizes = [1025, 2048, 3072, 500, 5000];
+        let (buffer, _) = create_file_buffer(sizes[index % sizes.len()]);
+        let content_location = url::Url::parse(&format!("file:///object{}", index)).unwrap();
+        let carousel_mode = match carousel {
+            true => Some(sender::CarouselRepeatMode::DelayBetweenTransfers(
+                std::time::Duration::from_secs(3600),
+            )),
+            false => None,
+        };
+        let obj = sender::ObjectDesc::create_from_buffer(
+            buffer.clone(),
+            "application/octet-stream",
+            &content_location,
+            true,
+            sender::TransferConfig {
+                carousel_mode,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        (obj, buffer)
+    }
+
+    fn check_received_objects(
+        output: &receiver::writer::ObjectWriterBufferBuilder,
+        inputs: &[(String, Vec<u8>)],
+    ) {
+        let objects = output.objects.borrow();
+        for (content_location, buffer) in inputs {
+            let object = objects
+                .iter()
+                .find(|object| object.borrow().meta.content_location == *content_location)
+                .unwrap_or_else(|| panic!("{} is not received", content_location));
+            let object = object.borrow();
+            assert!(object.complete);
+            assert!(!object.error);
+            assert!(object.data == *buffer);
+            check_raptor_oti(
+                object.meta.oti.as_ref(),
+                buffer.len(),
+                expected_raptor_symbol_length(buffer.len()),
+            );
+        }
+    }
+
+    fn raptor_objects(inband_fti: bool) {
+        let content_type = "application/octet-stream";
+        let oti = create_raptor_oti(inband_fti);
+
+        // (object size, symbol length)
+        let cases = [
+            (16usize, 4u16),
+            (1024, 256),
+            (1025, 256),
+            (2048, 512),
+            (2049, 512),
+            (3072, 768),
+            (3073, 1024),
+            (100000, 1024),
+        ];
+
+        for (size, symbol_length) in cases {
+            log::info!("Raptor object of {} bytes", size);
+            let (obj, buffer) = create_object(
+                size,
+                content_type,
+                flute::core::lct::Cenc::Null,
+                true,
+                None,
+                None,
+            );
+            let content_location = obj.content_location.clone();
+            let output = Rc::new(TestObjectWriterBuilder::new());
+            let mut receiver = receiver::MultiReceiver::new(output.clone(), None, false);
+            let mut sender = create_sender(vec![obj], &oti, flute::core::lct::Cenc::Null, None);
+
+            run_loss(&mut sender, &mut receiver);
+
+            check_output(
+                &buffer,
+                content_location.as_str(),
+                content_type,
+                None,
+                &output.objects,
+            );
+            let objects = output.objects.objects.borrow();
+            check_raptor_oti(objects[0].borrow().meta.oti.as_ref(), size, symbol_length);
+        }
+    }
+
+    fn raptor_fdt(inband_fti: bool, nb_symbols: usize) {
+        let oti = create_raptor_oti(inband_fti);
+        let output = Rc::new(TestObjectWriterBuilder::new());
+        let mut receiver = receiver::MultiReceiver::new(output.clone(), None, false);
+        let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_owned(), 5000);
+        let mut sender = sender::Sender::new(endpoint, 1, &oti, &sender::Config::default());
+
+        // Add objects until the FDT is nb_symbols long
+        let now = std::time::SystemTime::now();
+        let mut inputs = Vec::new();
+        let mut fdt_len = sender.fdt_xml_data(now).unwrap().len();
+        while num_integer::div_ceil(fdt_len, RAPTOR_SYMBOL_LENGTH as usize) < nb_symbols {
+            let (obj, buffer) = create_raptor_object(inputs.len(), false);
+            inputs.push((obj.content_location.to_string(), buffer));
+            sender.add_object(0, obj).unwrap();
+            fdt_len = sender.fdt_xml_data(now).unwrap().len();
+        }
+        assert_eq!(
+            num_integer::div_ceil(fdt_len, RAPTOR_SYMBOL_LENGTH as usize),
+            nb_symbols
+        );
+        sender.publish(now).unwrap();
+
+        run_loss(&mut sender, &mut receiver);
+
+        let fdts = output.fdts.borrow();
+        assert_eq!(fdts.len(), 1);
+        assert_eq!(fdts[0].xml_len, fdt_len);
+        assert_eq!(fdts[0].transfer_length, Some(fdt_len));
+        let symbol_length = expected_raptor_symbol_length(fdt_len);
+        assert!(symbol_length < RAPTOR_SYMBOL_LENGTH);
+        check_raptor_oti(fdts[0].oti.as_ref(), fdt_len, symbol_length);
+
+        check_received_objects(&output.objects, &inputs);
+    }
+
+    fn raptor_growing_fdt(inband_fti: bool) {
+        let symbol_length = RAPTOR_SYMBOL_LENGTH as usize;
+        let oti = create_raptor_oti(inband_fti);
+        let output = Rc::new(TestObjectWriterBuilder::new());
+        let mut receiver = receiver::MultiReceiver::new(output.clone(), None, false);
+        let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_owned(), 5000);
+        let mut sender = sender::Sender::new(endpoint.clone(), 1, &oti, &sender::Config::default());
+
+        let mut inputs = Vec::new();
+        let mut fdt_nb_symbols = HashSet::new();
+        let mut i = 0u32;
+        for step in 0..32 {
+            // First FDT instance is empty (1 symbol), then add one object per FDT instance.
+            // Objects are in carousel mode so they stay in the FDT, and the FDT keeps growing
+            if step > 0 {
+                let (obj, buffer) = create_raptor_object(inputs.len(), true);
+                inputs.push((obj.content_location.to_string(), buffer));
+                sender.add_object(0, obj).unwrap();
+            }
+
+            let now = std::time::SystemTime::now();
+            let fdt_len = sender.fdt_xml_data(now).unwrap().len();
+            sender.publish(now).unwrap();
+            log::info!("FDT instance of {} bytes", fdt_len);
+
+            // Can't use run_loss(), objects in carousel never leave the FDT
+            loop {
+                let now = std::time::SystemTime::now();
+                let data = match sender.read(now) {
+                    Some(data) => data,
+                    None => break,
+                };
+                if (i & 7) == 0 {
+                    log::info!("ALC pkt {} is lost", i)
+                } else {
+                    receiver.push(&endpoint, &data, now).unwrap();
+                }
+                receiver.cleanup(now);
+                i += 1;
+            }
+
+            {
+                let fdts = output.fdts.borrow();
+                assert_eq!(
+                    fdts.len(),
+                    step + 1,
+                    "FDT of {} bytes is not received",
+                    fdt_len
+                );
+                let fdt = fdts.last().unwrap();
+                assert_eq!(fdt.xml_len, fdt_len);
+                assert_eq!(fdt.transfer_length, Some(fdt_len));
+                check_raptor_oti(
+                    fdt.oti.as_ref(),
+                    fdt_len,
+                    expected_raptor_symbol_length(fdt_len),
+                );
+            }
+            check_received_objects(&output.objects, &inputs);
+
+            fdt_nb_symbols.insert(num_integer::div_ceil(fdt_len, symbol_length).min(4));
+            if fdt_len > 4 * symbol_length {
+                break;
+            }
+        }
+
+        // FDT went from 1 to more than 3 symbols
+        assert_eq!(fdt_nb_symbols, HashSet::from([1, 2, 3, 4]));
+    }
+
+    #[test]
+    pub fn test_receiver_raptor_less_than_four_symbols() {
+        crate::tests::init();
+        raptor_objects(true);
+    }
+
+    #[test]
+    pub fn test_receiver_raptor_less_than_four_symbols_outband_fti() {
+        crate::tests::init();
+        raptor_objects(false);
+    }
+
+    #[test]
+    pub fn test_receiver_raptor_fdt_less_than_four_symbols() {
+        crate::tests::init();
+        raptor_fdt(true, 1);
+        raptor_fdt(true, 2);
+        raptor_fdt(true, 3);
+    }
+
+    #[test]
+    pub fn test_receiver_raptor_fdt_less_than_four_symbols_outband_fti() {
+        crate::tests::init();
+        raptor_fdt(false, 1);
+        raptor_fdt(false, 2);
+        raptor_fdt(false, 3);
+    }
+
+    #[test]
+    pub fn test_receiver_raptor_growing_fdt() {
+        crate::tests::init();
+        raptor_growing_fdt(true);
+    }
+
+    #[test]
+    pub fn test_receiver_raptor_growing_fdt_outband_fti() {
+        crate::tests::init();
+        raptor_growing_fdt(false);
     }
 }

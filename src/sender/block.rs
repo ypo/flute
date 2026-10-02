@@ -152,11 +152,17 @@ impl Block {
         debug_assert!(nb_source_symbols <= block_length);
         debug_assert!(oti.scheme_specific.is_some());
 
-        let encoder = fec::raptor::RaptorEncoder::new(
-            nb_source_symbols,
-            oti.max_number_of_parity_symbols as usize,
-        );
-        let shards = encoder.encode(buffer)?;
-        Ok(shards)
+        if let Some(SchemeSpecific::Raptor(scheme)) = oti.scheme_specific.as_ref() {
+            let encoder = fec::raptor::RaptorEncoder::new(
+                nb_source_symbols,
+                oti.max_number_of_parity_symbols as usize,
+                oti.encoding_symbol_length as usize,
+                scheme,
+            )?;
+            let shards = encoder.encode(buffer)?;
+            Ok(shards)
+        } else {
+            Err(FluteError::new("Scheme specific for Raptor not defined"))
+        }
     }
 }
