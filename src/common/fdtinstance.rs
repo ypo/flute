@@ -466,7 +466,7 @@ fn parse_oti(
         _ => {
             let scheme_specific = match fec_encoding {
                 oti::FECEncodingID::ReedSolomonGF2M => {
-                    reed_solomon_scheme_specific(fec_oti_scheme_specific_info).unwrap_or(None)
+                    reed_solomon_scheme_specific(fec_oti_scheme_specific_info).ok()?
                 }
                 _ => None,
             };
@@ -923,6 +923,46 @@ mod tests {
                     fti_oti.max_number_of_parity_symbols
                 );
             }
+        }
+    }
+
+    #[test]
+    fn reed_solomon_gf2m_oti_from_fdt() {
+        crate::tests::init();
+
+        let oti = Oti::new_reed_solomon_rs2m(1400, 64, 20, 16).unwrap();
+        let info = oti.get_attributes().fec_oti_scheme_specific_info.unwrap();
+        let fdt = parse_fdt(
+            "",
+            &format!(
+                r#"FEC-OTI-FEC-Encoding-ID="2" FEC-OTI-Maximum-Source-Block-Length="64" FEC-OTI-Encoding-Symbol-Length="1400" FEC-OTI-Max-Number-of-Encoding-Symbols="84" FEC-OTI-Scheme-Specific-Info="{}""#,
+                info
+            ),
+        );
+        let fdt_oti = oti_for_file(&fdt).unwrap();
+        assert_eq!(fdt_oti.fec_encoding_id, FECEncodingID::ReedSolomonGF2M);
+        assert_eq!(fdt_oti.max_number_of_parity_symbols, 20);
+        let scheme = fdt_oti.reed_solomon_gf2m_scheme();
+        assert_eq!((scheme.m, scheme.g), (16, 1));
+
+        // Scheme-Specific-Info omitted: m = 8, G = 1
+        let fdt = parse_fdt(
+            "",
+            r#"FEC-OTI-FEC-Encoding-ID="2" FEC-OTI-Maximum-Source-Block-Length="64" FEC-OTI-Encoding-Symbol-Length="1400" FEC-OTI-Max-Number-of-Encoding-Symbols="84""#,
+        );
+        let scheme = oti_for_file(&fdt).unwrap().reed_solomon_gf2m_scheme();
+        assert_eq!((scheme.m, scheme.g), (8, 1));
+
+        // m = 17 ("EQE="), invalid base64
+        for info in ["EQE=", "!!!!"] {
+            let fdt = parse_fdt(
+                "",
+                &format!(
+                    r#"FEC-OTI-FEC-Encoding-ID="2" FEC-OTI-Maximum-Source-Block-Length="64" FEC-OTI-Encoding-Symbol-Length="1400" FEC-OTI-Max-Number-of-Encoding-Symbols="84" FEC-OTI-Scheme-Specific-Info="{}""#,
+                    info
+                ),
+            );
+            assert!(oti_for_file(&fdt).is_none(), "{}", info);
         }
     }
 

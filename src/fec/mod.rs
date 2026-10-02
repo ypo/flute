@@ -1,7 +1,11 @@
+pub mod gf256;
 pub mod nocode;
 pub mod raptor;
 pub mod raptorq;
-pub mod rscodec;
+pub mod rsgf2m;
+
+#[cfg(feature = "bench")]
+pub mod bench;
 
 use crate::tools::error::Result;
 

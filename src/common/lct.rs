@@ -245,11 +245,6 @@ fn nb_bytes_64(n: u64, min: u32) -> u32 {
 /// * `codepoint`: An opaque identifier passed to the packet payload decoder to convey information on the codec being used for the packet payload.
 /// * `close_object`: Indicates whether termination of transmission of packets for an object is imminent.
 /// * `close_session`: Indicates whether termination of transmission of packets for the session is imminent.
-///
-/// # Panics
-///
-/// Panics if `tsi` does not fit in 48 bits or `toi` does not fit in 112 bits,
-/// the largest TSI and TOI fields of the LCT header (RFC 5651).
 pub fn push_lct_header(
     data: &mut Vec<u8>,
     psi: u8,

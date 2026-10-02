@@ -26,7 +26,6 @@ quick-xml = { version = "0.42", features = ["serialize"] }
 base64 = "0.22"
 url = "2.5"
 num-integer = "0.1"
-reed-solomon-erasure = "6.0"
 flate2 = "1.0"
 md5 = "0.8"
 pyo3 = { version = "0.29", features = ["extension-module"], optional = true }
@@ -47,12 +46,20 @@ mime_guess = { version = "2", optional = true }
 [dev-dependencies]
 env_logger = "0.11"
 tempfile = "3.10.1"
+criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
 
 [features]
 python = ["pyo3", "pyo3-log"]
 optel = ["opentelemetry", "opentelemetry-semantic-conventions"]
 openapi = ["utoipa"]
 cli = ["clap", "env_logger", "pnet", "libc", "mime_guess"]
+# Exposes internals to the benchmarks, not a stable API
+bench = []
+
+[[bench]]
+name = "reed_solomon"
+harness = false
+required-features = ["bench"]
 
 [[bin]]
 name = "flute-sender"

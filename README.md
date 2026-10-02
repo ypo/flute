@@ -154,8 +154,8 @@ The following error recovery algorithms are supported
 - [X] No-code
 - [X] Reed-Solomon GF 2^8
 - [X] Reed-Solomon GF 2^8 Under Specified
-- [ ] Reed-Solomon GF 2^16
-- [ ] Reed-Solomon GF 2^m
+- [X] Reed-Solomon GF 2^16
+- [X] Reed-Solomon GF 2^m
 - [X] RaptorQ
 - [X] Raptor
 

@@ -148,6 +148,8 @@ impl FileDesc {
             None => default_oti.clone(),
         };
 
+        oti.check_sender_parameters()?;
+
         let max_transfer_length = oti.max_transfer_length();
         if object.transfer_length as usize > max_transfer_length {
             return Err(FluteError::new(format!(
@@ -668,5 +670,42 @@ mod tests {
         let oti = Oti::new_raptorq(1024, 64, 20, 1, 4).unwrap();
         let file = create_file_desc(1025, &oti).unwrap();
         assert_eq!(file.oti.encoding_symbol_length, 1024);
+    }
+
+    #[test]
+    pub fn test_file_desc_reed_solomon_gf2m() {
+        use crate::common::oti::ReedSolomonGF2MSchemeSpecific;
+        crate::tests::init();
+
+        let oti = Oti::new_reed_solomon_rs2m(1400, 64, 20, 16).unwrap();
+        let file = create_file_desc(100000, &oti).unwrap();
+        assert_eq!(file.oti.fec_encoding_id, FECEncodingID::ReedSolomonGF2M);
+        let scheme = file.oti.reed_solomon_gf2m_scheme();
+        assert_eq!((scheme.m, scheme.g), (16, 1));
+
+        // Only G = 1 is supported by the sender
+        let mut oti = Oti::new_reed_solomon_rs2m(1400, 64, 20, 16).unwrap();
+        oti.scheme_specific = Some(SchemeSpecific::ReedSolomon(ReedSolomonGF2MSchemeSpecific {
+            m: 16,
+            g: 2,
+        }));
+        assert!(create_file_desc(1000, &oti).is_err());
+
+        // OTI not created with new_reed_solomon_rs2m
+        let mut oti = Oti::new_reed_solomon_rs2m(1400, 200, 55, 8).unwrap();
+        oti.max_number_of_parity_symbols = 56;
+        assert!(create_file_desc(1000, &oti).is_err());
+
+        let mut oti = Oti::new_reed_solomon_rs2m(1400, 200, 55, 8).unwrap();
+        oti.scheme_specific = Some(SchemeSpecific::ReedSolomon(ReedSolomonGF2MSchemeSpecific {
+            m: 17,
+            g: 1,
+        }));
+        assert!(create_file_desc(1000, &oti).is_err());
+
+        // Default m = 8
+        let mut oti = Oti::new_reed_solomon_rs2m(1400, 200, 55, 8).unwrap();
+        oti.scheme_specific = None;
+        assert!(create_file_desc(1000, &oti).is_ok());
     }
 }
