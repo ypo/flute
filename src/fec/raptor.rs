@@ -154,12 +154,6 @@ impl FecDecoder for RaptorDecoder {
             return;
         }
 
-        log::info!(
-            "encoding symbol length={} source_block_size={}",
-            encoding_symbol.len(),
-            self.source_block_size
-        );
-
         if encoding_symbol.len() > self.encoding_symbol_length {
             log::error!(
                 "Encoding symbol of {} bytes is bigger than T={}",
