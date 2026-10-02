@@ -76,12 +76,17 @@ impl BlockDecoder {
                 }
             }
             oti::FECEncodingID::Raptor => {
-                if oti.scheme_specific.is_none() {
+                if let Some(SchemeSpecific::Raptor(scheme)) = oti.scheme_specific.as_ref() {
+                    let codec = fec::raptor::RaptorDecoder::new(
+                        nb_source_symbols as usize,
+                        block_size,
+                        oti.encoding_symbol_length as usize,
+                        scheme,
+                    )?;
+                    self.decoder = Some(Box::new(codec));
+                } else {
                     return Err(FluteError::new("Raptor Scheme not found"));
                 }
-
-                let codec = fec::raptor::RaptorDecoder::new(nb_source_symbols as usize, block_size);
-                self.decoder = Some(Box::new(codec));
             }
         }
 
