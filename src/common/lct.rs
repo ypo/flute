@@ -249,9 +249,43 @@ pub fn push_lct_header(
     close_object: bool,
     close_session: bool,
 ) {
+    push_lct_header_opt_toi(
+        data,
+        psi,
+        cci,
+        tsi,
+        Some(toi),
+        codepoint,
+        close_object,
+        close_session,
+    )
+}
+
+/// Same as [`push_lct_header`], but the TOI field is omitted when `toi` is `None`.
+///
+/// Omitting the TOI requires O=0 and H=0, so a 16-bit TSI is carried in a 32-bit field.
+/// A 48-bit TSI requires H=1, which forces a 16-bit TOI field: it is then set to 0.
+pub(crate) fn push_lct_header_opt_toi(
+    data: &mut Vec<u8>,
+    psi: u8,
+    cci: &u128,
+    tsi: u64,
+    toi: Option<&u128>,
+    codepoint: u8,
+    close_object: bool,
+    close_session: bool,
+) {
     let cci_size = nb_bytes_128(cci, 0);
-    let tsi_size = nb_bytes_64(tsi, 2);
-    let toi_size = nb_bytes_128(toi, 2);
+    let mut tsi_size = nb_bytes_64(tsi, 2);
+    let toi_size = match toi {
+        Some(toi) => nb_bytes_128(toi, 2),
+        None => {
+            if tsi_size == 2 {
+                tsi_size = 4;
+            }
+            0
+        }
+    };
 
     let h_tsi = (tsi_size & 2) >> 1; // Is TSI half-word ?
     let h_toi = (toi_size & 2) >> 1; // Is TOI half-word ?
@@ -299,7 +333,7 @@ pub fn push_lct_header(
     data.extend(&tsi_net[tsi_net_start..]);
 
     // Insert TOI
-    let toi_net = toi.to_be_bytes();
+    let toi_net = toi.copied().unwrap_or_default().to_be_bytes();
     let toi_net_start = toi_net.len() - ((o << 2) + (h << 1)) as usize;
     data.extend(&toi_net[toi_net_start..]);
 }

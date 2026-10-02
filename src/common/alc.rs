@@ -88,26 +88,22 @@ impl<'a> AlcPktCache {
     }
 }
 
+/// Data-less close-session packet.
+///
+/// RFC 5775 §4.1: only the LCT header, without FEC Payload ID.
+/// RFC 6726 §3.1: no TOI.
 pub fn new_alc_pkt_close_session(cci: &u128, tsi: u64) -> Vec<u8> {
     let mut data = Vec::new();
-
-    let oti = oti::Oti::new_no_code(0, 0);
-
-    lct::push_lct_header(
+    lct::push_lct_header_opt_toi(
         &mut data,
         0,
         cci,
         tsi,
-        &0u128,
-        oti.fec_encoding_id as u8,
+        None,
+        oti::FECEncodingID::NoCode as u8,
         false,
         true,
     );
-    // push_fdt(&mut data, 1, 0);
-    let codec = <dyn AlcCodec>::instance(oti.fec_encoding_id);
-    codec.add_fti(&mut data, &oti, 0);
-    // Add FEC Payload ID
-    data.extend(0u32.to_be_bytes());
     data
 }
 
@@ -167,6 +163,22 @@ pub fn new_alc_pkt(
 /// Parse a buffer to AlcPkt
 pub fn parse_alc_pkt<'a>(data: &'a [u8]) -> Result<AlcPkt<'a>> {
     let lct_header = lct::parse_lct_header(data)?;
+
+    // RFC 5775 §4.1: data-less packets contain only the LCT header
+    if lct_header.len == data.len() {
+        let len = lct_header.len;
+        return Ok(AlcPkt {
+            lct: lct_header,
+            oti: None,
+            transfer_length: None,
+            cenc: None,
+            server_time: None,
+            data,
+            data_alc_header_offset: len,
+            data_payload_offset: len,
+            fdt_info: None,
+        });
+    }
 
     let fec: oti::FECEncodingID = lct_header
         .cp
@@ -409,5 +421,32 @@ mod tests {
         assert!(decoded_pkt.lct.toi == pkt.toi);
         assert!(decoded_pkt.lct.cci == cci);
         assert!(decoded_pkt.lct.tsi == tsi);
+    }
+
+    #[test]
+    pub fn test_alc_close_session() {
+        crate::tests::init();
+
+        // LCT header only: V=1, S=1 O=0 H=0 (no TOI), A=1, HDR_LEN=3, CP=0, CCI, 32-bit TSI
+        let pkt = super::new_alc_pkt_close_session(&0u128, 1);
+        assert_eq!(pkt, vec![0x10, 0x82, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
+
+        let decoded = super::parse_alc_pkt(&pkt).unwrap();
+        assert!(decoded.lct.close_session);
+        assert!(!decoded.lct.close_object);
+        assert_eq!(decoded.lct.tsi, 1);
+        assert!(decoded.oti.is_none());
+        assert!(decoded.fdt_info.is_none());
+        assert_eq!(decoded.data_payload_offset, pkt.len());
+        assert!(super::get_fec_inline_payload_id(&decoded).is_err());
+
+        // A 48-bit TSI requires H=1, which forces a 16-bit TOI field
+        let tsi = 0x1234_5678_9ABC;
+        let pkt = super::new_alc_pkt_close_session(&0u128, tsi);
+        assert_eq!(pkt.len(), 16);
+        let decoded = super::parse_alc_pkt(&pkt).unwrap();
+        assert!(decoded.lct.close_session);
+        assert_eq!(decoded.lct.tsi, tsi);
+        assert_eq!(decoded.data_payload_offset, pkt.len());
     }
 }

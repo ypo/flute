@@ -582,7 +582,7 @@ mod tests {
             // OTI of the File entry in the FDT
             let file_oti = file
                 .to_file_xml(std::time::SystemTime::now())
-                .get_oti()
+                .get_oti(None)
                 .unwrap();
             assert_eq!(file_oti.fec_encoding_id, FECEncodingID::Raptor);
             assert_eq!(file_oti.encoding_symbol_length, t);
@@ -609,7 +609,7 @@ mod tests {
 
             let file_oti = file
                 .to_file_xml(std::time::SystemTime::now())
-                .get_oti()
+                .get_oti(None)
                 .unwrap();
             assert_eq!(get_raptor_scheme(&file_oti).sub_blocks_length, n);
         }

@@ -313,8 +313,8 @@ impl ObjectReceiver {
         }
 
         if self.cenc.is_none() {
-            self.cenc = match &file.content_encoding {
-                Some(str) => Some(str.as_str().try_into().unwrap_or(lct::Cenc::Null)),
+            self.cenc = match fdt.get_content_encoding_for_file(file) {
+                Some(str) => Some(str.try_into().unwrap_or(lct::Cenc::Null)),
                 None => Some(lct::Cenc::Null),
             };
             log::debug!("Set cenc from FDT {:?}", self.cenc);
@@ -360,7 +360,7 @@ impl ObjectReceiver {
 
         self.cache_control = Some(file.get_object_cache_control(fdt.get_expiration_date()));
         self.content_length = file.content_length.map(|c| c as usize);
-        self.content_type = file.content_type.clone();
+        self.content_type = fdt.get_content_type_for_file(file).map(str::to_owned);
         self.groups = groups;
         self.e_tag = file.file_etag.clone();
 
@@ -774,5 +774,61 @@ impl Drop for ObjectReceiver {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ObjectReceiver;
+    use crate::common::{fdtinstance::FdtInstance, lct, udpendpoint::UDPEndpoint};
+    use crate::receiver::writer::{ObjectMetadata, ObjectWriterBufferBuilder};
+    use std::{rc::Rc, time::SystemTime};
+
+    fn attach_fdt(instance_attributes: &str, file_attributes: &str) -> ObjectMetadata {
+        let xml = format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<FDT-Instance xmlns="urn:IETF:metadata:2005:FLUTE:FDT" Expires="3000000000" FEC-OTI-FEC-Encoding-ID="0" FEC-OTI-Maximum-Source-Block-Length="64" FEC-OTI-Encoding-Symbol-Length="1400" {instance_attributes}>
+<File Content-Location="file:///object" TOI="1" Transfer-Length="100" {file_attributes}/>
+</FDT-Instance>"#
+        );
+        let fdt = FdtInstance::parse(xml.as_bytes()).unwrap();
+        let now = SystemTime::now();
+        let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_string(), 3400);
+        let mut receiver = ObjectReceiver::new(
+            &endpoint,
+            1,
+            &1,
+            None,
+            Rc::new(ObjectWriterBufferBuilder::new(false)),
+            1024 * 1024,
+            now,
+        );
+        assert!(receiver.attach_fdt(1, &fdt, now));
+        receiver.create_meta()
+    }
+
+    #[test]
+    fn content_encoding_and_type_inherited_from_fdt_instance() {
+        crate::tests::init();
+
+        let meta = attach_fdt(r#"Content-Encoding="gzip" Content-Type="text/plain""#, "");
+        assert_eq!(meta.cenc, Some(lct::Cenc::Gzip));
+        assert_eq!(meta.content_type.as_deref(), Some("text/plain"));
+
+        let meta = attach_fdt("", "");
+        assert_eq!(meta.cenc, Some(lct::Cenc::Null));
+        assert_eq!(meta.content_type, None);
+    }
+
+    #[test]
+    fn content_encoding_and_type_of_file_take_precedence() {
+        crate::tests::init();
+
+        let meta = attach_fdt(
+            r#"Content-Encoding="gzip" Content-Type="text/plain""#,
+            r#"Content-Encoding="deflate" Content-Type="application/json""#,
+        );
+        assert_eq!(meta.cenc, Some(lct::Cenc::Deflate));
+        assert_eq!(meta.content_type.as_deref(), Some("application/json"));
     }
 }
