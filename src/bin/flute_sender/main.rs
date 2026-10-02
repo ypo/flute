@@ -45,8 +45,8 @@ struct Cli {
     #[arg(long, default_value = "null")]
     cenc: String,
 
-    /// TSI (Transport Session Identifier)
-    #[arg(long, default_value_t = 1)]
+    /// TSI (Transport Session Identifier), at most 48 bits
+    #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u64).range(..=0xFFFF_FFFF_FFFF))]
     tsi: u64,
 
     /// Max number of times each file is transferred

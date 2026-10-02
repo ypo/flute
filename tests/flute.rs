@@ -325,6 +325,50 @@ mod tests {
     }
 
     #[test]
+    pub fn test_receiver_close_session() {
+        init();
+
+        struct CloseObserver {
+            closed: Rc<RefCell<Vec<ReceiverEndpoint>>>,
+        }
+
+        impl MultiReceiverListener for CloseObserver {
+            fn on_session_open(&self, _endpoint: &ReceiverEndpoint) {}
+
+            fn on_session_closed(&self, endpoint: &ReceiverEndpoint) {
+                self.closed.borrow_mut().push(endpoint.clone());
+            }
+        }
+
+        let oti = flute::core::Oti::new_no_code(1400, 64);
+        let cenc = flute::core::lct::Cenc::Null;
+        let (obj, _) = create_object(1000, "text/plain", cenc, true, None, None);
+        let mut sender = create_sender(vec![obj], &oti, cenc, None);
+
+        let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new(true));
+        let mut receiver = receiver::MultiReceiver::new(output.clone(), None, false);
+        let closed = Rc::new(RefCell::new(Vec::new()));
+        receiver.add_listener(CloseObserver {
+            closed: closed.clone(),
+        });
+
+        run(&mut sender, &mut receiver);
+        assert!(closed.borrow().is_empty());
+
+        let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_owned(), 5000);
+        let now = std::time::SystemTime::now();
+        let close_session = sender.read_close_session(now);
+        receiver.push(&endpoint, &close_session, now).unwrap();
+
+        assert_eq!(
+            closed.borrow().as_slice(),
+            &[ReceiverEndpoint { endpoint, tsi: 1 }]
+        );
+        assert_eq!(output.objects.borrow().len(), 1);
+        assert_eq!(receiver.nb_objects_error(), 0);
+    }
+
+    #[test]
     pub fn test_receiver_l6_fdt() {
         init();
         test_receiver_with_oti(

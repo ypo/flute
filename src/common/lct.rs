@@ -28,6 +28,12 @@ pub enum Ext {
 
 pub const TOI_FDT: u128 = 0;
 
+/// Largest TSI that fits in the LCT TSI field (48 bits)
+pub const TSI_MAX: u64 = (1 << 48) - 1;
+
+/// Largest TOI that fits in the LCT TOI field (112 bits)
+pub const TOI_MAX: u128 = (1 << 112) - 1;
+
 /// LCT Header
 #[derive(Clone, Debug)]
 pub struct LCTHeader {
@@ -239,6 +245,11 @@ fn nb_bytes_64(n: u64, min: u32) -> u32 {
 /// * `codepoint`: An opaque identifier passed to the packet payload decoder to convey information on the codec being used for the packet payload.
 /// * `close_object`: Indicates whether termination of transmission of packets for an object is imminent.
 /// * `close_session`: Indicates whether termination of transmission of packets for the session is imminent.
+///
+/// # Panics
+///
+/// Panics if `tsi` does not fit in 48 bits or `toi` does not fit in 112 bits,
+/// the largest TSI and TOI fields of the LCT header (RFC 5651).
 pub fn push_lct_header(
     data: &mut Vec<u8>,
     psi: u8,
@@ -249,9 +260,56 @@ pub fn push_lct_header(
     close_object: bool,
     close_session: bool,
 ) {
+    push_lct_header_opt_toi(
+        data,
+        psi,
+        cci,
+        tsi,
+        Some(toi),
+        codepoint,
+        close_object,
+        close_session,
+    )
+}
+
+/// Same as [`push_lct_header`], but the TOI field is omitted when `toi` is `None`.
+///
+/// Omitting the TOI requires O=0 and H=0, so a 16-bit TSI is carried in a 32-bit field.
+/// A 48-bit TSI requires H=1, which forces a 16-bit TOI field: it is then set to 0.
+pub(crate) fn push_lct_header_opt_toi(
+    data: &mut Vec<u8>,
+    psi: u8,
+    cci: &u128,
+    tsi: u64,
+    toi: Option<&u128>,
+    codepoint: u8,
+    close_object: bool,
+    close_session: bool,
+) {
+    assert!(
+        tsi <= TSI_MAX,
+        "TSI {} does not fit in the 48-bit LCT TSI field",
+        tsi
+    );
+    if let Some(toi) = toi {
+        assert!(
+            *toi <= TOI_MAX,
+            "TOI {} does not fit in the 112-bit LCT TOI field",
+            toi
+        );
+    }
+
     let cci_size = nb_bytes_128(cci, 0);
-    let tsi_size = nb_bytes_64(tsi, 2);
-    let toi_size = nb_bytes_128(toi, 2);
+    let mut tsi_size = nb_bytes_64(tsi, 2);
+    let toi_size = match toi {
+        Some(toi) => nb_bytes_128(toi, 2),
+        None => {
+            if tsi_size == 2 {
+                tsi_size = 4;
+            }
+            0
+        }
+    };
 
     let h_tsi = (tsi_size & 2) >> 1; // Is TSI half-word ?
     let h_toi = (toi_size & 2) >> 1; // Is TOI half-word ?
@@ -299,7 +357,7 @@ pub fn push_lct_header(
     data.extend(&tsi_net[tsi_net_start..]);
 
     // Insert TOI
-    let toi_net = toi.to_be_bytes();
+    let toi_net = toi.copied().unwrap_or_default().to_be_bytes();
     let toi_net_start = toi_net.len() - ((o << 2) + (h << 1)) as usize;
     data.extend(&toi_net[toi_net_start..]);
 }
@@ -433,7 +491,7 @@ pub fn get_ext<'a>(data: &'a [u8], lct: &LCTHeader, ext: u8) -> Result<Option<&'
         let het = lct_ext_ext[0];
         let hel = match het {
             het if het >= 128 => 4_usize,
-            _ => (lct_ext_ext[1] << 2) as usize,
+            _ => (lct_ext_ext[1] as usize) << 2,
         };
 
         if hel == 0 || hel > lct_ext_ext.len() {
@@ -468,5 +526,65 @@ mod tests {
         let toi: u128 = 0;
         let codepoint: u8 = 0;
         super::push_lct_header(&mut lct, psi, &cci, tsi, &toi, codepoint, false, false)
+    }
+
+    #[test]
+    pub fn test_lct_max_tsi_toi() {
+        crate::tests::init();
+        let mut lct = Vec::new();
+        super::push_lct_header(
+            &mut lct,
+            0,
+            &0,
+            super::TSI_MAX,
+            &super::TOI_MAX,
+            0,
+            false,
+            false,
+        );
+        let header = super::parse_lct_header(&lct).unwrap();
+        assert_eq!(header.tsi, super::TSI_MAX);
+        assert_eq!(header.toi, super::TOI_MAX);
+    }
+
+    #[test]
+    #[should_panic(expected = "48-bit LCT TSI field")]
+    pub fn test_lct_tsi_out_of_range() {
+        let mut lct = Vec::new();
+        super::push_lct_header(&mut lct, 0, &0, super::TSI_MAX + 1, &1, 0, false, false);
+    }
+
+    #[test]
+    #[should_panic(expected = "112-bit LCT TOI field")]
+    pub fn test_lct_toi_out_of_range() {
+        let mut lct = Vec::new();
+        super::push_lct_header(&mut lct, 0, &0, 1, &(super::TOI_MAX + 1), 0, false, false);
+    }
+
+    #[test]
+    pub fn test_get_ext_large_hel() {
+        crate::tests::init();
+        let mut pkt = Vec::new();
+        super::push_lct_header(&mut pkt, 0, &1, 1, &1, 0, false, false);
+
+        // Variable-length extension with HEL = 64 words (256 bytes)
+        let hel: u8 = 64;
+        pkt.push(1);
+        pkt.push(hel);
+        pkt.extend(std::iter::repeat_n(0xAB, (hel as usize) * 4 - 2));
+        // Followed by a fixed-size EXT_FDT
+        pkt.extend(((super::Ext::Fdt as u32) << 24 | 0x1234).to_be_bytes());
+        super::inc_hdr_len(&mut pkt, hel + 1);
+
+        let lct = super::parse_lct_header(&pkt).unwrap();
+        assert_eq!(lct.len, pkt.len());
+
+        let ext = super::get_ext(&pkt, &lct, 1).unwrap().unwrap();
+        assert_eq!(ext.len(), 256);
+
+        let fdt = super::get_ext(&pkt, &lct, super::Ext::Fdt as u8)
+            .unwrap()
+            .unwrap();
+        assert_eq!(fdt, &((super::Ext::Fdt as u32) << 24 | 0x1234).to_be_bytes());
     }
 }

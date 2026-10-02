@@ -206,7 +206,16 @@ impl Sender {
     ///
     /// Creation of a FLUTE Sender
     ///
+    /// # Panics
+    ///
+    /// Panics if `tsi` does not fit in 48 bits, the largest LCT TSI field (RFC 5651).
+    ///
     pub fn new(endpoint: UDPEndpoint, tsi: u64, oti: &oti::Oti, config: &Config) -> Sender {
+        assert!(
+            tsi <= lct::TSI_MAX,
+            "TSI {} does not fit in the 48-bit LCT TSI field",
+            tsi
+        );
         let observers = ObserverList::new();
 
         let fdt = Fdt::new(
@@ -555,5 +564,17 @@ mod tests {
         sender.set_complete();
         let result = sender.add_object(0, object2);
         assert!(result.is_err());
+    }
+
+    #[test]
+    #[should_panic(expected = "48-bit LCT TSI field")]
+    pub fn test_sender_tsi_out_of_range() {
+        let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_owned(), 1234);
+        let _sender = super::Sender::new(
+            endpoint,
+            super::lct::TSI_MAX + 1,
+            &Default::default(),
+            &Default::default(),
+        );
     }
 }

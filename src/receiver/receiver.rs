@@ -274,6 +274,11 @@ impl Receiver {
             self.closed_is_imminent = true;
         }
 
+        // Data-less packet: no object data to process
+        if alc_pkt.data.len() == alc_pkt.lct.len {
+            return Ok(());
+        }
+
         match alc_pkt.lct.toi {
             toi if toi == lct::TOI_FDT => self.push_fdt_obj(alc_pkt, now),
             _ => self.push_obj(alc_pkt, now),
