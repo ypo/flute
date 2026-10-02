@@ -1,4 +1,4 @@
-use pyo3::exceptions::PyTypeError;
+use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use std::time::SystemTime;
 
@@ -12,15 +12,21 @@ pub struct Sender(crate::sender::Sender);
 #[pymethods]
 impl Sender {
     #[new]
-    pub fn new(tsi: u64, oti: &oti::Oti, config: &config::Config) -> Self {
-        Self {
+    pub fn new(tsi: u64, oti: &oti::Oti, config: &config::Config) -> PyResult<Self> {
+        if tsi > crate::common::lct::TSI_MAX {
+            return Err(PyValueError::new_err(
+                "TSI does not fit in the 48-bit LCT TSI field",
+            ));
+        }
+
+        Ok(Self {
             0: crate::sender::Sender::new(
                 crate::core::UDPEndpoint::new(None, "224.0.0.1".to_owned(), 0), // FIXME
                 tsi,
                 &oti.0,
                 &config.0,
             ),
-        }
+        })
     }
 
     #[pyo3(signature = (content, content_type, content_location, oti=None))]

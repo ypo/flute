@@ -68,7 +68,7 @@ impl ToiAllocatorInternal {
             TOIMaxLength::ToiMax48 => toi & 0xFFFFFFFFFFFFu128,
             TOIMaxLength::ToiMax64 => toi & 0xFFFFFFFFFFFFFFFFu128,
             TOIMaxLength::ToiMax80 => toi & 0xFFFFFFFFFFFFFFFFFFFFu128,
-            TOIMaxLength::ToiMax112 => toi,
+            TOIMaxLength::ToiMax112 => toi & lct::TOI_MAX,
         }
     }
 
@@ -129,5 +129,29 @@ impl ToiAllocator {
             let mut db = self.internal.lock().unwrap();
             db.release(toi);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{TOIMaxLength, ToiAllocatorInternal};
+    use crate::common::lct;
+
+    #[test]
+    fn random_toi_fits_112_bits() {
+        for _ in 0..64 {
+            let mut allocator = ToiAllocatorInternal::new(TOIMaxLength::ToiMax112, None);
+            let toi = allocator.allocate();
+            assert!(toi <= lct::TOI_MAX);
+            assert_ne!(toi, lct::TOI_FDT);
+        }
+    }
+
+    #[test]
+    fn toi_wraps_at_112_bits() {
+        let mut allocator =
+            ToiAllocatorInternal::new(TOIMaxLength::ToiMax112, Some(lct::TOI_MAX));
+        assert_eq!(allocator.allocate(), lct::TOI_MAX);
+        assert_eq!(allocator.allocate(), 1);
     }
 }
