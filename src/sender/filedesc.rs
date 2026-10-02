@@ -198,6 +198,14 @@ impl FileDesc {
                     ));
                 }
 
+                // K'max <https://www.rfc-editor.org/rfc/rfc6330.html#section-5.1.2>
+                if a_large > 56403 {
+                    return Err(FluteError::new(format!(
+                        "Object transfer length of {} is partitioned into source blocks of {} symbols, RaptorQ requires at most 56403 symbols per block, your object is incompatible with the FEC parameters of your OTI",
+                        object.transfer_length, a_large
+                    )));
+                }
+
                 let nb_blocks:u8 = nb_blocks.try_into().map_err(|_| {
                     FluteError::new(format!(
                         "Object transfer length of {} requires the transmission of {} source blocks, the maximum is {}, your object is incompatible with the FEC parameters of your OTI",

@@ -69,7 +69,7 @@ impl BlockDecoder {
                         nb_source_symbols as usize,
                         oti.encoding_symbol_length as usize,
                         scheme,
-                    );
+                    )?;
                     self.decoder = Some(Box::new(codec));
                 } else {
                     return Err(FluteError::new("RaptorQ Scheme not found"));
