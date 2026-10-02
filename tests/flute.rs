@@ -633,6 +633,76 @@ mod tests {
         );
     }
 
+    fn reed_solomon_gf2m(
+        oti: &flute::core::Oti,
+        object_oti: Option<&flute::core::Oti>,
+        interleave_blocks: u8,
+    ) {
+        // The last symbol of the object of 1001 bytes is incomplete
+        for size in [100000, 1001] {
+            test_receiver_with_oti(
+                oti,
+                object_oti,
+                true,
+                flute::core::lct::Cenc::Null,
+                true,
+                Some(sender::Config {
+                    interleave_blocks,
+                    ..Default::default()
+                }),
+                size,
+                false,
+                None,
+                true,
+            );
+        }
+    }
+
+    #[test]
+    pub fn test_receiver_reed_solomon_gf2m() {
+        crate::tests::init();
+        for m in [8, 16] {
+            let oti = flute::core::Oti::new_reed_solomon_rs2m(1400, 64, 20, m).unwrap();
+            reed_solomon_gf2m(&oti, None, 4);
+        }
+    }
+
+    #[test]
+    pub fn test_receiver_reed_solomon_gf2m_small_field() {
+        crate::tests::init();
+        // Small blocks are not interleaved, otherwise run_loss drops every other
+        // symbol of the first block of each window, which exceeds the parity.
+
+        // GF(2^4): at most 15 encoding symbols per block, symbols of 4-bit elements
+        let oti = flute::core::Oti::new_reed_solomon_rs2m(1400, 10, 5, 4).unwrap();
+        reed_solomon_gf2m(&oti, None, 1);
+
+        // GF(2^3): symbols of 1401 bytes = 3736 elements of 3 bits
+        let oti = flute::core::Oti::new_reed_solomon_rs2m(1401, 4, 3, 3).unwrap();
+        reed_solomon_gf2m(&oti, None, 1);
+    }
+
+    #[test]
+    pub fn test_receiver_reed_solomon_gf2m_outband_fti() {
+        crate::tests::init();
+        for m in [8, 16] {
+            let mut oti = flute::core::Oti::new_reed_solomon_rs2m(1400, 64, 20, m).unwrap();
+            oti.inband_fti = false;
+            reed_solomon_gf2m(&oti, None, 4);
+        }
+    }
+
+    #[test]
+    pub fn test_receiver_fdt_raptorq_object_reed_solomon_gf2m() {
+        crate::tests::init();
+        let oti = flute::core::Oti::new_raptorq(1400, 64, 20, 1, 4).unwrap();
+        for inband_fti in [true, false] {
+            let mut oti_object = flute::core::Oti::new_reed_solomon_rs2m(1400, 64, 20, 16).unwrap();
+            oti_object.inband_fti = inband_fti;
+            reed_solomon_gf2m(&oti, Some(&oti_object), 4);
+        }
+    }
+
     #[test]
     pub fn test_receiver_raptorq() {
         crate::tests::init();

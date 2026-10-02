@@ -55,14 +55,21 @@ impl AlcCodec for AlcRS28 {
 
         let maximum_source_block_length = fti[10];
         let num_encoding_symbols = fti[11];
+        let max_number_of_parity_symbols = num_encoding_symbols
+            .checked_sub(maximum_source_block_length)
+            .ok_or_else(|| {
+                FluteError::new(format!(
+                    "Max number of encoding symbols {} is lower than the maximum source block length {}",
+                    num_encoding_symbols, maximum_source_block_length
+                ))
+            })?;
 
         let oti = oti::Oti {
             fec_encoding_id: oti::FECEncodingID::ReedSolomonGF28,
             fec_instance_id: 0,
             maximum_source_block_length: maximum_source_block_length as u32,
             encoding_symbol_length,
-            max_number_of_parity_symbols: num_encoding_symbols as u32
-                - maximum_source_block_length as u32,
+            max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
             scheme_specific: None,
             inband_fti: true,
         };
@@ -110,5 +117,33 @@ impl AlcCodec for AlcRS28 {
 
     fn fec_payload_id_block_length(&self) -> usize {
         4
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AlcRS28;
+    use crate::common::{alccodec::AlcCodec, lct, oti};
+
+    #[test]
+    pub fn test_rs28_fti_max_n_lower_than_b() {
+        crate::tests::init();
+
+        let oti = oti::Oti::new_reed_solomon_rs28(1400, 60, 4).unwrap();
+        let mut data = Vec::new();
+        lct::push_lct_header(&mut data, 0, &0, 1, &2, 5, false, false);
+        let ext_offset = data.len();
+        AlcRS28 {}.add_fti(&mut data, &oti, 1000);
+
+        let lct_header = lct::parse_lct_header(&data).unwrap();
+        let (decoded_oti, transfer_length) =
+            AlcRS28 {}.get_fti(&data, &lct_header).unwrap().unwrap();
+        assert_eq!(transfer_length, 1000);
+        assert_eq!(decoded_oti.maximum_source_block_length, 60);
+        assert_eq!(decoded_oti.max_number_of_parity_symbols, 4);
+
+        // max_n (59) < B (60)
+        data[ext_offset + 11] = 59;
+        assert!(AlcRS28 {}.get_fti(&data, &lct_header).is_err());
     }
 }

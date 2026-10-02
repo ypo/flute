@@ -8,3 +8,7 @@ publish_py:
 
 readme:
 	cargo readme > README.md
+
+# Check the Reed-Solomon codec against zfec and OpenFEC (downloaded and built under target/rs-interop)
+rs_interop:
+	./interop/rs/run.sh

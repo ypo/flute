@@ -5,7 +5,6 @@ use crate::common::{
 use crate::error::FluteError;
 use crate::fec;
 use crate::fec::nocode;
-use crate::fec::rscodec;
 use crate::fec::FecDecoder;
 use crate::tools::error::Result;
 
@@ -43,24 +42,18 @@ impl BlockDecoder {
                 let codec = nocode::NoCodeDecoder::new(nb_source_symbols as usize);
                 self.decoder = Some(Box::new(codec));
             }
-            oti::FECEncodingID::ReedSolomonGF28 => {
-                let codec = rscodec::RSGalois8Codec::new(
+            oti::FECEncodingID::ReedSolomonGF28
+            | oti::FECEncodingID::ReedSolomonGF28UnderSpecified
+            | oti::FECEncodingID::ReedSolomonGF2M => {
+                // Symbols with an ESI up to max_n - 1 can be received (RFC 5510 §6.2)
+                let codec = fec::rsgf2m::RSGalois2MCodec::new(
                     nb_source_symbols as usize,
-                    oti.max_number_of_parity_symbols as usize,
+                    oti.maximum_source_block_length as usize
+                        + oti.max_number_of_parity_symbols as usize,
                     oti.encoding_symbol_length as usize,
+                    &oti.reed_solomon_gf2m_scheme(),
                 )?;
                 self.decoder = Some(Box::new(codec));
-            }
-            oti::FECEncodingID::ReedSolomonGF28UnderSpecified => {
-                let codec = rscodec::RSGalois8Codec::new(
-                    nb_source_symbols as usize,
-                    oti.max_number_of_parity_symbols as usize,
-                    oti.encoding_symbol_length as usize,
-                )?;
-                self.decoder = Some(Box::new(codec));
-            }
-            oti::FECEncodingID::ReedSolomonGF2M => {
-                log::warn!("Not implemented")
             }
             oti::FECEncodingID::RaptorQ => {
                 if let Some(SchemeSpecific::RaptorQ(scheme)) = oti.scheme_specific.as_ref() {

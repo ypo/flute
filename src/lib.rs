@@ -154,8 +154,8 @@
 //! - [X] No-code
 //! - [X] Reed-Solomon GF 2^8  
 //! - [X] Reed-Solomon GF 2^8 Under Specified
-//! - [ ] Reed-Solomon GF 2^16  
-//! - [ ] Reed-Solomon GF 2^m  
+//! - [X] Reed-Solomon GF 2^16  
+//! - [X] Reed-Solomon GF 2^m  
 //! - [X] RaptorQ  
 //! - [X] Raptor
 //!
@@ -524,6 +524,10 @@ pub mod core {
 
 #[cfg(feature = "python")]
 mod py;
+
+#[cfg(feature = "bench")]
+#[doc(hidden)]
+pub use crate::fec::bench;
 
 #[cfg(test)]
 mod tests {

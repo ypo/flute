@@ -596,8 +596,7 @@ mod tests {
             };
             assert_eq!(decoded, content);
 
-            let expected =
-                base64::engine::general_purpose::STANDARD.encode(md5::compute(&encoded).0);
+            let expected = base64::engine::general_purpose::STANDARD.encode(md5::compute(&encoded).0);
             assert_eq!(obj.md5.as_deref(), Some(expected.as_str()), "{:?}", cenc);
 
             if cenc != lct::Cenc::Null {
