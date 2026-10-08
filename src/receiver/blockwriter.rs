@@ -87,12 +87,7 @@ impl BlockWriter {
             false => &data[..self.bytes_left],
         };
 
-        // https://www.rfc-editor.org/rfc/rfc2616#section-14.15
-        // Content-MD5 is computed on the content-coded entity-body
-        if let Some(ctx) = self.md5_context.as_mut() {
-            ctx.consume(data)
-        }
-
+        // Content-MD5 is computed on the uncompressed object (after content decoding)
         if self.cenc == lct::Cenc::Null {
             self.write_pkt_cenc_null(data, writer, now)?;
         } else {
@@ -136,6 +131,9 @@ impl BlockWriter {
         writer: &dyn ObjectWriter,
         now: SystemTime,
     ) -> Result<()> {
+        if let Some(ctx) = self.md5_context.as_mut() {
+            ctx.consume(data)
+        }
         writer.write(self.sbn, data, now)
     }
 
@@ -179,6 +177,10 @@ impl BlockWriter {
 
             if size == 0 {
                 return Ok(());
+            }
+
+            if let Some(ctx) = self.md5_context.as_mut() {
+                ctx.consume(&self.buffer[..size])
             }
 
             writer.write(self.sbn, &self.buffer[..size], now)?;
