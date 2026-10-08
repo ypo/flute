@@ -189,8 +189,8 @@ pub struct ObjectDesc {
     /// Size of the object after transfer-coding (`Cenc`) has been applied
     /// as defined in [rfc2616 4.4](https://www.rfc-editor.org/rfc/rfc2616#section-4.4)
     pub transfer_length: u64,
-    /// the MD5 sum of this object after content encoding (`Cenc`) has been applied,
-    /// as defined in [rfc2616 14.15](https://www.rfc-editor.org/rfc/rfc2616#section-14.15).
+    /// the MD5 sum of this object, computed on the uncompressed object
+    /// (before content encoding (`Cenc`) is applied).
     /// Can be used by the FLUTE `receiver` to validate the integrity of the reception
     pub md5: Option<String>,
     /// Transfer configuration
@@ -518,17 +518,15 @@ impl ObjectDesc {
     ) -> Result<Box<ObjectDesc>> {
         let content_length = content.len();
 
-        let mut source = ObjectDataSource::from_vec(content, config.cenc)?;
-
-        // https://www.rfc-editor.org/rfc/rfc2616#section-14.15
-        // Content-MD5 is computed on the content-coded entity-body
-        let md5 = match (compute_md5, &source) {
-            (true, ObjectDataSource::Buffer(encoded)) => {
-                Some(base64::engine::general_purpose::STANDARD.encode(md5::compute(encoded).0))
+        // Content-MD5 is computed on the uncompressed object, before content encoding
+        let md5 = match compute_md5 {
+            true => {
+                Some(base64::engine::general_purpose::STANDARD.encode(md5::compute(&content).0))
             }
-            _ => None,
+            false => None,
         };
 
+        let mut source = ObjectDataSource::from_vec(content, config.cenc)?;
         let transfer_length = source.len()?;
 
         Ok(Box::new(ObjectDesc {
@@ -548,7 +546,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_md5_computed_after_content_encoding() {
+    fn test_md5_computed_before_content_encoding() {
         let content = b"hello flute ".repeat(1000);
         let content_location = url::Url::parse("file:///hello").unwrap();
 
@@ -596,13 +594,13 @@ mod tests {
             };
             assert_eq!(decoded, content);
 
-            let expected = base64::engine::general_purpose::STANDARD.encode(md5::compute(&encoded).0);
+            let expected = base64::engine::general_purpose::STANDARD.encode(md5::compute(&content).0);
             assert_eq!(obj.md5.as_deref(), Some(expected.as_str()), "{:?}", cenc);
 
             if cenc != lct::Cenc::Null {
-                let unencoded =
-                    base64::engine::general_purpose::STANDARD.encode(md5::compute(&content).0);
-                assert_ne!(obj.md5.as_deref(), Some(unencoded.as_str()), "{:?}", cenc);
+                let encoded_md5 =
+                    base64::engine::general_purpose::STANDARD.encode(md5::compute(&encoded).0);
+                assert_ne!(obj.md5.as_deref(), Some(encoded_md5.as_str()), "{:?}", cenc);
             }
         }
     }
