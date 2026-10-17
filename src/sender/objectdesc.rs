@@ -473,6 +473,12 @@ impl ObjectDesc {
         compute_md5: bool,
         config: TransferConfig,
     ) -> Result<Box<ObjectDesc>> {
+        if config.cenc != lct::Cenc::Null {
+            return Err(FluteError::new(
+                "Compressed object is not compatible with stream",
+            ));
+        }
+
         let md5 = match compute_md5 {
             true => Some(stream.md5_base64()?),
             false => None,
@@ -544,6 +550,30 @@ impl ObjectDesc {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_stream_rejects_content_encoding() {
+        let content_location = url::Url::parse("file:///hello").unwrap();
+        for cenc in [
+            lct::Cenc::Null,
+            lct::Cenc::Zlib,
+            lct::Cenc::Deflate,
+            lct::Cenc::Gzip,
+        ] {
+            let stream = Box::new(std::io::Cursor::new(b"hello flute".to_vec()));
+            let result = ObjectDesc::create_from_stream(
+                stream,
+                "text/plain",
+                &content_location,
+                true,
+                TransferConfig {
+                    cenc,
+                    ..Default::default()
+                },
+            );
+            assert_eq!(result.is_ok(), cenc == lct::Cenc::Null, "{:?}", cenc);
+        }
+    }
 
     #[test]
     fn test_md5_computed_before_content_encoding() {
