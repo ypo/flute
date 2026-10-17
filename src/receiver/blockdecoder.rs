@@ -39,7 +39,10 @@ impl BlockDecoder {
 
         match oti.fec_encoding_id {
             oti::FECEncodingID::NoCode => {
-                let codec = nocode::NoCodeDecoder::new(nb_source_symbols as usize)?;
+                let codec = nocode::NoCodeDecoder::new(
+                    nb_source_symbols as usize,
+                    oti.encoding_symbol_length as usize,
+                )?;
                 self.decoder = Some(Box::new(codec));
             }
             oti::FECEncodingID::ReedSolomonGF28

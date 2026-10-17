@@ -81,11 +81,17 @@ impl BlockWriter {
         debug_assert!(block.completed);
         let data = block.source_block()?;
 
-        // Detect the size of the last symbol
-        let data = match self.bytes_left > data.len() {
-            true => data,
-            false => &data[..self.bytes_left],
-        };
+        // Remove the padding of the last symbol
+        let block_length = block.block_size.min(self.bytes_left);
+        if data.len() < block_length {
+            return Err(FluteError::new(format!(
+                "Source block {} has {} bytes, expected {}",
+                sbn,
+                data.len(),
+                block_length
+            )));
+        }
+        let data = &data[..block_length];
 
         // Content-MD5 is computed on the uncompressed object (after content decoding)
         if self.cenc == lct::Cenc::Null {
@@ -144,6 +150,9 @@ impl BlockWriter {
         now: SystemTime,
     ) -> Result<()> {
         if self.decoder.is_none() {
+            if pkt.is_empty() {
+                return Ok(());
+            }
             self.init_decoder(pkt);
             self.decoder_read(writer, now)?;
             return Ok(());

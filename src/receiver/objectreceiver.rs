@@ -233,14 +233,14 @@ impl ObjectReceiver {
                         e => transfer_length.div_ceil(e),
                     }
                     .min(oti.maximum_source_block_length as u64);
-                    if source_block_length as u64 > max_symbols {
+                    if source_block_length == 0 || source_block_length as u64 > max_symbols {
                         log::error!(
-                            "Source block length {} is greater than the max {}",
+                            "Source block length {} is not in 1..={}",
                             source_block_length,
                             max_symbols
                         );
                         self.state = State::Error;
-                        return Err(FluteError::new("Source block length is too large"));
+                        return Err(FluteError::new("Invalid source block length"));
                     }
                     (source_block_length as usize)
                         .saturating_mul(oti.encoding_symbol_length as usize)
@@ -895,6 +895,18 @@ mod tests {
     /// Receive the object TOI=1 announced with `transfer_length` in the FDT
     /// Returns (any object complete, all objects in error)
     fn receive(transfer_length: u64, pkts: &[Vec<u8>], max_cache_size: usize) -> (bool, bool) {
+        let file_attributes = format!(r#"Transfer-Length="{transfer_length}""#);
+        let (complete, error, _) = receive_with(&file_attributes, pkts, max_cache_size);
+        (complete, error)
+    }
+
+    /// Receive the object TOI=1 announced in the FDT with `file_attributes`
+    /// Returns (any object complete, all objects in error, data of the complete object)
+    fn receive_with(
+        file_attributes: &str,
+        pkts: &[Vec<u8>],
+        max_cache_size: usize,
+    ) -> (bool, bool, Option<Vec<u8>>) {
         let writer = Rc::new(ObjectWriterBufferBuilder::new(false));
         let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_string(), 3400);
         let config = crate::receiver::Config {
@@ -905,7 +917,7 @@ mod tests {
             crate::receiver::Receiver::new(&endpoint, 1, writer.clone(), Some(config));
 
         let fdt = format!(
-            r#"<?xml version="1.0" encoding="UTF-8"?><FDT-Instance xmlns="urn:IETF:metadata:2005:FLUTE:FDT" Expires="4290000000"><File Content-Location="file:///object" TOI="1" Transfer-Length="{transfer_length}"/></FDT-Instance>"#
+            r#"<?xml version="1.0" encoding="UTF-8"?><FDT-Instance xmlns="urn:IETF:metadata:2005:FLUTE:FDT" Expires="4290000000"><File Content-Location="file:///object" TOI="1" {file_attributes}/></FDT-Instance>"#
         );
         let fdt = fdt.as_bytes();
         let fdt_pkt = nocode_pkt(0, Some(1), fdt.len() as u64, fdt.len() as u16, 1, 0, 0, fdt);
@@ -918,9 +930,61 @@ mod tests {
         // An object in error is forgotten (max_objects_error=0) and created again by the next packet
         let objects = writer.objects.borrow();
         assert!(!objects.is_empty());
-        let complete = objects.iter().any(|object| object.borrow().complete);
+        let complete = objects.iter().find(|object| object.borrow().complete);
         let error = objects.iter().all(|object| object.borrow().error);
-        (complete, error)
+        let data = complete.map(|object| object.borrow().data.clone());
+        (complete.is_some(), error, data)
+    }
+
+    #[test]
+    fn empty_symbol_of_compressed_object_is_ignored() {
+        crate::tests::init();
+        // 2 source blocks of 1 symbol, the symbol of the first block is empty
+        let pkts = [
+            nocode_pkt(1, None, 200, 100, 1, 0, 0, &[]),
+            nocode_pkt(1, None, 200, 100, 1, 1, 0, &[0x55u8; 100]),
+        ];
+        let attributes = r#"Transfer-Length="200" Content-Encoding="gzip""#;
+        assert_eq!(receive_with(attributes, &pkts, 1024), (false, false, None));
+    }
+
+    #[test]
+    fn oversized_symbol_is_ignored() {
+        crate::tests::init();
+        // 1 source block of 2 symbols of 100 bytes
+        let pkts = [
+            nocode_pkt(1, None, 200, 100, 2, 0, 0, &[7u8; 150]),
+            nocode_pkt(1, None, 200, 100, 2, 0, 1, &[2u8; 100]),
+        ];
+        let attributes = r#"Transfer-Length="200""#;
+        assert_eq!(receive_with(attributes, &pkts, 1024), (false, false, None));
+
+        let pkts = [
+            pkts[0].clone(),
+            pkts[1].clone(),
+            nocode_pkt(1, None, 200, 100, 2, 0, 0, &[1u8; 100]),
+        ];
+        let expected = [[1u8; 100], [2u8; 100]].concat();
+        assert_eq!(
+            receive_with(attributes, &pkts, 1024),
+            (true, false, Some(expected))
+        );
+    }
+
+    #[test]
+    fn short_last_symbol_of_object() {
+        crate::tests::init();
+        // 250 bytes, E=100, B=2: block 0 has 2 symbols, block 1 has 1 symbol of 50 bytes
+        let pkts = [
+            nocode_pkt(1, None, 250, 100, 2, 1, 0, &[3u8; 50]),
+            nocode_pkt(1, None, 250, 100, 2, 0, 1, &[2u8; 100]),
+            nocode_pkt(1, None, 250, 100, 2, 0, 0, &[1u8; 100]),
+        ];
+        let expected = [&[1u8; 100][..], &[2u8; 100], &[3u8; 50]].concat();
+        assert_eq!(
+            receive_with(r#"Transfer-Length="250""#, &pkts, 1024),
+            (true, false, Some(expected))
+        );
     }
 
     #[test]
