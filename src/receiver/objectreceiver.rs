@@ -245,15 +245,24 @@ impl ObjectReceiver {
                     (source_block_length as usize)
                         .saturating_mul(oti.encoding_symbol_length as usize)
                 }
-                None => usize::try_from(partition::block_length(
-                    self.a_large,
-                    self.a_small,
-                    self.nb_a_large,
-                    *self.transfer_length.as_ref().unwrap(),
-                    oti.encoding_symbol_length as u64,
-                    payload_id.sbn,
-                ))
-                .unwrap_or(usize::MAX),
+                None => {
+                    let Some(block_length) = partition::block_length(
+                        self.a_large,
+                        self.a_small,
+                        self.nb_a_large,
+                        *self.transfer_length.as_ref().unwrap(),
+                        oti.encoding_symbol_length as u64,
+                        payload_id.sbn,
+                    ) else {
+                        log::error!(
+                            "SBN {} is outside the block partitioning of the object",
+                            payload_id.sbn
+                        );
+                        self.state = State::Error;
+                        return Err(FluteError::new("SBN is outside the block partitioning"));
+                    };
+                    usize::try_from(block_length).unwrap_or(usize::MAX)
+                }
             };
 
             let exceeds_limit = self
@@ -937,6 +946,20 @@ mod tests {
             .map(|i| nocode_pkt(1, None, 1000, 100, 5, i % 2, i / 2, &[i as u8; 100]))
             .collect();
         assert_eq!(receive(1000, &pkts, 1000), (true, false));
+    }
+
+    #[test]
+    fn sbn_outside_block_partitioning_is_rejected() {
+        crate::tests::init();
+        // 1000 bytes, E=100, B=5 -> 2 source blocks (SBN 0 and 1)
+        for sbn in [2, 3, 4000] {
+            let pkt = nocode_pkt(1, None, 1000, 100, 5, sbn, 0, &[1u8; 100]);
+            assert_eq!(
+                receive(1000, &[pkt], 1024 * 1024),
+                (false, true),
+                "sbn={sbn}"
+            );
+        }
     }
 
     #[test]
