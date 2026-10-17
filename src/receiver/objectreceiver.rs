@@ -726,11 +726,26 @@ impl ObjectReceiver {
         debug_assert!(self.blocks.is_empty());
         let oti = self.oti.as_ref().unwrap();
 
-        let (a_large, a_small, nb_a_large, nb_blocks) = partition::block_partitioning(
-            oti.maximum_source_block_length as u64,
-            self.transfer_length.unwrap_or_default(),
-            oti.encoding_symbol_length as u64,
-        );
+        let transfer_length = self.transfer_length.unwrap_or_default();
+        let encoding_symbol_length = oti.encoding_symbol_length as u64;
+
+        // Raptor and RaptorQ split the object into the Z source blocks announced by the sender
+        let nb_source_blocks = match oti.scheme_specific.as_ref() {
+            Some(oti::SchemeSpecific::Raptor(scheme)) => Some(scheme.source_blocks_length as u64),
+            Some(oti::SchemeSpecific::RaptorQ(scheme)) => Some(scheme.source_blocks_length as u64),
+            _ => None,
+        };
+
+        let (a_large, a_small, nb_a_large, nb_blocks) = match nb_source_blocks {
+            Some(z) if encoding_symbol_length > 0 => {
+                partition::partition(transfer_length.div_ceil(encoding_symbol_length), z)
+            }
+            _ => partition::block_partitioning(
+                oti.maximum_source_block_length as u64,
+                transfer_length,
+                encoding_symbol_length,
+            ),
+        };
 
         log::debug!(
             "Block partitioning
@@ -984,6 +999,81 @@ mod tests {
             receive_with(r#"Transfer-Length="250""#, &pkts, 1024),
             (true, false, Some(expected))
         );
+    }
+
+    /// Source symbols of an object of `nb_symbols` symbols of 100 bytes (the last one is 70 bytes)
+    /// split into `z` source blocks with Partition[Kt, Z] (RFC 5053 §5.3.1.2, RFC 6330 §4.4.1.2)
+    fn raptor_pkts(
+        mut oti: crate::common::oti::Oti,
+        nb_symbols: u64,
+        z: u16,
+    ) -> (Vec<Vec<u8>>, Vec<u8>) {
+        use crate::common::oti::SchemeSpecific;
+        match oti.scheme_specific.as_mut().unwrap() {
+            SchemeSpecific::Raptor(scheme) => scheme.source_blocks_length = z,
+            SchemeSpecific::RaptorQ(scheme) => scheme.source_blocks_length = z as u8,
+            _ => unreachable!(),
+        }
+
+        let transfer_length = nb_symbols * 100 - 30;
+        let content: Vec<u8> = (0..transfer_length).map(|i| (i % 251) as u8).collect();
+        let z = z as u64;
+        let kl = nb_symbols.div_ceil(z);
+        let ks = nb_symbols / z;
+        let zl = nb_symbols - ks * z;
+
+        let mut pkts = Vec::new();
+        let mut offset = 0;
+        for sbn in 0..z {
+            let k = if sbn < zl { kl } else { ks };
+            for esi in 0..k {
+                let end = (offset + 100).min(content.len());
+                let pkt = crate::common::pkt::Pkt {
+                    payload: content[offset..end].to_vec(),
+                    transfer_length,
+                    esi: esi as u32,
+                    sbn: sbn as u32,
+                    toi: 1,
+                    fdt_id: None,
+                    cenc: lct::Cenc::Null,
+                    inband_cenc: false,
+                    close_object: false,
+                    source_block_length: k as u32,
+                    sender_current_time: false,
+                };
+                pkts.push(alc::new_alc_pkt(
+                    &oti,
+                    &0,
+                    1,
+                    &pkt,
+                    crate::common::Profile::RFC6726,
+                    SystemTime::now(),
+                ));
+                offset = end;
+            }
+        }
+        assert_eq!(offset, content.len());
+        (pkts, content)
+    }
+
+    #[test]
+    fn raptor_object_is_split_into_announced_source_blocks() {
+        crate::tests::init();
+        use crate::common::oti::Oti;
+        // Partition[Kt, Z] gives Z blocks, B=KL with RFC 5052 would give fewer blocks
+        for (oti, nb_symbols, z) in [
+            (Oti::new_raptorq(100, 10, 0, 1, 4).unwrap(), 10, 6),
+            (Oti::new_raptorq(100, 10, 0, 1, 4).unwrap(), 30, 7),
+            (Oti::new_raptor(100, 10, 0, 1, 4).unwrap(), 30, 7),
+        ] {
+            let (pkts, content) = raptor_pkts(oti, nb_symbols, z);
+            let attributes = format!(r#"Transfer-Length="{}""#, content.len());
+            assert_eq!(
+                receive_with(&attributes, &pkts, 1024 * 1024),
+                (true, false, Some(content)),
+                "Kt={nb_symbols} Z={z}"
+            );
+        }
     }
 
     #[test]
