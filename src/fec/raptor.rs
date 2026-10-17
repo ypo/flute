@@ -2,6 +2,19 @@ use super::{DataFecShard, FecDecoder, FecEncoder, FecShard};
 use crate::common::oti::RaptorSchemeSpecific;
 use crate::error::{FluteError, Result};
 
+/// Systematic indices J(K) are only defined for 4 <= K <= 8192,
+/// the raptor-code crate panics with K > 8192
+/// <https://www.rfc-editor.org/rfc/rfc5053.html#section-5.7>
+fn check_nb_source_symbols(nb_source_symbols: usize) -> Result<()> {
+    if !(4..=8192).contains(&nb_source_symbols) {
+        return Err(FluteError::new(format!(
+            "Number of source symbols K={} must be between 4 and 8192",
+            nb_source_symbols
+        )));
+    }
+    Ok(())
+}
+
 /// Length of the sub-symbols of each sub-block
 ///
 /// (TL, TS, NL, NS) = Partition[T/Al, N]  
@@ -55,6 +68,7 @@ impl RaptorEncoder {
         encoding_symbol_length: usize,
         scheme: &RaptorSchemeSpecific,
     ) -> Result<RaptorEncoder> {
+        check_nb_source_symbols(nb_source_symbols)?;
         Ok(RaptorEncoder {
             nb_parity_symbols,
             nb_source_symbols,
@@ -146,6 +160,7 @@ impl RaptorDecoder {
             nb_source_symbols,
             source_block_size
         );
+        check_nb_source_symbols(nb_source_symbols)?;
         let sub_symbols_length = sub_symbols_length(encoding_symbol_length, scheme)?;
 
         Ok(RaptorDecoder {
@@ -486,5 +501,29 @@ mod tests {
         assert!(RaptorEncoder::new(10, 2, 1024, &create_scheme(1, 0)).is_err());
         assert!(RaptorDecoder::new(10, 10240, 16, &create_scheme(5, 4)).is_err());
         assert!(RaptorDecoder::new(10, 10240, 1024, &create_scheme(0, 4)).is_err());
+    }
+
+    #[test]
+    pub fn test_raptor_source_symbols_limit() {
+        crate::tests::init();
+        let scheme = create_scheme(1, 4);
+        for k in [0, 1, 3, 8193, 65536] {
+            assert!(RaptorEncoder::new(k, 2, 4, &scheme).is_err());
+            assert!(RaptorDecoder::new(k, k * 4, 4, &scheme).is_err());
+        }
+
+        // K = 8192 is the largest valid block
+        let k = 8192;
+        let data: Vec<u8> = (0..k * 4).map(|i| i as u8).collect();
+        let encoder = RaptorEncoder::new(k, 10, 4, &scheme).unwrap();
+        let shards = encoder.encode(&data).unwrap();
+        let mut decoder = RaptorDecoder::new(k, data.len(), 4, &scheme).unwrap();
+        // Lose the first source symbol so the Raptor decoder runs
+        for shard in shards.iter().skip(1) {
+            decoder.push_symbol(shard.data(), shard.esi());
+        }
+        assert!(decoder.can_decode());
+        assert!(decoder.decode());
+        assert_eq!(decoder.source_block().unwrap(), data.as_slice());
     }
 }
