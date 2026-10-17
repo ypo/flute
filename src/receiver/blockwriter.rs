@@ -150,13 +150,24 @@ impl BlockWriter {
         }
 
         let mut offset: usize = 0;
-        loop {
+        let mut stalled = false;
+        while offset < pkt.len() {
             let size = self.decoder.as_mut().unwrap().write(&pkt[offset..])?;
+            if size == 0 {
+                // The input buffer is still full after the previous read:
+                // the decoder will never consume the remaining data
+                // (end of the compressed stream or Content-Length reached)
+                if stalled {
+                    return Err(FluteError::new(
+                        "Compressed data left after the end of the content",
+                    ));
+                }
+                stalled = true;
+            } else {
+                stalled = false;
+            }
             self.decoder_read(writer, now)?;
             offset += size;
-            if offset == pkt.len() {
-                break;
-            }
         }
         Ok(())
     }
@@ -200,5 +211,78 @@ impl BlockWriter {
 
     pub fn is_completed(&self) -> bool {
         self.bytes_left == 0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BlockWriter;
+    use crate::common::lct;
+    use crate::error::Result;
+    use crate::receiver::writer::ObjectWriter;
+    use std::{cell::RefCell, io::Write, time::SystemTime};
+
+    #[derive(Default)]
+    struct Output(RefCell<Vec<u8>>);
+
+    impl ObjectWriter for Output {
+        fn open(&self, _now: SystemTime) -> Result<()> {
+            Ok(())
+        }
+        fn write(&self, _sbn: u32, data: &[u8], _now: SystemTime) -> Result<()> {
+            self.0.borrow_mut().extend_from_slice(data);
+            Ok(())
+        }
+        fn complete(&self, _now: SystemTime) {}
+        fn error(&self, _now: SystemTime) {}
+        fn interrupted(&self, _now: SystemTime) {}
+        fn enable_md5_check(&self) -> bool {
+            false
+        }
+    }
+
+    fn gzip(data: &[u8]) -> Vec<u8> {
+        let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        encoder.write_all(data).unwrap();
+        encoder.finish().unwrap()
+    }
+
+    /// Push `compressed` to a gzip BlockWriter in chunks of 100 bytes
+    fn decode(compressed: &[u8], content_length: Option<usize>, output: &Output) -> Result<()> {
+        let mut writer = BlockWriter::new(compressed.len(), content_length, lct::Cenc::Gzip, false);
+        for chunk in compressed.chunks(100) {
+            writer.decode_write_pkt(chunk, output, SystemTime::now())?;
+        }
+        Ok(())
+    }
+
+    fn content() -> Vec<u8> {
+        (0..100_000u32)
+            .flat_map(|i| (i % 251).to_be_bytes())
+            .collect()
+    }
+
+    #[test]
+    fn decode_compressed_content() {
+        crate::tests::init();
+        let content = content();
+        let output = Output::default();
+        decode(&gzip(&content), Some(content.len()), &output).unwrap();
+        assert_eq!(*output.0.borrow(), content);
+    }
+
+    #[test]
+    fn data_after_end_of_compressed_stream_is_an_error() {
+        crate::tests::init();
+        let mut compressed = gzip(b"hello");
+        compressed.extend(std::iter::repeat_n(0xAB, 10_000));
+        assert!(decode(&compressed, None, &Output::default()).is_err());
+    }
+
+    #[test]
+    fn content_larger_than_content_length_is_an_error() {
+        crate::tests::init();
+        let content = content();
+        assert!(decode(&gzip(&content), Some(10), &Output::default()).is_err());
     }
 }
