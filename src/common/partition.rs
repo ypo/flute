@@ -61,36 +61,36 @@ pub fn block_partitioning(b: u64, l: u64, e: u64) -> (u64, u64, u64, u64) {
 ///
 /// # Returns
 ///
-/// The size of the block in octets.
+/// The size of the block in octets, or `None` if `sbn` is outside the partition.
 ///
-pub fn block_length(a_large: u64, a_small: u64, nb_a_large: u64, l: u64, e: u64, sbn: u32) -> u64 {
+pub fn block_length(
+    a_large: u64,
+    a_small: u64,
+    nb_a_large: u64,
+    l: u64,
+    e: u64,
+    sbn: u32,
+) -> Option<u64> {
     let sbn = sbn as u64;
 
-    let large_block_size = a_large * e;
-    let small_block_size = a_small * e;
+    let large_block_size = a_large.checked_mul(e)?;
+    let small_block_size = a_small.checked_mul(e)?;
 
-    if sbn + 1 < nb_a_large {
-        return large_block_size;
+    let (offset, block_size) = if sbn < nb_a_large {
+        (sbn.checked_mul(large_block_size)?, large_block_size)
+    } else {
+        let small_offset = (sbn - nb_a_large).checked_mul(small_block_size)?;
+        let offset = nb_a_large
+            .checked_mul(large_block_size)?
+            .checked_add(small_offset)?;
+        (offset, small_block_size)
+    };
+
+    if offset >= l || block_size == 0 {
+        return None;
     }
 
-    if sbn + 1 == nb_a_large {
-        let large_size = nb_a_large * large_block_size;
-        if large_size <= l {
-            return large_block_size;
-        }
-
-        // Should never happen ?
-        return l - ((nb_a_large - 1) * large_block_size);
-    }
-
-    let l = l - (nb_a_large * large_block_size);
-    let sbn = sbn - nb_a_large;
-    let small_size = (sbn + 1) * small_block_size;
-    if small_size <= l {
-        return small_block_size;
-    }
-
-    l - (sbn * small_block_size)
+    Some(block_size.min(l - offset))
 }
 
 #[cfg(test)]
@@ -108,5 +108,36 @@ mod tests {
             nb_blocks
         );
         assert!(nb_blocks == 0);
+    }
+
+    #[test]
+    pub fn block_length_covers_transfer_length() {
+        crate::tests::init();
+        for (b, l, e) in [
+            (64, 1, 1024),
+            (64, 1024, 1024),
+            (64, 1025, 1024),
+            (5, 1000, 100),
+            (7, 100_000, 100),
+            (3, 1_000_001, 1400),
+            (u32::MAX as u64, 100, 100),
+        ] {
+            let (a_large, a_small, nb_a_large, nb_blocks) = super::block_partitioning(b, l, e);
+            let mut total = 0;
+            for sbn in 0..nb_blocks as u32 {
+                let len = super::block_length(a_large, a_small, nb_a_large, l, e, sbn).unwrap();
+                assert!(len > 0 && len <= a_large * e);
+                total += len;
+            }
+            assert_eq!(total, l, "b={b} l={l} e={e}");
+
+            // SBN outside the partition
+            for sbn in [nb_blocks as u32, nb_blocks as u32 + 1, u32::MAX] {
+                assert_eq!(
+                    super::block_length(a_large, a_small, nb_a_large, l, e, sbn),
+                    None
+                );
+            }
+        }
     }
 }
