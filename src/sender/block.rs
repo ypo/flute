@@ -15,7 +15,6 @@ pub struct EncodingSymbol<'a> {
     pub sbn: u32,
     pub esi: u32,
     pub symbols: &'a [u8],
-    pub is_source_symbol: bool,
 }
 
 impl Block {
@@ -71,13 +70,10 @@ impl Block {
             return None;
         }
         let shard = self.shards[self.read_index as usize].as_ref();
-        let esi = shard.esi();
-        let is_source_symbol = (esi as usize) < self.nb_source_symbols;
         let symbol = EncodingSymbol {
             sbn: self.sbn,
             esi: shard.esi(),
             symbols: shard.data(),
-            is_source_symbol,
         };
         self.read_index += 1;
         Some((symbol, self.is_empty()))
@@ -180,9 +176,10 @@ mod tests {
             Oti::new_reed_solomon_rs2m(2, 4, 3, 8).unwrap(),
         ] {
             let mut block = Block::new_from_buffer(0, &data, 4, &oti).unwrap();
+            let nb_source_symbols = block.nb_source_symbols;
             let mut repair = Vec::new();
             while let Some((symbol, _)) = block.read() {
-                if !symbol.is_source_symbol {
+                if symbol.esi as usize >= nb_source_symbols {
                     repair.push(symbol.symbols.to_vec());
                 }
             }

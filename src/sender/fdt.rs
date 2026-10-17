@@ -54,7 +54,7 @@ impl Fdt {
     ) -> Fdt {
         Fdt {
             _tsi: tsi,
-            fdtid,
+            fdtid: fdtid & 0xFFFFF,
             oti: default_oti.clone(),
             files_transfer_queue: VecDeque::new(),
             fdt_transfer_queue: VecDeque::new(),
@@ -440,10 +440,14 @@ mod tests {
     use super::oti;
 
     fn create_fdt() -> super::Fdt {
+        create_fdt_with_id(1)
+    }
+
+    fn create_fdt_with_id(fdtid: u32) -> super::Fdt {
         let oti: oti::Oti = Default::default();
         let mut fdt = super::Fdt::new(
             10,
-            1,
+            fdtid,
             &oti,
             lct::Cenc::Null,
             std::time::Duration::from_secs(3600),
@@ -492,6 +496,21 @@ mod tests {
         fdt.add_object(0, obj2).unwrap();
         fdt.groups = Some(vec!["Group1".to_owned(), "Group2".to_owned()]);
         fdt
+    }
+
+    #[test]
+    pub fn test_fdt_id_is_20_bits() {
+        crate::tests::init();
+        let mut fdt = create_fdt_with_id(0xFFFFFFFF);
+        let now = SystemTime::now();
+        fdt.publish(now).unwrap();
+        fdt.publish(now).unwrap();
+        let fdt_ids: Vec<_> = fdt.fdt_transfer_queue.iter().map(|f| f.fdt_id).collect();
+        assert_eq!(fdt_ids, vec![Some(0xFFFFF), Some(0)]);
+
+        let mut fdt = create_fdt_with_id(0x1FFFFF);
+        fdt.publish(now).unwrap();
+        assert_eq!(fdt.fdt_transfer_queue[0].fdt_id, Some(0xFFFFF));
     }
 
     #[test]

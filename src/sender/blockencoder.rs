@@ -19,7 +19,6 @@ pub struct BlockEncoder {
     block_multiplex_windows: usize,
     block_multiplex_index: usize,
     read_end: bool,
-    source_size_transferred: usize,
     nb_pkt_sent: usize,
     stopped: bool,
     closabled_object: bool,
@@ -52,7 +51,6 @@ impl BlockEncoder {
             block_multiplex_windows,
             block_multiplex_index: 0,
             read_end: false,
-            source_size_transferred: 0,
             nb_pkt_sent: 0,
             stopped: false,
             closabled_object,
@@ -102,36 +100,32 @@ impl BlockEncoder {
             }
 
             let block = &mut self.blocks[self.block_multiplex_index];
-            let symbol = block.read();
-            if symbol.is_none() {
+            let source_block_length = block.nb_source_symbols as u32;
+            let Some((symbol, _)) = block.read() else {
                 self.blocks.remove(self.block_multiplex_index);
                 continue;
-            }
-
-            let (symbol, is_last_symbol) = symbol.as_ref().unwrap();
+            };
+            let (payload, esi, sbn) = (symbol.symbols.to_vec(), symbol.esi, symbol.sbn);
 
             self.block_multiplex_index += 1;
-            if symbol.is_source_symbol {
-                self.source_size_transferred += symbol.symbols.len();
-            }
-
             self.nb_pkt_sent += 1;
 
-            let is_last_packet = (self.source_size_transferred
-                >= self.file.object.transfer_length as usize)
-                && *is_last_symbol;
+            // With interleaved blocks, other blocks can still have symbols to send
+            let all_blocks_read = self.read_end || self.curr_sbn as u64 >= self.nb_blocks;
+            let is_last_packet =
+                all_blocks_read && self.blocks.iter().all(|block| block.is_empty());
 
             return Some(pkt::Pkt {
-                payload: symbol.symbols.to_vec(),
+                payload,
                 transfer_length: self.file.object.transfer_length,
-                esi: symbol.esi,
-                sbn: symbol.sbn,
+                esi,
+                sbn,
                 toi: self.file.toi,
                 fdt_id: self.file.fdt_id,
                 cenc: self.file.object.config.cenc,
                 inband_cenc: self.file.object.config.inband_cenc,
                 close_object: force_close_object || (self.closabled_object && is_last_packet),
-                source_block_length: block.nb_source_symbols as u32,
+                source_block_length,
                 sender_current_time: self.file.sender_current_time,
             });
         }
@@ -236,6 +230,70 @@ impl BlockEncoder {
                 Ok(_) => {}
                 Err(_) => self.read_end = true, // TODO handle error
             };
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BlockEncoder;
+    use crate::common::oti::Oti;
+    use crate::sender::TOIMaxLength;
+    use crate::sender::filedesc::FileDesc;
+    use crate::sender::objectdesc::{ObjectDesc, TransferConfig};
+    use crate::sender::toiallocator::ToiAllocator;
+    use std::sync::Arc;
+
+    /// Returns the indexes of the packets with the close object flag, and the number of packets
+    fn close_object_pkts(
+        transfer_length: usize,
+        oti: &Oti,
+        interleave_blocks: usize,
+    ) -> (Vec<usize>, usize) {
+        let allocator = ToiAllocator::new(TOIMaxLength::ToiMax112, None);
+        let mut obj = ObjectDesc::create_from_buffer(
+            vec![0u8; transfer_length],
+            "application/octet-stream",
+            &url::Url::parse("file:///object").unwrap(),
+            false,
+            TransferConfig::default(),
+        )
+        .unwrap();
+        obj.set_toi(ToiAllocator::allocate(&allocator));
+        let file = Arc::new(FileDesc::new(0, obj, oti, None, false).unwrap());
+        let mut encoder = BlockEncoder::new(file, interleave_blocks, true).unwrap();
+
+        let mut close_object = Vec::new();
+        let mut nb_pkts = 0;
+        while let Some(pkt) = encoder.read(false) {
+            if pkt.close_object {
+                close_object.push(nb_pkts);
+            }
+            nb_pkts += 1;
+        }
+        (close_object, nb_pkts)
+    }
+
+    #[test]
+    fn close_object_is_set_on_last_packet_only() {
+        crate::tests::init();
+        // 4 blocks of 2 source symbols and 2 repair symbols
+        let oti = Oti::new_reed_solomon_rs28(100, 2, 2).unwrap();
+        for interleave_blocks in [1, 2, 4, 8] {
+            assert_eq!(
+                close_object_pkts(750, &oti, interleave_blocks),
+                (vec![15], 16),
+                "interleave_blocks={interleave_blocks}"
+            );
+        }
+
+        let oti = Oti::new_no_code(100, 2);
+        for interleave_blocks in [1, 4] {
+            assert_eq!(
+                close_object_pkts(750, &oti, interleave_blocks),
+                (vec![7], 8),
+                "interleave_blocks={interleave_blocks}"
+            );
         }
     }
 }

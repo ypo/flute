@@ -31,9 +31,11 @@ impl TransferInfo {
             packet_transmission_tick = match target_acquisition_latency {
                 crate::sender::objectdesc::TargetAcquisition::AsFastAsPossible => None,
                 crate::sender::objectdesc::TargetAcquisition::WithinDuration(duration) => {
+                    // An empty object is sent in one packet
                     let nb_packets = object
                         .transfer_length
-                        .div_ceil(oti.encoding_symbol_length as u64);
+                        .div_ceil(oti.encoding_symbol_length as u64)
+                        .max(1);
                     // TODO should we take into account the FEC encoding symbol length ?
                     Some(duration.div_f64(nb_packets as f64))
                 }
@@ -49,7 +51,8 @@ impl TransferInfo {
                     }
                     let nb_packets = object
                         .transfer_length
-                        .div_ceil(oti.encoding_symbol_length as u64);
+                        .div_ceil(oti.encoding_symbol_length as u64)
+                        .max(1);
                     Some(duration.div_f64(nb_packets as f64))
                 }
             }
@@ -476,22 +479,48 @@ mod tests {
     use super::{raptor_encoding_symbol_length, FileDesc};
     use crate::common::oti::{FECEncodingID, Oti, RaptorSchemeSpecific, SchemeSpecific};
     use crate::error::Result;
-    use crate::sender::objectdesc::{ObjectDesc, TransferConfig};
+    use crate::sender::objectdesc::{ObjectDesc, TargetAcquisition, TransferConfig};
     use crate::sender::toiallocator::ToiAllocator;
     use crate::sender::TOIMaxLength;
 
     fn create_file_desc(transfer_length: usize, default_oti: &Oti) -> Result<FileDesc> {
+        create_file_desc_with_config(transfer_length, default_oti, TransferConfig::default())
+    }
+
+    fn create_file_desc_with_config(
+        transfer_length: usize,
+        default_oti: &Oti,
+        config: TransferConfig,
+    ) -> Result<FileDesc> {
         let allocator = ToiAllocator::new(TOIMaxLength::ToiMax112, None);
         let mut obj = ObjectDesc::create_from_buffer(
             vec![0u8; transfer_length],
             "application/octet-stream",
             &url::Url::parse("file:///object").unwrap(),
             false,
-            TransferConfig::default(),
+            config,
         )
         .unwrap();
         obj.set_toi(ToiAllocator::allocate(&allocator));
         FileDesc::new(0, obj, default_oti, None, false)
+    }
+
+    #[test]
+    pub fn test_empty_object_with_target_acquisition() {
+        crate::tests::init();
+        let oti = Oti::default();
+        let now = std::time::SystemTime::now();
+        for target_acquisition in [
+            TargetAcquisition::WithinDuration(std::time::Duration::from_secs(1)),
+            TargetAcquisition::WithinTime(now + std::time::Duration::from_secs(1)),
+            TargetAcquisition::WithinTime(now),
+        ] {
+            let config = TransferConfig::builder()
+                .target_acquisition(target_acquisition)
+                .build();
+            let file = create_file_desc_with_config(0, &oti, config).unwrap();
+            file.transfer_started(now);
+        }
     }
 
     fn get_raptor_scheme(oti: &Oti) -> &RaptorSchemeSpecific {
