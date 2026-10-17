@@ -225,20 +225,42 @@ impl ObjectReceiver {
             let oti = self.oti.as_ref().unwrap();
 
             let block_length: usize = match payload_id.source_block_length {
-                Some(_) => source_block_length as usize * oti.encoding_symbol_length as usize,
-                None => partition::block_length(
+                Some(_) => {
+                    // A source block cannot hold more symbols than the object or the FTI maximum
+                    let transfer_length = *self.transfer_length.as_ref().unwrap();
+                    let max_symbols = match oti.encoding_symbol_length as u64 {
+                        0 => 0,
+                        e => transfer_length.div_ceil(e),
+                    }
+                    .min(oti.maximum_source_block_length as u64);
+                    if source_block_length as u64 > max_symbols {
+                        log::error!(
+                            "Source block length {} is greater than the max {}",
+                            source_block_length,
+                            max_symbols
+                        );
+                        self.state = State::Error;
+                        return Err(FluteError::new("Source block length is too large"));
+                    }
+                    (source_block_length as usize)
+                        .saturating_mul(oti.encoding_symbol_length as usize)
+                }
+                None => usize::try_from(partition::block_length(
                     self.a_large,
                     self.a_small,
                     self.nb_a_large,
                     *self.transfer_length.as_ref().unwrap(),
                     oti.encoding_symbol_length as u64,
                     payload_id.sbn,
-                ) as usize,
+                ))
+                .unwrap_or(usize::MAX),
             };
 
-            if self.nb_allocated_blocks >= 2
-                && self.total_allocated_blocks_size + block_length > self.max_size_allocated
-            {
+            let exceeds_limit = self
+                .total_allocated_blocks_size
+                .checked_add(block_length)
+                .is_none_or(|total| total > self.max_size_allocated);
+            if exceeds_limit {
                 log::error!(
                     "NB Allocated blocks={}/{} total_allocated={}/{} block_length={}",
                     self.nb_allocated_blocks,
@@ -830,5 +852,139 @@ mod tests {
         );
         assert_eq!(meta.cenc, Some(lct::Cenc::Deflate));
         assert_eq!(meta.content_type.as_deref(), Some("application/json"));
+    }
+
+    /// NoCode ALC packet with an EXT_FTI (RFC 5445)
+    #[allow(clippy::too_many_arguments)]
+    fn nocode_pkt(
+        toi: u128,
+        fdt_id: Option<u32>,
+        tl: u64,
+        esl: u16,
+        msbl: u32,
+        sbn: u16,
+        esi: u16,
+        payload: &[u8],
+    ) -> Vec<u8> {
+        let mut data = Vec::new();
+        lct::push_lct_header(&mut data, 0, &0, 1, &toi, 0, false, false);
+        if let Some(fdt_id) = fdt_id {
+            data.extend((((lct::Ext::Fdt as u32) << 24) | (2 << 20) | fdt_id).to_be_bytes());
+            lct::inc_hdr_len(&mut data, 1);
+        }
+        data.push(lct::Ext::Fti as u8);
+        data.push(4);
+        data.extend((tl << 16).to_be_bytes());
+        data.extend(esl.to_be_bytes());
+        data.extend(msbl.to_be_bytes());
+        lct::inc_hdr_len(&mut data, 4);
+        data.extend((((sbn as u32) << 16) | esi as u32).to_be_bytes());
+        data.extend_from_slice(payload);
+        data
+    }
+
+    /// Receive the object TOI=1 announced with `transfer_length` in the FDT
+    /// Returns (any object complete, all objects in error)
+    fn receive(transfer_length: u64, pkts: &[Vec<u8>], max_cache_size: usize) -> (bool, bool) {
+        let writer = Rc::new(ObjectWriterBufferBuilder::new(false));
+        let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_string(), 3400);
+        let config = crate::receiver::Config {
+            object_max_cache_size: Some(max_cache_size),
+            ..Default::default()
+        };
+        let mut receiver =
+            crate::receiver::Receiver::new(&endpoint, 1, writer.clone(), Some(config));
+
+        let fdt = format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?><FDT-Instance xmlns="urn:IETF:metadata:2005:FLUTE:FDT" Expires="4290000000"><File Content-Location="file:///object" TOI="1" Transfer-Length="{transfer_length}"/></FDT-Instance>"#
+        );
+        let fdt = fdt.as_bytes();
+        let fdt_pkt = nocode_pkt(0, Some(1), fdt.len() as u64, fdt.len() as u16, 1, 0, 0, fdt);
+        receiver.push_data(&fdt_pkt, SystemTime::now()).unwrap();
+
+        for pkt in pkts {
+            receiver.push_data(pkt, SystemTime::now()).ok();
+        }
+
+        // An object in error is forgotten (max_objects_error=0) and created again by the next packet
+        let objects = writer.objects.borrow();
+        assert!(!objects.is_empty());
+        let complete = objects.iter().any(|object| object.borrow().complete);
+        let error = objects.iter().all(|object| object.borrow().error);
+        (complete, error)
+    }
+
+    #[test]
+    fn huge_announced_source_block_is_rejected() {
+        crate::tests::init();
+        // A single packet announcing a source block of 2^32 - 1 symbols must not be allocated
+        let tl = 0xFFFF_FFFF_FFFF;
+        let pkt = nocode_pkt(1, None, tl, 1, u32::MAX, 0, 0, &[0u8; 1]);
+        assert_eq!(receive(tl, &[pkt], 10 * 1024 * 1024), (false, true));
+    }
+
+    #[test]
+    fn every_block_counts_in_max_cache_size() {
+        crate::tests::init();
+        // One single source block of 2000 bytes, larger than the 1000-byte limit
+        let pkts: Vec<_> = (0..20)
+            .map(|esi| nocode_pkt(1, None, 2000, 100, 20, 0, esi, &[esi as u8; 100]))
+            .collect();
+        assert_eq!(receive(2000, &pkts, 1000), (false, true));
+
+        // Two interleaved source blocks of 500 bytes fit in the limit
+        let pkts: Vec<_> = (0..10)
+            .map(|i| nocode_pkt(1, None, 1000, 100, 5, i % 2, i / 2, &[i as u8; 100]))
+            .collect();
+        assert_eq!(receive(1000, &pkts, 1000), (true, false));
+    }
+
+    #[test]
+    fn huge_maximum_source_block_length_with_small_object_is_accepted() {
+        crate::tests::init();
+        // The block size is derived from the transfer length (RFC 5052 partitioning), not from B
+        let pkt = nocode_pkt(1, None, 100, 100, u32::MAX, 0, 0, &[1u8; 100]);
+        assert_eq!(receive(100, &[pkt], 1000), (true, false));
+    }
+
+    /// Reed-Solomon GF(2^8) under-specified (FEC ID 129) packet, source block length in payload ID (RFC 5445)
+    fn rs129_pkt(
+        tl: u64,
+        esl: u16,
+        msbl: u16,
+        sbn: u32,
+        sbl: u16,
+        esi: u16,
+        payload: &[u8],
+    ) -> Vec<u8> {
+        let mut data = Vec::new();
+        lct::push_lct_header(&mut data, 0, &0, 1, &1, 129, false, false);
+        data.push(lct::Ext::Fti as u8);
+        data.push(4);
+        data.extend((tl << 16).to_be_bytes());
+        data.extend(esl.to_be_bytes());
+        data.extend(msbl.to_be_bytes());
+        data.extend((msbl + 2).to_be_bytes());
+        lct::inc_hdr_len(&mut data, 4);
+        data.extend(sbn.to_be_bytes());
+        data.extend((((sbl as u32) << 16) | esi as u32).to_be_bytes());
+        data.extend_from_slice(payload);
+        data
+    }
+
+    #[test]
+    fn announced_source_block_length_is_bounded_by_object_size() {
+        crate::tests::init();
+        // 100-byte object = 1 symbol of 100 bytes, but the payload ID announces 200 symbols
+        let pkt = rs129_pkt(100, 100, 200, 0, 200, 0, &[1u8; 100]);
+        assert_eq!(receive(100, &[pkt], 1024 * 1024), (false, true));
+
+        // Source block length greater than the FTI maximum source block length
+        let pkt = rs129_pkt(1000, 100, 5, 0, 10, 0, &[1u8; 100]);
+        assert_eq!(receive(1000, &[pkt], 1024 * 1024), (false, true));
+
+        // Consistent source block length
+        let pkt = rs129_pkt(100, 100, 200, 0, 1, 0, &[1u8; 100]);
+        assert_eq!(receive(100, &[pkt], 1024 * 1024), (true, false));
     }
 }
