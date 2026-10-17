@@ -36,6 +36,20 @@ pub fn block_partitioning(b: u64, l: u64, e: u64) -> (u64, u64, u64, u64) {
     let t = num_integer::div_ceil(l, e);
     let n = num_integer::div_ceil(t, b);
     log::debug!("t={} n={} b={} l={} e={}", t, n, b, l, e);
+    partition(t, n)
+}
+
+/// Partition\[I, J\]: splits `t` source symbols into `n` source blocks
+/// See <https://www.rfc-editor.org/rfc/rfc6330.html#section-4.4.1.2>
+///
+/// Raptor (RFC 5053) and RaptorQ (RFC 6330) announce the number of source blocks Z,
+/// the object is partitioned with Partition\[Kt, Z\].
+/// Source blocks without any symbol (`n` > `t`) are not counted.
+///
+/// Returns the same tuple as [`block_partitioning`]
+///
+pub fn partition(t: u64, n: u64) -> (u64, u64, u64, u64) {
+    let n = n.min(t);
     if n == 0 {
         return (0, 0, 0, 0);
     }
@@ -108,6 +122,18 @@ mod tests {
             nb_blocks
         );
         assert!(nb_blocks == 0);
+    }
+
+    #[test]
+    pub fn partition_into_announced_blocks() {
+        crate::tests::init();
+        // Partition[Kt=10, Z=6]: 4 blocks of 2 symbols then 2 blocks of 1 symbol
+        assert_eq!(super::partition(10, 6), (2, 1, 4, 6));
+        assert_eq!(super::partition(30, 7), (5, 4, 2, 7));
+        // Blocks without symbol are not counted
+        assert_eq!(super::partition(3, 5), (1, 1, 0, 3));
+        assert_eq!(super::partition(0, 5), (0, 0, 0, 0));
+        assert_eq!(super::partition(5, 0), (0, 0, 0, 0));
     }
 
     #[test]
