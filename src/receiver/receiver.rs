@@ -32,6 +32,7 @@ pub struct Config {
     /// Maximum cache size that can be allocated to received an object. Default is 10MB.
     /// It bounds the memory allocated for the source blocks being decoded, an object
     /// with a source block larger than this limit can not be received.
+    /// It also bounds the packets kept before the FEC parameters of the object are known.
     pub object_max_cache_size: Option<usize>,
     /// When set to `true`, the receiver will only reconstruct each object once.
     /// If the same object is transferred again, it will be automatically discarded.

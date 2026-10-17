@@ -701,15 +701,14 @@ impl ObjectReceiver {
             );
         }
 
-        if self.cache_size >= self.max_size_allocated {
-            return Err(FluteError::new("Pkt cache is full"));
-        }
+        let cache_size = self
+            .cache_size
+            .checked_add(pkt.data.len())
+            .filter(|size| *size <= self.max_size_allocated)
+            .ok_or_else(|| FluteError::new("Pkt cache is full"))?;
 
-        match self.cache_size.checked_add(pkt.data.len()) {
-            Some(_) => Ok(()),
-            None => Err(FluteError::new("add overflow")),
-        }?;
         self.cache.push(Box::new(pkt.to_cache()));
+        self.cache_size = cache_size;
         Ok(())
     }
 
@@ -810,8 +809,8 @@ impl Drop for ObjectReceiver {
 
 #[cfg(test)]
 mod tests {
-    use super::ObjectReceiver;
-    use crate::common::{fdtinstance::FdtInstance, lct, udpendpoint::UDPEndpoint};
+    use super::{ObjectReceiver, State};
+    use crate::common::{alc, fdtinstance::FdtInstance, lct, udpendpoint::UDPEndpoint};
     use crate::receiver::writer::{ObjectMetadata, ObjectWriterBufferBuilder};
     use std::{rc::Rc, time::SystemTime};
 
@@ -994,6 +993,77 @@ mod tests {
         let tl = 0xFFFF_FFFF_FFFF;
         let pkt = nocode_pkt(1, None, tl, 1, u32::MAX, 0, 0, &[0u8; 1]);
         assert_eq!(receive(tl, &[pkt], 10 * 1024 * 1024), (false, true));
+    }
+
+    /// Receive packets without FTI before the FDT, then attach the FDT announcing a NoCode object
+    /// of 250 bytes with E=100
+    fn receive_before_fdt(pkts: &[Vec<u8>], max_cache_size: usize) -> (State, Option<Vec<u8>>) {
+        let now = SystemTime::now();
+        let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_string(), 3400);
+        let writer = Rc::new(ObjectWriterBufferBuilder::new(false));
+        let mut receiver =
+            ObjectReceiver::new(&endpoint, 1, &1, None, writer.clone(), max_cache_size, now);
+
+        for pkt in pkts {
+            let pkt = alc::parse_alc_pkt(pkt).unwrap();
+            receiver.push(&pkt, now);
+            assert!(receiver.cache_size <= max_cache_size);
+        }
+
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<FDT-Instance xmlns="urn:IETF:metadata:2005:FLUTE:FDT" Expires="3000000000" FEC-OTI-FEC-Encoding-ID="0" FEC-OTI-Maximum-Source-Block-Length="64" FEC-OTI-Encoding-Symbol-Length="100">
+<File Content-Location="file:///object" TOI="1" Transfer-Length="250"/>
+</FDT-Instance>"#;
+        let fdt = FdtInstance::parse(xml.as_bytes()).unwrap();
+        receiver.attach_fdt(1, &fdt, now);
+
+        let data = writer
+            .objects
+            .borrow()
+            .iter()
+            .find(|object| object.borrow().complete)
+            .map(|object| object.borrow().data.clone());
+        (receiver.state, data)
+    }
+
+    /// NoCode ALC packet without EXT_FTI
+    fn nocode_pkt_without_fti(sbn: u16, esi: u16, payload: &[u8]) -> Vec<u8> {
+        let mut data = Vec::new();
+        lct::push_lct_header(&mut data, 0, &0, 1, &1, 0, false, false);
+        data.extend((((sbn as u32) << 16) | esi as u32).to_be_bytes());
+        data.extend_from_slice(payload);
+        data
+    }
+
+    #[test]
+    fn packets_received_before_fdt_are_cached() {
+        crate::tests::init();
+        let pkts = [
+            nocode_pkt_without_fti(0, 2, &[3u8; 50]),
+            nocode_pkt_without_fti(0, 1, &[2u8; 100]),
+            nocode_pkt_without_fti(0, 0, &[1u8; 100]),
+        ];
+        let expected = [&[1u8; 100][..], &[2u8; 100], &[3u8; 50]].concat();
+        assert_eq!(
+            receive_before_fdt(&pkts, 4096),
+            (State::Completed, Some(expected))
+        );
+    }
+
+    #[test]
+    fn cache_of_packets_received_before_fdt_is_bounded() {
+        crate::tests::init();
+        // The object is in error as soon as the cache is full
+        let pkts: Vec<_> = (0..100)
+            .map(|esi| nocode_pkt_without_fti(0, esi, &[esi as u8; 100]))
+            .collect();
+        assert_eq!(receive_before_fdt(&pkts, 4096), (State::Error, None));
+
+        // Packets without payload count with their headers
+        let pkts: Vec<_> = (0..10000)
+            .map(|esi| nocode_pkt_without_fti(0, esi, &[]))
+            .collect();
+        assert_eq!(receive_before_fdt(&pkts, 4096), (State::Error, None));
     }
 
     #[test]
