@@ -116,10 +116,8 @@ impl ObjectWriter for ObjectWriterFS {
                 }
             },
         };
-        let relative_path = content_location_path
-            .strip_prefix('/')
-            .unwrap_or(content_location_path);
-        let destination = self.dest.join(relative_path);
+        let relative_path = sanitize_relative_path(content_location_path)?;
+        let destination = self.dest.join(&relative_path);
         log::info!(
             "Create destination {:?} {:?} {:?}",
             self.dest,
@@ -189,5 +187,124 @@ impl ObjectWriter for ObjectWriterFS {
 
     fn enable_md5_check(&self) -> bool {
         self.enable_md5_check
+    }
+}
+
+/// Convert the path of a Content-Location (received from the network) into a
+/// relative path that cannot escape the destination directory.
+fn sanitize_relative_path(content_location_path: &str) -> Result<std::path::PathBuf> {
+    let mut relative_path = std::path::PathBuf::new();
+    for component in
+        std::path::Path::new(content_location_path.trim_start_matches('/')).components()
+    {
+        match component {
+            std::path::Component::Normal(part) => relative_path.push(part),
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir
+            | std::path::Component::RootDir
+            | std::path::Component::Prefix(_) => {
+                log::error!(
+                    "Content location {:?} escapes the destination directory",
+                    content_location_path
+                );
+                return Err(FluteError::new(format!(
+                    "Content location {:?} escapes the destination directory",
+                    content_location_path
+                )));
+            }
+        }
+    }
+
+    if relative_path.as_os_str().is_empty() {
+        return Err(FluteError::new(format!(
+            "Content location {:?} does not contain a file name",
+            content_location_path
+        )));
+    }
+
+    Ok(relative_path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sanitize_relative_path;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_sanitize_relative_path() {
+        crate::tests::init();
+        assert_eq!(
+            sanitize_relative_path("/dir/file.txt").unwrap(),
+            PathBuf::from("dir/file.txt")
+        );
+        assert_eq!(
+            sanitize_relative_path("//tmp/./file.txt").unwrap(),
+            PathBuf::from("tmp/file.txt")
+        );
+        assert_eq!(
+            sanitize_relative_path("file.txt").unwrap(),
+            PathBuf::from("file.txt")
+        );
+
+        for path in [
+            "../file.txt",
+            "/dir/../../file.txt",
+            "dir/..",
+            "",
+            "/",
+            "./",
+        ] {
+            assert!(sanitize_relative_path(path).is_err(), "{:?}", path);
+        }
+    }
+
+    #[test]
+    fn test_open_outside_destination() {
+        use crate::common::udpendpoint::UDPEndpoint;
+        use crate::receiver::writer::{
+            ObjectCacheControl, ObjectMetadata, ObjectWriterBuilder, ObjectWriterBuilderResult,
+        };
+        use std::time::SystemTime;
+
+        crate::tests::init();
+        let root = std::env::temp_dir().join(format!("flute_fs_{}", std::process::id()));
+        let dest = root.join("dest");
+        std::fs::create_dir_all(&dest).unwrap();
+
+        let builder = super::ObjectWriterFSBuilder::new(&dest, false).unwrap();
+        let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_owned(), 3400);
+        let escaped = root.join("escaped.txt");
+        let locations = [
+            "../escaped.txt".to_owned(),
+            format!("/{}", escaped.display()),
+            "file:///../escaped.txt".to_owned(),
+        ];
+
+        for location in &locations {
+            let meta = ObjectMetadata {
+                content_location: location.clone(),
+                content_length: None,
+                transfer_length: None,
+                content_type: None,
+                cache_control: ObjectCacheControl::NoCache,
+                groups: None,
+                md5: None,
+                optel_propagator: None,
+                oti: None,
+                cenc: None,
+                e_tag: None,
+            };
+            let writer =
+                match builder.new_object_writer(&endpoint, &1, &1, &meta, SystemTime::now()) {
+                    ObjectWriterBuilderResult::StoreObject(writer) => writer,
+                    _ => panic!("unexpected writer result"),
+                };
+            if writer.open(SystemTime::now()).is_ok() {
+                writer.complete(SystemTime::now());
+            }
+            assert!(!escaped.exists(), "{:?} escaped the destination", location);
+        }
+
+        std::fs::remove_dir_all(&root).ok();
     }
 }
