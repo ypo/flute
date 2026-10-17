@@ -388,10 +388,14 @@ pub fn parse_lct_header(data: &[u8]) -> Result<LCTHeader> {
      *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
      */
 
-    let len = data.get(2).map_or_else(
-        || Err(FluteError::new("Fail to read lct header size")),
-        |&v| Ok((v as usize) << 2),
-    )?;
+    if data.len() < 4 {
+        return Err(FluteError::new(format!(
+            "pkt size {} is smaller than the fixed LCT header",
+            data.len()
+        )));
+    }
+
+    let len = (data[2] as usize) << 2;
 
     if len > data.len() {
         return Err(FluteError::new(format!(
@@ -554,6 +558,15 @@ mod tests {
     pub fn test_lct_toi_out_of_range() {
         let mut lct = Vec::new();
         super::push_lct_header(&mut lct, 0, &0, 1, &(super::TOI_MAX + 1), 0, false, false);
+    }
+
+    #[test]
+    pub fn test_parse_truncated_header() {
+        crate::tests::init();
+        for len in 0..4 {
+            let pkt = [0x10u8, 0x00, 0x00, 0x00];
+            assert!(super::parse_lct_header(&pkt[..len]).is_err());
+        }
     }
 
     #[test]
