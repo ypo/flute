@@ -201,21 +201,27 @@ impl BlockEncoder {
         };
         let mut buffer: Vec<u8> =
             vec![0; block_length as usize * oti.encoding_symbol_length as usize];
-        let result = match stream.read(&mut buffer) {
-            Ok(s) => s,
-            Err(e) => {
-                log::error!("Fail to read file {:?}", e.to_string());
-                self.read_end = true;
-                return Ok(());
+        // A single read() can return less than requested, fill the whole block
+        let mut size = 0;
+        while size < buffer.len() {
+            match stream.read(&mut buffer[size..]) {
+                Ok(0) => break,
+                Ok(s) => size += s,
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(e) => {
+                    log::error!("Fail to read file {:?}", e.to_string());
+                    self.read_end = true;
+                    return Ok(());
+                }
             }
-        };
+        }
 
-        if result == 0 {
+        if size == 0 {
             self.read_end = true;
             return Ok(());
         }
 
-        buffer.truncate(result);
+        buffer.truncate(size);
 
         let block = Block::new_from_buffer(self.curr_sbn, &buffer, block_length, oti)?;
         self.blocks.push(block);
@@ -295,5 +301,53 @@ mod tests {
                 "interleave_blocks={interleave_blocks}"
             );
         }
+    }
+
+    /// Stream returning at most 7 bytes per read
+    #[derive(Debug)]
+    struct ShortReadStream(std::io::Cursor<Vec<u8>>);
+
+    impl std::io::Read for ShortReadStream {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            let len = buf.len().min(7);
+            self.0.read(&mut buf[..len])
+        }
+    }
+
+    impl std::io::Seek for ShortReadStream {
+        fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
+            self.0.seek(pos)
+        }
+    }
+
+    #[test]
+    fn stream_short_reads_fill_blocks() {
+        crate::tests::init();
+        let content: Vec<u8> = (0..750u32).map(|i| (i % 251) as u8).collect();
+        let stream = Box::new(ShortReadStream(std::io::Cursor::new(content.clone())));
+        let mut obj = ObjectDesc::create_from_stream(
+            stream,
+            "application/octet-stream",
+            &url::Url::parse("file:///object").unwrap(),
+            false,
+            TransferConfig::default(),
+        )
+        .unwrap();
+        let allocator = ToiAllocator::new(TOIMaxLength::ToiMax112, None);
+        obj.set_toi(ToiAllocator::allocate(&allocator));
+        // 4 blocks of 2 symbols of 100 bytes
+        let oti = Oti::new_no_code(100, 2);
+        let file = Arc::new(FileDesc::new(0, obj, &oti, None, false).unwrap());
+        let mut encoder = BlockEncoder::new(file, 1, true).unwrap();
+
+        let mut received = vec![0u8; content.len()];
+        let mut nb_pkts = 0;
+        while let Some(pkt) = encoder.read(false) {
+            let offset = (pkt.sbn as usize * 2 + pkt.esi as usize) * 100;
+            received[offset..offset + pkt.payload.len()].copy_from_slice(&pkt.payload);
+            nb_pkts += 1;
+        }
+        assert_eq!(nb_pkts, 8);
+        assert_eq!(received, content);
     }
 }
