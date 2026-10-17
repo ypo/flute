@@ -26,7 +26,8 @@ impl RingBuffer {
             return self.consumer - self.producer - 1;
         }
 
-        self.buffer.len() - self.producer + self.consumer - 1
+        // One byte is kept free to distinguish a full buffer from an empty one
+        (self.buffer.len() + self.consumer - self.producer).saturating_sub(1)
     }
 
     fn read_size(&self) -> usize {
@@ -231,5 +232,17 @@ mod tests {
             }
             rbuffer.fill(0);
         }
+    }
+
+    #[test]
+    pub fn ringbuffer_empty() {
+        crate::tests::init();
+        let mut buffer: Vec<u8> = vec![0; 4];
+        let mut ring = super::RingBuffer::new(0);
+        assert_eq!(ring.write(&buffer).unwrap(), 0);
+        let wouldblock = ring.read(&mut buffer);
+        assert!(wouldblock.err().unwrap().kind() == std::io::ErrorKind::WouldBlock);
+        ring.finish();
+        assert_eq!(ring.read(&mut buffer).unwrap(), 0);
     }
 }
