@@ -97,6 +97,7 @@ impl AlcCodec for AlcRaptor {
             maximum_source_block_length: maximum_source_block_length as u32,
             encoding_symbol_length: symbol_size,
             max_number_of_parity_symbols: 0, // Unknown for RaptorQ
+            parity_symbols_percentage: None,
             scheme_specific: Some(SchemeSpecific::Raptor(oti::RaptorSchemeSpecific {
                 source_blocks_length: z,
                 sub_blocks_length: n,

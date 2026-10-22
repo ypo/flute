@@ -248,6 +248,8 @@ impl FileDesc {
             }
         }
 
+        oti.resolve_parity_symbols(object.transfer_length);
+
         let toi = object.config.toi.as_ref().unwrap().get();
         let transfer_start_time = object.config.transfer_start_time.clone();
         Ok(FileDesc {
@@ -699,6 +701,27 @@ mod tests {
         let oti = Oti::new_raptorq(1024, 64, 20, 1, 4).unwrap();
         let file = create_file_desc(1025, &oti).unwrap();
         assert_eq!(file.oti.encoding_symbol_length, 1024);
+    }
+
+    #[test]
+    pub fn test_file_desc_parity_symbols_percentage() {
+        crate::tests::init();
+
+        let oti = Oti::new_reed_solomon_rs28(1000, 200, 55)
+            .unwrap()
+            .with_parity_symbols_percentage(10.0)
+            .unwrap();
+
+        // (F, parity symbols)
+        for (transfer_length, parity) in [(3000, 1), (100000, 10), (1000000, 20)] {
+            let file = create_file_desc(transfer_length, &oti).unwrap();
+            assert_eq!(file.oti.max_number_of_parity_symbols, parity);
+        }
+
+        // Without percentage, max_number_of_parity_symbols is unchanged
+        let oti = Oti::new_reed_solomon_rs28(1000, 200, 55).unwrap();
+        let file = create_file_desc(3000, &oti).unwrap();
+        assert_eq!(file.oti.max_number_of_parity_symbols, 55);
     }
 
     #[test]

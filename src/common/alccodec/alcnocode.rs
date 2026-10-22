@@ -68,6 +68,7 @@ impl AlcCodec for AlcNoCode {
             maximum_source_block_length,
             encoding_symbol_length,
             max_number_of_parity_symbols: 0,
+            parity_symbols_percentage: None,
             scheme_specific: None,
             inband_fti: true,
         };

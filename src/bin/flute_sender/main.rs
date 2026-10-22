@@ -81,9 +81,13 @@ struct Cli {
     #[arg(long, default_value_t = 64)]
     source_block_length: u16,
 
-    /// Maximum number of parity (repair) symbols (for reed-solomon, raptorq, raptor)
+    /// Maximum number of parity (repair) symbols (for reed-solomon, raptorq, raptor), upper bound when --parity-percentage is used
     #[arg(long, default_value_t = 4)]
     parity_symbols: u16,
+
+    /// Number of parity (repair) symbols as a percentage of the number of source symbols of each file, at least 1 (for reed-solomon, raptorq, raptor)
+    #[arg(long)]
+    parity_percentage: Option<f64>,
 
     /// Max number of blocks interleaved during transmission of a file
     #[arg(long, default_value_t = 1)]
@@ -158,6 +162,13 @@ fn main() {
             );
             std::process::exit(1);
         }
+    };
+
+    let oti = match cli.parity_percentage {
+        Some(percentage) => oti
+            .with_parity_symbols_percentage(percentage)
+            .expect("Invalid parity percentage"),
+        None => oti,
     };
 
     log::info!("Create UDP Socket");
