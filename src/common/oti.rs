@@ -206,7 +206,12 @@ pub struct Oti {
     /// Size (in bytes) of an encoding symbol
     pub encoding_symbol_length: u16,
     /// Maximum number of repairing symbols (FEC)
+    /// If `parity_symbols_percentage` is set, upper bound of the number of repairing symbols of an object
     pub max_number_of_parity_symbols: u32,
+    /// Optional, number of repairing symbols of an object as a percentage of its number of source symbols.  
+    /// At least 1 repairing symbol is sent, and no more than `max_number_of_parity_symbols`.  
+    /// If `None`, `max_number_of_parity_symbols` repairing symbols are sent for every source block
+    pub parity_symbols_percentage: Option<f64>,
     /// Optional, FEC scheme specific
     pub scheme_specific: Option<SchemeSpecific>,
     /// If `true`, FTI is added to every ALC/LCT packets
@@ -244,6 +249,7 @@ impl Oti {
             maximum_source_block_length: maximum_source_block_length as u32,
             encoding_symbol_length,
             max_number_of_parity_symbols: 0,
+            parity_symbols_percentage: None,
             scheme_specific: None,
             inband_fti: true,
         }
@@ -295,6 +301,7 @@ impl Oti {
             maximum_source_block_length: maximum_source_block_length as u32,
             encoding_symbol_length,
             max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
+            parity_symbols_percentage: None,
             scheme_specific: None,
             inband_fti: true,
         })
@@ -355,6 +362,7 @@ impl Oti {
             maximum_source_block_length: maximum_source_block_length as u32,
             encoding_symbol_length,
             max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
+            parity_symbols_percentage: None,
             scheme_specific: Some(SchemeSpecific::ReedSolomon(ReedSolomonGF2MSchemeSpecific {
                 m,
                 g: 1,
@@ -410,6 +418,7 @@ impl Oti {
             maximum_source_block_length: maximum_source_block_length as u32,
             encoding_symbol_length,
             max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
+            parity_symbols_percentage: None,
             scheme_specific: None,
             inband_fti: true,
         })
@@ -490,6 +499,7 @@ impl Oti {
             maximum_source_block_length: maximum_source_block_length as u32,
             encoding_symbol_length,
             max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
+            parity_symbols_percentage: None,
             scheme_specific: Some(SchemeSpecific::RaptorQ(RaptorQSchemeSpecific {
                 source_blocks_length: 0,
                 sub_blocks_length,
@@ -581,6 +591,7 @@ impl Oti {
             maximum_source_block_length: maximum_source_block_length as u32,
             encoding_symbol_length,
             max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
+            parity_symbols_percentage: None,
             scheme_specific: Some(SchemeSpecific::Raptor(RaptorSchemeSpecific {
                 source_blocks_length: 0,
                 sub_blocks_length,
@@ -588,6 +599,60 @@ impl Oti {
             })),
             inband_fti: true,
         })
+    }
+
+    /// Set the number of repairing symbols as a percentage of the number of source symbols of the object.
+    ///
+    /// The number of repairing symbols of each source block is `percentage` % of its number of source symbols, rounded up.  
+    /// It is at least 1, and at most `max_number_of_parity_symbols`, so small objects are not sent with more repairing symbols than needed.
+    /// The OTI of each object is computed when the object is added to the `Sender`.
+    ///
+    /// # Errors
+    /// Returns an error if `percentage` is not a finite number greater than 0.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use flute::core::Oti;
+    /// // 10% of repairing symbols, up to 55 per block
+    /// let oti = Oti::new_reed_solomon_rs28(1400, 200, 55).unwrap().with_parity_symbols_percentage(10.0).unwrap();
+    /// ```
+    ///
+    pub fn with_parity_symbols_percentage(mut self, percentage: f64) -> Result<Oti> {
+        self.parity_symbols_percentage = Some(percentage);
+        self.check_parity_symbols_percentage()?;
+        Ok(self)
+    }
+
+    fn check_parity_symbols_percentage(&self) -> Result<()> {
+        match self.parity_symbols_percentage {
+            Some(percentage) if !percentage.is_finite() || percentage <= 0.0 => {
+                Err(FluteError::new(format!(
+                    "Parity symbols percentage {} must be a finite number greater than 0",
+                    percentage
+                )))
+            }
+            _ => Ok(()),
+        }
+    }
+
+    /// Replace `parity_symbols_percentage` by the number of repairing symbols of an object of `transfer_length` bytes
+    pub(crate) fn resolve_parity_symbols(&mut self, transfer_length: u64) {
+        let Some(percentage) = self.parity_symbols_percentage.take() else {
+            return;
+        };
+
+        let (nb_source_symbols, _, _, _) = crate::common::partition::block_partitioning(
+            self.maximum_source_block_length as u64,
+            transfer_length,
+            self.encoding_symbol_length as u64,
+        );
+
+        let nb_parity_symbols = (nb_source_symbols as f64 * percentage / 100.0 - 1e-9)
+            .ceil()
+            .max(1.0);
+        self.max_number_of_parity_symbols =
+            nb_parity_symbols.min(self.max_number_of_parity_symbols as f64) as u32;
     }
 
     /// Return the maximum file transfer length that the Oti can handle.  
@@ -647,6 +712,8 @@ impl Oti {
     ///
     /// Fields of an `Oti` can be modified after its creation, and encoding errors are not reported once a transfer is started.
     pub(crate) fn check_sender_parameters(&self) -> Result<()> {
+        self.check_parity_symbols_percentage()?;
+
         match self.fec_encoding_id {
             FECEncodingID::ReedSolomonGF2M
             | FECEncodingID::ReedSolomonGF28
@@ -795,6 +862,7 @@ mod tests {
             maximum_source_block_length: u32::MAX,
             encoding_symbol_length: u16::MAX,
             max_number_of_parity_symbols: 0,
+            parity_symbols_percentage: None,
             scheme_specific: None,
             inband_fti: true,
         };
@@ -902,6 +970,47 @@ mod tests {
             ));
             assert!(oti.check_sender_parameters().is_ok());
             oti.max_number_of_parity_symbols = 56;
+            assert!(oti.check_sender_parameters().is_err());
+        }
+    }
+
+    #[test]
+    fn parity_symbols_percentage() {
+        let oti = Oti::new_reed_solomon_rs28(1000, 200, 55).unwrap();
+
+        // (transfer length, percentage, parity symbols)
+        let cases = [
+            (3000, 10.0, 1),     // at least 1
+            (10000, 10.0, 1),    // 10 source symbols
+            (11000, 10.0, 2),    // 11 source symbols, rounded up
+            (200000, 20.0, 40),  // 200 source symbols
+            (200000, 50.0, 55),  // max_number_of_parity_symbols
+            (1000000, 10.0, 20), // 5 blocks of 200 source symbols
+        ];
+        for (transfer_length, percentage, parity) in cases {
+            let mut oti = oti
+                .clone()
+                .with_parity_symbols_percentage(percentage)
+                .unwrap();
+            oti.resolve_parity_symbols(transfer_length);
+            assert_eq!(oti.max_number_of_parity_symbols, parity);
+            assert!(oti.parity_symbols_percentage.is_none());
+        }
+
+        // Without percentage, max_number_of_parity_symbols is used
+        let mut unchanged = oti.clone();
+        unchanged.resolve_parity_symbols(3000);
+        assert_eq!(unchanged.max_number_of_parity_symbols, 55);
+
+        for percentage in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            assert!(
+                oti.clone()
+                    .with_parity_symbols_percentage(percentage)
+                    .is_err()
+            );
+
+            let mut oti = oti.clone();
+            oti.parity_symbols_percentage = Some(percentage);
             assert!(oti.check_sender_parameters().is_err());
         }
     }

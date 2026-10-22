@@ -739,6 +739,76 @@ mod tests {
         );
     }
 
+    #[test]
+    pub fn test_receiver_parity_symbols_percentage() {
+        crate::tests::init();
+        // The percentage applies to the object and to the FDT
+        // 1 block interleaved, run_loss drops 1 packet of 8
+        // Raptor needs a few more symbols than K to decode, small blocks are not tested with loss
+        for (oti, with_loss) in [
+            (
+                flute::core::Oti::new_reed_solomon_rs28(1400, 64, 20).unwrap(),
+                true,
+            ),
+            (
+                flute::core::Oti::new_raptorq(1400, 64, 20, 1, 4).unwrap(),
+                true,
+            ),
+            (
+                flute::core::Oti::new_raptor(1400, 64, 20, 1, 4).unwrap(),
+                false,
+            ),
+        ] {
+            let oti = oti.with_parity_symbols_percentage(50.0).unwrap();
+            for size in [100000, 1001] {
+                test_receiver_with_oti(
+                    &oti,
+                    None,
+                    with_loss,
+                    flute::core::lct::Cenc::Null,
+                    true,
+                    Some(sender::Config {
+                        interleave_blocks: 1,
+                        ..Default::default()
+                    }),
+                    size,
+                    false,
+                    None,
+                    true,
+                );
+            }
+        }
+    }
+
+    #[test]
+    pub fn test_parity_symbols_percentage_nb_packets() {
+        crate::tests::init();
+        let nb_packets = |oti: &flute::core::Oti| {
+            let (obj, _) = create_object(
+                4200,
+                "application/octet-stream",
+                flute::core::lct::Cenc::Null,
+                true,
+                None,
+                None,
+            );
+            let mut sender = create_sender(vec![obj], oti, flute::core::lct::Cenc::Null, None);
+            let mut nb_packets = 0;
+            loop {
+                let data = sender.read(std::time::SystemTime::now());
+                if data.is_none() && sender.get_objects_in_fdt().is_empty() {
+                    break;
+                }
+                nb_packets += data.is_some() as u32;
+            }
+            nb_packets
+        };
+
+        let oti = flute::core::Oti::new_reed_solomon_rs28(1400, 64, 20).unwrap();
+        let with_percentage = oti.clone().with_parity_symbols_percentage(10.0).unwrap();
+        assert!(nb_packets(&with_percentage) < nb_packets(&oti));
+    }
+
     fn raptor_sub_blocks(inband_fti: bool) {
         let mut oti: flute::core::Oti = flute::core::Oti::new_raptor(1400, 64, 20, 4, 4).unwrap();
         oti.inband_fti = inband_fti;

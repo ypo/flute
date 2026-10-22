@@ -106,13 +106,24 @@ impl Oti {
     }
 
     #[getter]
-    fn get_max_number_of_parity_symbols(&self) -> PyResult<u16> {
-        Ok(self.0.encoding_symbol_length)
+    fn get_max_number_of_parity_symbols(&self) -> PyResult<u32> {
+        Ok(self.0.max_number_of_parity_symbols)
     }
 
     #[setter]
     fn set_max_number_of_parity_symbols(&mut self, value: u32) -> PyResult<()> {
         self.0.max_number_of_parity_symbols = value;
+        Ok(())
+    }
+
+    #[getter]
+    fn get_parity_symbols_percentage(&self) -> PyResult<Option<f64>> {
+        Ok(self.0.parity_symbols_percentage)
+    }
+
+    #[setter]
+    fn set_parity_symbols_percentage(&mut self, value: Option<f64>) -> PyResult<()> {
+        self.0.parity_symbols_percentage = value;
         Ok(())
     }
 

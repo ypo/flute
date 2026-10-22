@@ -514,6 +514,7 @@ fn build_oti(
         maximum_source_block_length: u32::try_from(maximum_source_block_length).ok()?,
         encoding_symbol_length: u16::try_from(encoding_symbol_length).ok()?,
         max_number_of_parity_symbols: u32::try_from(max_number_of_parity_symbols).ok()?,
+        parity_symbols_percentage: None,
         scheme_specific,
         inband_fti: false,
     })

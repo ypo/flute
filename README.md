@@ -174,6 +174,15 @@ let oti = Oti::new_reed_solomon_rs28(1424, 60, 4).unwrap();
 let mut sender = Sender::new(endpoint, 1, &oti, &Default::default());
 ```
 
+The number of repair symbols can also be set as a percentage of the number of source symbols of each object (at least 1),
+`max_number_of_parity_symbols` is then the upper bound.
+
+```rust
+use flute::core::Oti;
+
+let oti = Oti::new_reed_solomon_rs28(1424, 60, 20).unwrap().with_parity_symbols_percentage(10.0).unwrap();
+```
+
 ## Content Encoding (CENC)
 
 The following schemes are supported during the transmission/reception

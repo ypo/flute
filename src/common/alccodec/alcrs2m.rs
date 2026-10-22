@@ -104,6 +104,7 @@ impl AlcCodec for AlcRS2m {
             maximum_source_block_length: b as u32,
             encoding_symbol_length,
             max_number_of_parity_symbols,
+            parity_symbols_percentage: None,
             scheme_specific: Some(SchemeSpecific::ReedSolomon(scheme_specific)),
             inband_fti: true,
         };

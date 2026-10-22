@@ -70,6 +70,7 @@ impl AlcCodec for AlcRS28 {
             maximum_source_block_length: maximum_source_block_length as u32,
             encoding_symbol_length,
             max_number_of_parity_symbols: max_number_of_parity_symbols as u32,
+            parity_symbols_percentage: None,
             scheme_specific: None,
             inband_fti: true,
         };

@@ -33,6 +33,29 @@ class SenderReceiverTestCase(TestCase):
 
         print("File transmitted !")
 
+    def test_parity_symbols_percentage(self):
+        from flute import sender
+
+        def nb_packets(percentage):
+            oti = sender.Oti.new_reed_solomon_rs28(1400, 64, 20)
+            oti.parity_symbols_percentage = percentage
+            flute_sender = sender.Sender(1, oti, sender.Config())
+            flute_sender.add_object_from_buffer(bytes(b'hello'), "text", "file://hello.txt", None)
+            flute_sender.publish()
+
+            count = 0
+            while flute_sender.read() is not None:
+                count += 1
+            return count
+
+        oti = sender.Oti.new_reed_solomon_rs28(1400, 64, 20)
+        self.assertEqual(oti.max_number_of_parity_symbols, 20)
+        self.assertIsNone(oti.parity_symbols_percentage)
+        oti.parity_symbols_percentage = 10.0
+        self.assertEqual(oti.parity_symbols_percentage, 10.0)
+
+        self.assertLess(nb_packets(10.0), nb_packets(None))
+
     def test_fdt_xml_profile(self):
         from flute import sender
 
