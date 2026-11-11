@@ -10,7 +10,7 @@ use crate::sender::TOIMaxLength;
 use crate::tools;
 use crate::tools::error::{FluteError, Result};
 use serde::Serialize;
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use std::sync::Arc;
 use std::time::SystemTime;
 
@@ -19,7 +19,9 @@ pub struct Fdt {
     _tsi: u64,
     fdtid: u32,
     oti: oti::Oti,
-    files_transfer_queue: VecDeque<Arc<FileDesc>>,
+    /// Files waiting for their next transfer, by priority: a priority queue is scanned without
+    /// the files of the others.
+    files_transfer_queue: BTreeMap<u32, VecDeque<Arc<FileDesc>>>,
     fdt_transfer_queue: VecDeque<Arc<FileDesc>>,
     files: std::collections::HashMap<u128, Arc<FileDesc>>,
     current_fdt_transfer: Option<Arc<FileDesc>>,
@@ -56,7 +58,7 @@ impl Fdt {
             _tsi: tsi,
             fdtid: fdtid & 0xFFFFF,
             oti: default_oti.clone(),
-            files_transfer_queue: VecDeque::new(),
+            files_transfer_queue: BTreeMap::new(),
             fdt_transfer_queue: VecDeque::new(),
             files: std::collections::HashMap::new(),
             current_fdt_transfer: None,
@@ -172,7 +174,10 @@ impl Fdt {
         let ret = filedesc.toi;
         debug_assert!(!self.files.contains_key(&filedesc.toi));
         self.files.insert(filedesc.toi, filedesc.clone());
-        self.files_transfer_queue.push_back(filedesc);
+        self.files_transfer_queue
+            .entry(priority)
+            .or_default()
+            .push_back(filedesc);
         Ok(ret)
     }
 
@@ -200,11 +205,12 @@ impl Fdt {
     }
 
     pub fn remove_object(&mut self, toi: u128) -> bool {
-        match self.files.remove(&toi) {
-            Some(_) => {}
-            None => return false,
+        let Some(file) = self.files.remove(&toi) else {
+            return false;
         };
-        self.files_transfer_queue.retain(|obj| obj.toi != toi);
+        if let Some(queue) = self.files_transfer_queue.get_mut(&file.priority) {
+            queue.retain(|obj| obj.toi != toi);
+        }
         true
     }
 
@@ -309,13 +315,13 @@ impl Fdt {
         priority: u32,
         now: SystemTime,
     ) -> Option<Arc<FileDesc>> {
-        let (index, _) = self
-            .files_transfer_queue
+        let publish_mode = self.publish_mode;
+        let queue = self.files_transfer_queue.get_mut(&priority)?;
+        let index = queue
             .iter()
-            .enumerate()
-            .find(|(_, item)| item.should_transfer_now(priority, self.publish_mode, now))?;
+            .position(|item| item.should_transfer_now(priority, publish_mode, now))?;
 
-        let file = self.files_transfer_queue.remove(index).unwrap();
+        let file = queue.remove(index).unwrap();
         log::info!(
             "Start transmission of {} toi={}",
             file.object.content_location.as_str(),
@@ -362,7 +368,10 @@ impl Fdt {
             );
             if !file.is_expired() {
                 log::debug!("Transfer file again");
-                self.files_transfer_queue.push_back(file);
+                self.files_transfer_queue
+                    .entry(file.priority)
+                    .or_default()
+                    .push_back(file);
             } else {
                 self.files.remove(&file.toi);
                 //self.publish(now).ok();
@@ -511,6 +520,66 @@ mod tests {
         let mut fdt = create_fdt_with_id(0x1FFFFF);
         fdt.publish(now).unwrap();
         assert_eq!(fdt.fdt_transfer_queue[0].fdt_id, Some(0xFFFFF));
+    }
+
+    #[test]
+    pub fn test_next_file_transfer_is_per_priority_in_insertion_order() {
+        crate::tests::init();
+        let mut fdt = create_fdt();
+        let add = |fdt: &mut super::Fdt, priority: u32, name: &str, max_transfer_count: u32| {
+            let obj = objectdesc::ObjectDesc::create_from_buffer(
+                Vec::new(),
+                "plain/txt",
+                &url::Url::parse(&format!("file:///{name}")).unwrap(),
+                false,
+                objectdesc::TransferConfig {
+                    max_transfer_count,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            fdt.add_object(priority, obj).unwrap()
+        };
+        let first = add(&mut fdt, 1, "first", 2);
+        let other_priority = add(&mut fdt, 2, "other", 1);
+        let second = add(&mut fdt, 1, "second", 1);
+        let now = SystemTime::now();
+        fdt.publish(now).unwrap();
+
+        let next = |fdt: &mut super::Fdt, priority: u32| {
+            fdt.get_next_file_transfer(priority, now).map(|file| file.toi)
+        };
+        assert_eq!(next(&mut fdt, 3), None);
+        assert_eq!(next(&mut fdt, 1), Some(first));
+        assert_eq!(next(&mut fdt, 1), Some(second));
+        assert_eq!(next(&mut fdt, 1), None);
+
+        // A file that is not over is queued again with its priority.
+        let first_file = fdt.files.get(&first).unwrap().clone();
+        fdt.transfer_done(first_file, now);
+        assert_eq!(next(&mut fdt, 2), Some(other_priority));
+        assert_eq!(next(&mut fdt, 1), Some(first));
+    }
+
+    #[test]
+    pub fn test_removed_object_is_no_longer_transferred() {
+        crate::tests::init();
+        let mut fdt = create_fdt();
+        let obj = objectdesc::ObjectDesc::create_from_buffer(
+            Vec::new(),
+            "plain/txt",
+            &url::Url::parse("file:///removed").unwrap(),
+            false,
+            Default::default(),
+        )
+        .unwrap();
+        let toi = fdt.add_object(2, obj).unwrap();
+        let now = SystemTime::now();
+        fdt.publish(now).unwrap();
+
+        assert!(fdt.remove_object(toi));
+        assert!(!fdt.remove_object(toi));
+        assert!(fdt.get_next_file_transfer(2, now).is_none());
     }
 
     #[test]
