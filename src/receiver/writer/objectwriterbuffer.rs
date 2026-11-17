@@ -1,5 +1,8 @@
 use super::{ObjectMetadata, ObjectWriter, ObjectWriterBuilder, ObjectWriterBuilderResult};
-use crate::{common::udpendpoint::UDPEndpoint, tools::error::Result};
+use crate::{
+    common::udpendpoint::UDPEndpoint,
+    tools::error::{FluteError, Result},
+};
 use std::{cell::RefCell, rc::Rc, time::SystemTime};
 
 ///
@@ -113,6 +116,19 @@ impl ObjectWriter for ObjectWriterBufferWrapper {
     fn write(&self, _sbn: u32, data: &[u8], _now: SystemTime) -> Result<()> {
         let mut inner = self.inner.borrow_mut();
         inner.data.extend(data);
+        Ok(())
+    }
+
+    fn write_at(&self, offset: u64, data: &[u8], _now: SystemTime) -> Result<()> {
+        let start = usize::try_from(offset).map_err(|_| FluteError::new("Offset is too large"))?;
+        let end = start
+            .checked_add(data.len())
+            .ok_or_else(|| FluteError::new("Offset is too large"))?;
+        let mut inner = self.inner.borrow_mut();
+        if inner.data.len() < end {
+            inner.data.resize(end, 0);
+        }
+        inner.data[start..end].copy_from_slice(data);
         Ok(())
     }
 

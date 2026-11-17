@@ -1142,6 +1142,123 @@ mod tests {
         assert!(nb_error_objects == 0);
     }
 
+    /// Receive a carousel of one object (the FDT is received) joining it in the middle:
+    /// the first `nb_lost` packets of the object are lost
+    fn receive_carousel_from_the_middle(
+        oti: &flute::core::Oti,
+        file_size: usize,
+        nb_lost: usize,
+        interleave_blocks: u8,
+        receiver_config: receiver::Config,
+        enable_md5_check: bool,
+    ) -> (Rc<receiver::writer::ObjectWriterBufferBuilder>, Vec<u8>) {
+        let (mut obj, input_file_buffer) = create_object(
+            file_size,
+            "application/octet-stream",
+            flute::core::lct::Cenc::Null,
+            true,
+            None,
+            None,
+        );
+        obj.config.max_transfer_count = 3;
+        let output = Rc::new(receiver::writer::ObjectWriterBufferBuilder::new(
+            enable_md5_check,
+        ));
+        let mut receiver =
+            receiver::MultiReceiver::new(output.clone(), Some(receiver_config), false);
+        let sender_config = sender::Config {
+            interleave_blocks,
+            ..Default::default()
+        };
+        let mut sender = create_sender(
+            vec![obj],
+            oti,
+            flute::core::lct::Cenc::Null,
+            Some(sender_config),
+        );
+        let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_owned(), 5000);
+
+        let mut nb_lost_pkts = 0;
+        loop {
+            let now = std::time::SystemTime::now();
+            let data = sender.read(now);
+            if data.is_none() && sender.get_objects_in_fdt().is_empty() {
+                break;
+            }
+
+            if let Some(data) = data {
+                let is_object = flute::core::alc::parse_alc_pkt(&data).unwrap().lct.toi != 0;
+                if is_object && nb_lost_pkts < nb_lost {
+                    nb_lost_pkts += 1;
+                } else {
+                    receiver.push(&endpoint, &data, now).unwrap();
+                }
+            }
+            receiver.cleanup(now);
+        }
+
+        (output, input_file_buffer)
+    }
+
+    #[test]
+    pub fn test_receiver_out_of_order() {
+        crate::tests::init();
+
+        let config = receiver::Config {
+            object_write_out_of_order: true,
+            ..Default::default()
+        };
+
+        for oti in [
+            flute::core::Oti::new_no_code(1400, 64),
+            flute::core::Oti::new_reed_solomon_rs28(1400, 64, 20).unwrap(),
+            flute::core::Oti::new_raptor(1400, 64, 20, 1, 4).unwrap(),
+            flute::core::Oti::new_raptorq(1400, 64, 20, 1, 4).unwrap(),
+        ] {
+            let (output, input_file_buffer) =
+                receive_carousel_from_the_middle(&oti, 300_000, 100, 4, config, false);
+            let objects = output.objects.borrow();
+            assert!(objects.len() == 1);
+            let object = objects[0].borrow();
+            assert!(object.complete);
+            assert!(!object.error);
+            assert!(object.data.eq(&input_file_buffer));
+        }
+    }
+
+    #[test]
+    pub fn test_receiver_out_of_order_memory_limit() {
+        crate::tests::init();
+
+        // Blocks are sent one after the other. The cache holds two blocks (64 symbols of 1400
+        // bytes): the one partially received when joining the carousel and the next one
+        let oti = flute::core::Oti::new_no_code(1400, 64);
+        let receive = |out_of_order: bool, enable_md5_check: bool| {
+            let config = receiver::Config {
+                object_write_out_of_order: out_of_order,
+                object_max_cache_size: Some(200_000),
+                ..Default::default()
+            };
+            receive_carousel_from_the_middle(&oti, 300_000, 100, 1, config, enable_md5_check)
+        };
+
+        let (output, input_file_buffer) = receive(true, false);
+        let objects = output.objects.borrow();
+        assert!(objects.len() == 1);
+        assert!(objects[0].borrow().complete && !objects[0].borrow().error);
+        assert!(objects[0].borrow().data.eq(&input_file_buffer));
+
+        // In order, the cache is full: the object is received at the next carousel cycle
+        for (out_of_order, enable_md5_check) in [(false, false), (true, true)] {
+            let (output, input_file_buffer) = receive(out_of_order, enable_md5_check);
+            let objects = output.objects.borrow();
+            assert!(objects.iter().any(|object| object.borrow().error));
+            let last = objects.last().unwrap().borrow();
+            assert!(last.complete && !last.error);
+            assert!(last.data.eq(&input_file_buffer));
+        }
+    }
+
     struct ReceivedFdt {
         xml_len: usize,
         transfer_length: Option<usize>,

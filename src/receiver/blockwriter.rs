@@ -120,6 +120,35 @@ impl BlockWriter {
         Ok(true)
     }
 
+    /// Write a source block at its position in the object, whatever its sbn.
+    /// Only for objects without content encoding nor MD5 check, a block must be written once.
+    pub fn write_at(
+        &mut self,
+        sbn: u32,
+        offset: u64,
+        block: &BlockDecoder,
+        writer: &dyn ObjectWriter,
+        now: SystemTime,
+    ) -> Result<()> {
+        debug_assert!(block.completed);
+        debug_assert!(self.cenc == lct::Cenc::Null && self.md5_context.is_none());
+        let data = block.source_block()?;
+        let block_length = block.block_size;
+        if data.len() < block_length || block_length > self.bytes_left {
+            return Err(FluteError::new(format!(
+                "Source block {} has {} bytes, expected {} ({} left)",
+                sbn,
+                data.len(),
+                block_length,
+                self.bytes_left
+            )));
+        }
+
+        writer.write_at(offset, &data[..block_length], now)?;
+        self.bytes_left -= block_length;
+        Ok(())
+    }
+
     fn init_decoder(&mut self, data: &[u8]) {
         debug_assert!(self.decoder.is_none());
         self.decoder = match self.cenc {

@@ -147,6 +147,28 @@ loop {
     receiver.cleanup(now);
 }
 ```
+## Receiving from the middle of a carousel (out-of-order writing)
+
+With `object_write_out_of_order`, each block is written at its final position as soon as it is decoded,
+so a file can be received starting from any block of the carousel.
+The MD5 check cannot be done in this mode and must be disabled in the writer.
+
+```rust
+use flute::receiver::{writer, Config, MultiReceiver};
+use std::rc::Rc;
+
+let enable_md5_check = false;
+let writer = Rc::new(writer::ObjectWriterFSBuilder::new(&std::env::temp_dir(), enable_md5_check).unwrap());
+
+let config = Config {
+    object_write_out_of_order: true,
+    ..Default::default()
+};
+let mut receiver = MultiReceiver::new(writer, Some(config), false);
+```
+
+The command-line receiver provides the `--out-of-order` option.
+
 ## Application-Level Forward Erasure Correction (AL-FEC)
 
 The following error recovery algorithms are supported

@@ -3,7 +3,11 @@ use crate::{
     common::udpendpoint::UDPEndpoint,
     error::{FluteError, Result},
 };
-use std::{cell::RefCell, io::Write, time::SystemTime};
+use std::{
+    cell::RefCell,
+    io::{Seek, SeekFrom, Write},
+    time::SystemTime,
+};
 
 ///
 /// Write objects received by the `receiver` to a filesystem
@@ -159,6 +163,24 @@ impl ObjectWriter for ObjectWriterFS {
         Ok(())
     }
 
+    fn write_at(&self, offset: u64, data: &[u8], _now: SystemTime) -> Result<()> {
+        let mut inner = self.inner.borrow_mut();
+        let Some(writer) = inner.writer.as_mut() else {
+            return Ok(());
+        };
+
+        writer
+            .seek(SeekFrom::Start(offset))
+            .and_then(|_| writer.write_all(data))
+            .map_err(|e| {
+                log::error!("Fail to write data to file {:?} {:?}", inner.destination, e);
+                FluteError::new(format!(
+                    "Fail to write data to file {:?} {:?}",
+                    inner.destination, e
+                ))
+            })
+    }
+
     fn complete(&self, _now: SystemTime) {
         let mut inner = self.inner.borrow_mut();
         if inner.writer.is_none() {
@@ -306,5 +328,48 @@ mod tests {
         }
 
         std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn test_write_at() {
+        use crate::common::udpendpoint::UDPEndpoint;
+        use crate::receiver::writer::{
+            ObjectCacheControl, ObjectMetadata, ObjectWriterBuilder, ObjectWriterBuilderResult,
+        };
+        use std::time::SystemTime;
+
+        crate::tests::init();
+        let dest = std::env::temp_dir().join(format!("flute_fs_write_at_{}", std::process::id()));
+        std::fs::create_dir_all(&dest).unwrap();
+
+        let builder = super::ObjectWriterFSBuilder::new(&dest, false).unwrap();
+        let endpoint = UDPEndpoint::new(None, "224.0.0.1".to_owned(), 3400);
+        let meta = ObjectMetadata {
+            content_location: "file:///dir/object.bin".to_owned(),
+            content_length: None,
+            transfer_length: None,
+            content_type: None,
+            cache_control: ObjectCacheControl::NoCache,
+            groups: None,
+            md5: None,
+            optel_propagator: None,
+            oti: None,
+            cenc: None,
+            e_tag: None,
+        };
+        let writer = match builder.new_object_writer(&endpoint, &1, &1, &meta, SystemTime::now()) {
+            ObjectWriterBuilderResult::StoreObject(writer) => writer,
+            _ => panic!("unexpected writer result"),
+        };
+
+        let now = SystemTime::now();
+        writer.open(now).unwrap();
+        writer.write_at(6, b"world", now).unwrap();
+        writer.write_at(0, b"hello ", now).unwrap();
+        writer.complete(now);
+
+        let content = std::fs::read(dest.join("dir/object.bin")).unwrap();
+        std::fs::remove_dir_all(&dest).ok();
+        assert_eq!(content, b"hello world");
     }
 }

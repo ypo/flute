@@ -62,6 +62,7 @@ pub struct ObjectReceiver {
     object_writer_builder: Rc<dyn ObjectWriterBuilder>,
     object_writer: Option<ObjectWriterSession>,
     block_writer: Option<BlockWriter>,
+    pub out_of_order: bool,
     pub fdt_instance_id: Option<u32>,
     last_activity: Instant,
     pub content_location: Option<String>,
@@ -107,6 +108,7 @@ impl ObjectReceiver {
             object_writer_builder,
             object_writer: None,
             block_writer: None,
+            out_of_order: false,
             fdt_instance_id: None,
             tsi,
             toi: *toi,
@@ -471,6 +473,22 @@ impl ObjectReceiver {
             self.enable_md5_check = object_writer.enable_md5_check();
         }
 
+        // Writing blocks as they are decoded excludes content decoding, MD5 and variable block sizes
+        if self.out_of_order
+            && (self.cenc != Some(lct::Cenc::Null)
+                || self.blocks_variable_size
+                || self.enable_md5_check)
+        {
+            log::info!(
+                "TSI={} TOI={} Out of order write is not supported (cenc={:?} md5 check={}), write in order",
+                self.tsi,
+                self.toi,
+                self.cenc,
+                self.enable_md5_check
+            );
+            self.out_of_order = false;
+        }
+
         debug_assert!(self.block_writer.is_none());
         self.object_writer = Some(ObjectWriterSession {
             writer: object_writer,
@@ -511,30 +529,82 @@ impl ObjectReceiver {
         }
 
         debug_assert!(self.block_writer.is_some());
+        let out_of_order = self.out_of_order;
+        let (a_large, a_small, nb_a_large) = (self.a_large, self.a_small, self.nb_a_large);
+        let symbol_length = self
+            .oti
+            .as_ref()
+            .map_or(0, |oti| oti.encoding_symbol_length as u64);
+        // Out of order: 0 flushes all the blocks completed before the writer was created,
+        // another value is the block that has just been completed
+        let sbn_end = match (out_of_order, sbn_start) {
+            (false, _) => usize::MAX,
+            (true, 0) => self.blocks_offset + self.blocks.len(),
+            (true, sbn) => sbn as usize + 1,
+        };
         let mut sbn = sbn_start as usize;
         let writer = self.block_writer.as_mut().unwrap();
-        while sbn >= self.blocks_offset && sbn - self.blocks_offset < self.blocks.len() {
+        while sbn < sbn_end
+            && sbn >= self.blocks_offset
+            && sbn - self.blocks_offset < self.blocks.len()
+        {
             let block_offset = sbn - self.blocks_offset;
             let block = &mut self.blocks[block_offset];
             if !block.completed {
+                if out_of_order {
+                    sbn += 1;
+                    continue;
+                }
                 break;
             }
 
-            let success = writer.write(
-                sbn as u32,
-                block,
-                self.object_writer.as_ref().unwrap().writer.as_ref(),
-                now,
-            )?;
-            if !success {
-                break;
+            if out_of_order {
+                // Already written (deallocated)
+                if block.block_size == 0 {
+                    sbn += 1;
+                    continue;
+                }
+
+                let sbn_u64 = sbn as u64;
+                let offset = (sbn_u64.min(nb_a_large) * a_large
+                    + sbn_u64.saturating_sub(nb_a_large) * a_small)
+                    * symbol_length;
+                writer.write_at(
+                    sbn as u32,
+                    offset,
+                    block,
+                    self.object_writer.as_ref().unwrap().writer.as_ref(),
+                    now,
+                )?;
+            } else {
+                let success = writer.write(
+                    sbn as u32,
+                    block,
+                    self.object_writer.as_ref().unwrap().writer.as_ref(),
+                    now,
+                )?;
+                if !success {
+                    break;
+                }
             }
             sbn += 1;
             debug_assert!(self.total_allocated_blocks_size >= block.block_size);
             self.total_allocated_blocks_size -= block.block_size;
             self.nb_allocated_blocks -= 1;
 
-            if block_offset == 0 {
+            if out_of_order {
+                // A written block is kept (completed) to ignore the next packets of this block,
+                // until all the blocks before it are written
+                block.deallocate();
+                while self
+                    .blocks
+                    .front()
+                    .is_some_and(|b| b.completed && b.block_size == 0)
+                {
+                    self.blocks_offset += 1;
+                    self.blocks.pop_front();
+                }
+            } else if block_offset == 0 {
                 self.blocks_offset += 1;
                 self.blocks.pop_front();
             } else {
