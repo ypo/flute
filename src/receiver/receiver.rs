@@ -39,6 +39,17 @@ pub struct Config {
     pub object_receive_once: bool,
     /// When set to `true`, the receiver will check the expiration date of the FDT.
     pub enable_fdt_expiration_check: bool,
+    /// When set to `true`, the blocks of an object are written at their position as soon as they
+    /// are decoded, without waiting for the previous blocks. An object can then be received
+    /// starting from the middle of a carousel.
+    ///
+    /// The writer must implement [`ObjectWriter::write_at`](crate::receiver::writer::ObjectWriter::write_at).
+    /// Objects with a content encoding, using `FECEncodingID::ReedSolomonGF28UnderSpecified`,
+    /// or verified with an MD5 (`Content-MD5` in the FDT and MD5 check enabled in the writer)
+    /// are written in order.
+    ///
+    /// `object_timeout` must be longer than the carousel period.
+    pub object_write_out_of_order: bool,
 }
 
 impl Default for Config {
@@ -50,6 +61,7 @@ impl Default for Config {
             object_max_cache_size: None,
             object_receive_once: true,
             enable_fdt_expiration_check: true,
+            object_write_out_of_order: false,
         }
     }
 }
@@ -612,6 +624,7 @@ impl Receiver {
                 .unwrap_or(10 * 1024 * 1024),
             now,
         ));
+        obj.out_of_order = self.config.object_write_out_of_order;
 
         let mut is_attached = false;
         for (fdt_index, fdt) in (&mut self.fdt_current.iter_mut()).enumerate() {

@@ -18,7 +18,7 @@ use std::time::SystemTime;
 use crate::common::udpendpoint::UDPEndpoint;
 use crate::core::lct::Cenc;
 use crate::core::Oti;
-use crate::tools::error::Result;
+use crate::tools::error::{FluteError, Result};
 
 ///
 /// Cache-Duration for an object.
@@ -166,6 +166,15 @@ pub trait ObjectWriter {
     /// Returns `Ok(())` if the destination is opened successfully, or an error if it fails.
     /// In case of an error, the object will move to error state
     fn write(&self, sbn: u32, data: &[u8], now: SystemTime) -> Result<()>;
+    /// Writes a block of data at a given position of the object.
+    ///
+    /// Used instead of [`ObjectWriter::write`] when `object_write_out_of_order` is enabled:
+    /// blocks can be written in any order, `offset` is the position of `data` in the final object.
+    /// The default implementation returns an error.
+    fn write_at(&self, offset: u64, data: &[u8], now: SystemTime) -> Result<()> {
+        let _ = (offset, data, now);
+        Err(FluteError::new("Out of order write is not supported"))
+    }
     /// Called when all the data has been written
     fn complete(&self, now: SystemTime);
     /// Called when an error occurred during the reception of this object

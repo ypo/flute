@@ -29,6 +29,11 @@ struct Cli {
     /// Allow receiving the same object multiple times (by default, each object is received only once)
     #[arg(long)]
     no_receive_once: bool,
+
+    /// Write the blocks of a file as they are received, to be able to start receiving a file
+    /// from the middle of a carousel. Disables the MD5 check.
+    #[arg(long)]
+    out_of_order: bool,
 }
 
 fn main() {
@@ -46,8 +51,9 @@ fn main() {
 
     let mut config = flute::receiver::Config::default();
     config.object_receive_once = !cli.no_receive_once;
+    config.object_write_out_of_order = cli.out_of_order;
 
-    let enable_md5_check = true;
+    let enable_md5_check = !cli.out_of_order;
     let writer = Rc::new(writer::ObjectWriterFSBuilder::new(dest_dir, enable_md5_check).unwrap());
     let mut receiver = MultiReceiver::new(writer, Some(config), false);
 
